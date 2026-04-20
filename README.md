@@ -84,9 +84,9 @@ Assumed the role of a Data Engineer responsible for implementing an end-to-end d
 
 - **Row Count Check**: 
   - Bronze rows = 660,507
-  - Silver clean = 660,507 (after CETAS validation)
-  - Quarantine = 0 (AER source data is clean)
-  - Bronze count = Silver count + Quarantine count ✅
+  - Silver clean = 660,504 (after CETAS validation)
+  - Quarantine = 3 
+  - Bronze count = Silver count + Quarantine count 
 
 - **3 Validation Rules** implemented in Synapse CETAS:
   - `NULL_UWI`: UWI_DISPLAY_FORMAT IS NULL or empty
