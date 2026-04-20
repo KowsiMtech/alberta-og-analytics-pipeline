@@ -5,7 +5,7 @@ This project provides hands-on experience implementing an enterprise-grade Alber
 ## Architecture
 
 
-![Architecture Diagram](architecture/aer_architecture.png)
+![Architecture Diagram](architecture/aer_architecture.png?v=2)
 - **Pattern**: Batch Medallion Architecture (Bronze → Silver → Gold) with TRUE SCD Type 2 via Azure SQL DB MERGE.
 
 
