@@ -148,6 +148,10 @@
 				},
 				"userProperties": [],
 				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_Archive_Gold_to_ADLS",
+						"type": "PipelineReference"
+					},
 					"waitOnCompletion": true
 				}
 			}
