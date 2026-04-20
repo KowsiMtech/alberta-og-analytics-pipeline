@@ -6,6 +6,8 @@
 			{
 				"name": "Archive_Dim_Operator",
 				"type": "Copy",
+				"state": "Inactive",
+				"onInactiveMarkAs": "Succeeded",
 				"dependsOn": [],
 				"policy": {
 					"timeout": "0.02:00:00",
@@ -60,6 +62,8 @@
 			{
 				"name": "Archive_Dim_Well",
 				"type": "Copy",
+				"state": "Inactive",
+				"onInactiveMarkAs": "Succeeded",
 				"dependsOn": [],
 				"policy": {
 					"timeout": "0.02:00:00",
@@ -114,6 +118,8 @@
 			{
 				"name": "Archive_Dim_LicenceStatus",
 				"type": "Copy",
+				"state": "Inactive",
+				"onInactiveMarkAs": "Succeeded",
 				"dependsOn": [],
 				"policy": {
 					"timeout": "0.02:00:00",
@@ -168,6 +174,8 @@
 			{
 				"name": "Archive_Dim_WellType",
 				"type": "Copy",
+				"state": "Inactive",
+				"onInactiveMarkAs": "Succeeded",
 				"dependsOn": [],
 				"policy": {
 					"timeout": "0.02:00:00",
@@ -222,6 +230,8 @@
 			{
 				"name": "Archive_Fact_WellSnapshot",
 				"type": "Copy",
+				"state": "Inactive",
+				"onInactiveMarkAs": "Succeeded",
 				"dependsOn": [],
 				"policy": {
 					"timeout": "0.02:00:00",

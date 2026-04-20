@@ -135,14 +135,9 @@
 			{
 				"name": "ADLS Archival Copy",
 				"type": "ExecutePipeline",
-				"dependsOn": [
-					{
-						"activity": "SCD2 for gold",
-						"dependencyConditions": [
-							"Succeeded"
-						]
-					}
-				],
+				"state": "Inactive",
+				"onInactiveMarkAs": "Succeeded",
+				"dependsOn": [],
 				"policy": {
 					"secureInput": false
 				},
