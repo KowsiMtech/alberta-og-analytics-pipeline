@@ -143,12 +143,6 @@ All relevant details uploaded to GitHub, including:
 
 - **Pipeline JSON**: Exported JSON of all 7 ADF pipelines in `/pipelines/` folder
 
-- **Documentation**: 
-  - `Alberta_OilGas_COMPLETE_FINAL.docx` — Complete implementation guide (22 stages)
-  - `AER_PowerBI_Documentation.docx` — DAX measures + dashboard specifications
-  - `AER_Review_Prep.docx` — Review preparation guide with explanations and Q&A
-  - This `README.md`
-
 - **Architecture Diagram**: `Architecture_diagram.jpg` (Draw.io export)
 
 - **Power BI**: `AER_OilGas_Dashboard.pbix` published to Power BI Service
