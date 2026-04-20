@@ -1,0 +1,101 @@
+{
+	"name": "DS_Staging_Silver_SQL",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_AzureSQL",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [
+			{
+				"name": "WellID",
+				"type": "nvarchar"
+			},
+			{
+				"name": "WellKeyID",
+				"type": "nvarchar"
+			},
+			{
+				"name": "WellName",
+				"type": "nvarchar"
+			},
+			{
+				"name": "FieldCode",
+				"type": "nvarchar"
+			},
+			{
+				"name": "PoolCode",
+				"type": "nvarchar"
+			},
+			{
+				"name": "LicenceNumber",
+				"type": "nvarchar"
+			},
+			{
+				"name": "LicenceStatus",
+				"type": "nvarchar"
+			},
+			{
+				"name": "LicenceIssueDate",
+				"type": "date"
+			},
+			{
+				"name": "LicenseeCode",
+				"type": "nvarchar"
+			},
+			{
+				"name": "OperatorCode",
+				"type": "nvarchar"
+			},
+			{
+				"name": "FinDrlDate",
+				"type": "date"
+			},
+			{
+				"name": "WellTotalDepth",
+				"type": "decimal",
+				"precision": 10,
+				"scale": 2
+			},
+			{
+				"name": "WellStatCode",
+				"type": "nvarchar"
+			},
+			{
+				"name": "WellStatDate",
+				"type": "date"
+			},
+			{
+				"name": "FluidDesc",
+				"type": "nvarchar"
+			},
+			{
+				"name": "ModeDesc",
+				"type": "nvarchar"
+			},
+			{
+				"name": "TypeDesc",
+				"type": "nvarchar"
+			},
+			{
+				"name": "StructureDesc",
+				"type": "nvarchar"
+			},
+			{
+				"name": "BatchID",
+				"type": "nvarchar"
+			},
+			{
+				"name": "IngestionDate",
+				"type": "datetime2",
+				"scale": 7
+			}
+		],
+		"typeProperties": {
+			"schema": "staging",
+			"table": "Silver_Wells"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

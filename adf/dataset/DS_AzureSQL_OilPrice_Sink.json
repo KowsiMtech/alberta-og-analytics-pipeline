@@ -1,0 +1,40 @@
+{
+	"name": "DS_AzureSQL_OilPrice_Sink",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_AzureSQL",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [
+			{
+				"name": "PriceDate",
+				"type": "date"
+			},
+			{
+				"name": "OilPrice_USD",
+				"type": "decimal",
+				"precision": 10,
+				"scale": 2
+			},
+			{
+				"name": "SeriesDescription",
+				"type": "nvarchar"
+			},
+			{
+				"name": "ProductName",
+				"type": "nvarchar"
+			},
+			{
+				"name": "Units",
+				"type": "nvarchar"
+			}
+		],
+		"typeProperties": {
+			"schema": "staging",
+			"table": "OilPrice"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

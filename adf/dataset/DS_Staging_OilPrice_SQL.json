@@ -1,0 +1,17 @@
+{
+	"name": "DS_Staging_OilPrice_SQL",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_AzureSQL",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [],
+		"typeProperties": {
+			"schema": "staging",
+			"table": "OilPrice"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

@@ -1,0 +1,9 @@
+{
+	"name": "aer-shir",
+	"properties": {
+		"type": "SelfHosted",
+		"typeProperties": {
+			"selfContainedInteractiveAuthoringEnabled": true
+		}
+	}
+}

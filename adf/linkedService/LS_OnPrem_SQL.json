@@ -1,0 +1,28 @@
+{
+	"name": "LS_OnPrem_SQL",
+	"type": "Microsoft.DataFactory/factories/linkedservices",
+	"properties": {
+		"annotations": [],
+		"type": "SqlServer",
+		"typeProperties": {
+			"server": "KowsiDhina\\MSSQLSERVER01",
+			"database": "AER_OilGas_OnPrem",
+			"encrypt": "optional",
+			"trustServerCertificate": false,
+			"authenticationType": "SQL",
+			"userName": "adf_user",
+			"password": {
+				"type": "AzureKeyVaultSecret",
+				"store": {
+					"referenceName": "LS_KeyVault",
+					"type": "LinkedServiceReference"
+				},
+				"secretName": "sql-server-password"
+			}
+		},
+		"connectVia": {
+			"referenceName": "aer-shir",
+			"type": "IntegrationRuntimeReference"
+		}
+	}
+}

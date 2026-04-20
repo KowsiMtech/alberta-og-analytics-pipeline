@@ -1,0 +1,44 @@
+{
+	"name": "PL_SCD_demo",
+	"properties": {
+		"activities": [
+			{
+				"name": "SCD Demo",
+				"type": "Script",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": "SELECT OperatorCode, LicenseeCode, [Is_Current], Effective_From, Effective_To\nFROM gold.Dim_Operator\nWHERE OperatorCode = '0Z5F0' AND LicenseeCode = '0HE90';"
+						},
+						{
+							"type": "Query",
+							"text": "UPDATE staging.Silver_Wells\nSET LicenseeCode = 'NEWCO'\nWHERE OperatorCode = '0Z5F0' AND LicenseeCode = '0HE90';"
+						},
+						{
+							"type": "Query",
+							"text": "DECLARE @BatchDate DATE = CAST(GETDATE() AS DATE);\n\nUPDATE t\nSET t.[Is_Current] = 0, t.Effective_To = @BatchDate, t.Updated_At = GETDATE()\nFROM gold.Dim_Operator t\nINNER JOIN (\n    SELECT DISTINCT OperatorCode, LicenseeCode\n    FROM staging.Silver_Wells\n    WHERE OperatorCode IS NOT NULL AND OperatorCode <> ''\n) s ON t.OperatorCode = s.OperatorCode AND t.[Is_Current] = 1\nWHERE ISNULL(t.LicenseeCode,'') <> ISNULL(s.LicenseeCode,'');\n\nINSERT INTO gold.Dim_Operator\n    (OperatorCode, LicenseeCode, Effective_From, Effective_To, [Is_Current])\nSELECT DISTINCT s.OperatorCode, s.LicenseeCode, @BatchDate, '9999-12-31', 1\nFROM staging.Silver_Wells s\nWHERE s.OperatorCode IS NOT NULL AND s.OperatorCode <> ''\n  AND NOT EXISTS (\n      SELECT 1 FROM gold.Dim_Operator d\n      WHERE d.OperatorCode = s.OperatorCode\n        AND d.LicenseeCode = s.LicenseeCode\n        AND d.[Is_Current] = 1);"
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			}
+		],
+		"annotations": [],
+		"lastPublishTime": "2026-04-20T01:46:34Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

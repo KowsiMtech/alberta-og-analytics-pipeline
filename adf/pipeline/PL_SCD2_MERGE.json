@@ -1,0 +1,36 @@
+{
+	"name": "PL_SCD2_MERGE",
+	"properties": {
+		"activities": [
+			{
+				"name": "SCD2 Merge",
+				"type": "Script",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "NonQuery",
+							"text": "DECLARE @BatchDate DATE = CAST(GETDATE() AS DATE);\n\nUPDATE t\nSET t.[Is_Current] = 0, t.Effective_To = @BatchDate, t.Updated_At = GETDATE()\nFROM gold.Dim_Operator t\nINNER JOIN (\n    SELECT DISTINCT OperatorCode, LicenseeCode\n    FROM staging.Silver_Wells\n    WHERE OperatorCode IS NOT NULL AND OperatorCode <> ''\n) s ON t.OperatorCode = s.OperatorCode AND t.[Is_Current] = 1\nWHERE ISNULL(t.LicenseeCode,'') <> ISNULL(s.LicenseeCode,'');\n\nINSERT INTO gold.Dim_Operator (OperatorCode, LicenseeCode, Effective_From, Effective_To, [Is_Current])\nSELECT DISTINCT s.OperatorCode, s.LicenseeCode, @BatchDate, '9999-12-31', 1\nFROM staging.Silver_Wells s\nWHERE s.OperatorCode IS NOT NULL AND s.OperatorCode <> ''\n  AND NOT EXISTS (\n      SELECT 1 FROM gold.Dim_Operator d\n      WHERE d.OperatorCode = s.OperatorCode\n        AND d.LicenseeCode = s.LicenseeCode\n        AND d.[Is_Current] = 1);\n\nUPDATE t\nSET t.[Is_Current] = 0, t.Effective_To = @BatchDate, t.Updated_At = GETDATE()\nFROM gold.Dim_Well t\nINNER JOIN staging.Silver_Wells s ON t.WellID = s.WellID AND t.[Is_Current] = 1\nWHERE ISNULL(t.OperatorCode,'') <> ISNULL(s.OperatorCode,'')\n   OR ISNULL(t.WellStatCode,'') <> ISNULL(s.WellStatCode,'')\n   OR ISNULL(t.ModeDesc,'') <> ISNULL(s.ModeDesc,'');\n\nINSERT INTO gold.Dim_Well\n    (WellID, WellName, FieldCode, LicenseeCode, OperatorCode, WellTotalDepth, WellStatCode, FluidDesc, ModeDesc, Effective_From, Effective_To, [Is_Current])\nSELECT s.WellID, s.WellName, s.FieldCode, s.LicenseeCode, s.OperatorCode,\n       s.WellTotalDepth, s.WellStatCode, s.FluidDesc, s.ModeDesc,\n       @BatchDate, '9999-12-31', 1\nFROM staging.Silver_Wells s\nWHERE NOT EXISTS (\n    SELECT 1 FROM gold.Dim_Well d\n    WHERE d.WellID = s.WellID AND d.[Is_Current] = 1);\n\nMERGE gold.Dim_LicenceStatus AS t\nUSING (SELECT DISTINCT LicenceStatus FROM staging.Silver_Wells WHERE LicenceStatus IS NOT NULL) AS s\nON t.LicenceStatus = s.LicenceStatus\nWHEN NOT MATCHED THEN INSERT (LicenceStatus) VALUES (s.LicenceStatus);\n\nMERGE gold.Dim_WellType AS t\nUSING (SELECT DISTINCT FluidDesc, ModeDesc, TypeDesc, StructureDesc FROM staging.Silver_Wells) AS s\nON ISNULL(t.FluidDesc,'')=ISNULL(s.FluidDesc,'') AND ISNULL(t.ModeDesc,'')=ISNULL(s.ModeDesc,'')\n   AND ISNULL(t.TypeDesc,'')=ISNULL(s.TypeDesc,'') AND ISNULL(t.StructureDesc,'')=ISNULL(s.StructureDesc,'')\nWHEN NOT MATCHED THEN INSERT (FluidDesc, ModeDesc, TypeDesc, StructureDesc)\n    VALUES (s.FluidDesc, s.ModeDesc, s.TypeDesc, s.StructureDesc);\n\nMERGE gold.Fact_OilPrice AS t\nUSING (\n    SELECT TRY_CAST(period AS DATE) AS PriceDate,\n           TRY_CAST(value AS DECIMAL(10,2)) AS OilPrice_USD,\n           [series-description] AS SeriesDescription\n    FROM staging.OilPrice WHERE period IS NOT NULL AND value IS NOT NULL\n) AS s\nON t.PriceDate = s.PriceDate\nWHEN MATCHED THEN UPDATE SET t.OilPrice_USD = s.OilPrice_USD, t.Updated_At = GETDATE()\nWHEN NOT MATCHED THEN INSERT (PriceDate, OilPrice_USD, SeriesDescription)\n    VALUES (s.PriceDate, s.OilPrice_USD, s.SeriesDescription);\n\nTRUNCATE TABLE gold.Fact_WellSnapshot;\nINSERT INTO gold.Fact_WellSnapshot\n    (SnapshotDate, WellID, OperatorCode, LicenceStatus, FluidDesc, ModeDesc, FieldCode, WellTotalDepth)\nSELECT @BatchDate, WellID, OperatorCode, LicenceStatus, FluidDesc, ModeDesc, FieldCode, WellTotalDepth\nFROM staging.Silver_Wells WHERE WellID IS NOT NULL;"
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			}
+		],
+		"annotations": [],
+		"lastPublishTime": "2026-04-20T01:34:48Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

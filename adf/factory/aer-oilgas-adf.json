@@ -1,0 +1,9 @@
+{
+	"name": "aer-oilgas-adf",
+	"location": "canadacentral",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "94abe256-2343-4203-8e37-f37c5cbd36a4",
+		"tenantId": "6a7150ef-f4f1-4b86-9c74-8aebcd836327"
+	}
+}

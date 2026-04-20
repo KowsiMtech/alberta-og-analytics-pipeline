@@ -1,0 +1,40 @@
+{
+	"name": "DS_Gold_OilPrice_Parquet",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_ADLS_Gen2",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "Parquet",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"folderPath": "gold/fact_oilprice",
+				"fileSystem": "aer-og-data"
+			},
+			"compressionCodec": "snappy"
+		},
+		"schema": [
+			{
+				"name": "PriceDate",
+				"type": "DATE"
+			},
+			{
+				"name": "OilPrice_USD",
+				"type": "DECIMAL",
+				"precision": 10,
+				"scale": 2
+			},
+			{
+				"name": "SeriesDescription",
+				"type": "UTF8"
+			},
+			{
+				"name": "Loaded_At",
+				"type": "TIMESTAMP_MICROS"
+			}
+		]
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

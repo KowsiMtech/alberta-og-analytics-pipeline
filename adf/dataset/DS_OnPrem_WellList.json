@@ -1,0 +1,114 @@
+{
+	"name": "DS_OnPrem_WellList",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_OnPrem_SQL",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "SqlServerTable",
+		"schema": [
+			{
+				"name": "UWI_DISPLAY_FORMAT",
+				"type": "nvarchar"
+			},
+			{
+				"name": "KEY_LIST_OF_WELLS",
+				"type": "nvarchar"
+			},
+			{
+				"name": "UPDATE_FLAG",
+				"type": "nvarchar"
+			},
+			{
+				"name": "WELL_NAME",
+				"type": "nvarchar"
+			},
+			{
+				"name": "FIELD_CODE",
+				"type": "nvarchar"
+			},
+			{
+				"name": "POOL_CODE",
+				"type": "nvarchar"
+			},
+			{
+				"name": "OS_AREA_CODE",
+				"type": "nvarchar"
+			},
+			{
+				"name": "OS_DEP_CODE",
+				"type": "nvarchar"
+			},
+			{
+				"name": "LICENSE_NO",
+				"type": "nvarchar"
+			},
+			{
+				"name": "LICENCE_STATUS",
+				"type": "nvarchar"
+			},
+			{
+				"name": "LICENSE_ISSUE_DATE",
+				"type": "nvarchar"
+			},
+			{
+				"name": "LICENSEE_CODE",
+				"type": "nvarchar"
+			},
+			{
+				"name": "AGENT_CODE",
+				"type": "nvarchar"
+			},
+			{
+				"name": "OPERATOR_CODE",
+				"type": "nvarchar"
+			},
+			{
+				"name": "FIN_DRL_DATE",
+				"type": "nvarchar"
+			},
+			{
+				"name": "WELL_TOTAL_DEPTH",
+				"type": "nvarchar"
+			},
+			{
+				"name": "WELL_STAT_CODE",
+				"type": "nvarchar"
+			},
+			{
+				"name": "WELL_STAT_DATE",
+				"type": "nvarchar"
+			},
+			{
+				"name": "FLUID_SHORT_DESC",
+				"type": "nvarchar"
+			},
+			{
+				"name": "MODE_SHORT_DESC",
+				"type": "nvarchar"
+			},
+			{
+				"name": "TYPE_SHORT_DESC",
+				"type": "nvarchar"
+			},
+			{
+				"name": "STRUCTURE_SHORT_DESC",
+				"type": "nvarchar"
+			},
+			{
+				"name": "SCHEME_TYPE",
+				"type": "nvarchar"
+			},
+			{
+				"name": "SCHEME_SUB_TYPE",
+				"type": "nvarchar"
+			}
+		],
+		"typeProperties": {
+			"schema": "dbo",
+			"table": "WellList"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

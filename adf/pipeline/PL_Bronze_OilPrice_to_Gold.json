@@ -1,0 +1,36 @@
+{
+	"name": "PL_Bronze_OilPrice_to_Gold",
+	"properties": {
+		"activities": [
+			{
+				"name": "Bronze oil price to gold",
+				"type": "Script",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "LS_Synapse_Serverless",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "NonQuery",
+							"text": "USE aer_synapse_db;\n\nDECLARE @RunDate NVARCHAR(10) = CONVERT(NVARCHAR(10), GETDATE(), 120);\nDECLARE @RunDateClean NVARCHAR(8) = REPLACE(@RunDate, '-', '');\n\n-- Drop if re-running\nDECLARE @DropSQL NVARCHAR(MAX) = N'\n    IF OBJECT_ID(''dbo.fact_oilprice_' + @RunDateClean + N''') IS NOT NULL\n        DROP EXTERNAL TABLE dbo.fact_oilprice_' + @RunDateClean + N';';\nEXEC sp_executesql @DropSQL;\n\n-- CETAS: Bronze EIA Parquet → Gold OilPrice Parquet\nDECLARE @SQL NVARCHAR(MAX) = N'\nCREATE EXTERNAL TABLE dbo.fact_oilprice_' + @RunDateClean + N'\nWITH (\n    LOCATION = ''/gold/fact_oilprice/' + @RunDate + N'/'',\n    DATA_SOURCE = aer_adls,\n    FILE_FORMAT = parquet_format\n) AS\nSELECT \n    TRY_CAST([period] AS DATE) AS PriceDate,\n    TRY_CAST([value] AS DECIMAL(10,2)) AS OilPrice_USD,\n    [series-description] AS SeriesDescription,\n    GETDATE() AS Loaded_At\nFROM OPENROWSET(\n    BULK ''/bronze/oilprice/' + @RunDate + N'/*.parquet'',\n    DATA_SOURCE = ''aer_adls'',\n    FORMAT = ''PARQUET''\n) AS b\nWHERE [period] IS NOT NULL \n  AND [value] IS NOT NULL\n  AND TRY_CAST([value] AS DECIMAL(10,2)) IS NOT NULL;';\nEXEC sp_executesql @SQL;"
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			}
+		],
+		"annotations": [],
+		"lastPublishTime": "2026-04-20T01:01:50Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

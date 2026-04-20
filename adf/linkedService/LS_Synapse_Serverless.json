@@ -1,0 +1,15 @@
+{
+	"name": "LS_Synapse_Serverless",
+	"type": "Microsoft.DataFactory/factories/linkedservices",
+	"properties": {
+		"annotations": [],
+		"type": "AzureSqlDW",
+		"typeProperties": {
+			"server": "aer-synapse-ws-ondemand.sql.azuresynapse.net",
+			"database": "aer_synapse_db",
+			"encrypt": "mandatory",
+			"trustServerCertificate": false,
+			"authenticationType": "SystemAssignedManagedIdentity"
+		}
+	}
+}

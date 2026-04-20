@@ -1,0 +1,93 @@
+{
+	"name": "PL_ST37_to_Bronze",
+	"properties": {
+		"activities": [
+			{
+				"name": "Copy OnPremData",
+				"type": "Copy",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlServerSource",
+						"sqlReaderQuery": {
+							"value": "@concat('SELECT * FROM ',pipeline().parameters.SourceSchema,\n  '.',pipeline().parameters.SourceTable)\n",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"sink": {
+						"type": "ParquetSink",
+						"storeSettings": {
+							"type": "AzureBlobFSWriteSettings"
+						},
+						"formatSettings": {
+							"type": "ParquetWriteSettings"
+						}
+					},
+					"enableStaging": false,
+					"translator": {
+						"type": "TabularTranslator",
+						"typeConversion": true,
+						"typeConversionSettings": {
+							"allowDataTruncation": true,
+							"treatBooleanAsNumber": false
+						}
+					}
+				},
+				"inputs": [
+					{
+						"referenceName": "DS_OnPrem_WellList",
+						"type": "DatasetReference"
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "DS_Bronze_Well",
+						"type": "DatasetReference",
+						"parameters": {
+							"FolderPath": {
+								"value": "@concat('bronze/well/', formatDateTime(utcNow(),'yyyy-MM-dd'))",
+								"type": "Expression"
+							},
+							"FileName": "@concat(pipeline().parameters.SourceTable, '_', formatDateTime(utcNow(),'yyyy-MM-dd'), '.parquet')"
+						}
+					}
+				]
+			}
+		],
+		"parameters": {
+			"SourceSchema": {
+				"type": "string",
+				"defaultValue": "dbo"
+			},
+			"SourceTable": {
+				"type": "string",
+				"defaultValue": "WellList"
+			},
+			"BatchID": {
+				"type": "string",
+				"defaultValue": "@concat('BATCH_',pipeline().RunId)"
+			},
+			"EIA_PageSize": {
+				"type": "int",
+				"defaultValue": 5000
+			},
+			"RunDate": {
+				"type": "string",
+				"defaultValue": "formatDateTime(utcnow(),'yyyy-MM-dd')"
+			}
+		},
+		"annotations": [],
+		"lastPublishTime": "2026-04-19T19:46:47Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

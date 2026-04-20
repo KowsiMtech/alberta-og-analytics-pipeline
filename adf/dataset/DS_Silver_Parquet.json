@@ -1,0 +1,108 @@
+{
+	"name": "DS_Silver_Parquet",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_ADLS_Gen2",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "Parquet",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"folderPath": "silver/clean",
+				"fileSystem": "aer-og-data"
+			},
+			"compressionCodec": "snappy"
+		},
+		"schema": [
+			{
+				"name": "WellID",
+				"type": "UTF8"
+			},
+			{
+				"name": "WellKeyID",
+				"type": "UTF8"
+			},
+			{
+				"name": "WellName",
+				"type": "UTF8"
+			},
+			{
+				"name": "FieldCode",
+				"type": "UTF8"
+			},
+			{
+				"name": "PoolCode",
+				"type": "UTF8"
+			},
+			{
+				"name": "LicenceNumber",
+				"type": "UTF8"
+			},
+			{
+				"name": "LicenceStatus",
+				"type": "UTF8"
+			},
+			{
+				"name": "LicenceIssueDate",
+				"type": "DATE"
+			},
+			{
+				"name": "LicenseeCode",
+				"type": "UTF8"
+			},
+			{
+				"name": "OperatorCode",
+				"type": "UTF8"
+			},
+			{
+				"name": "FinDrlDate",
+				"type": "DATE"
+			},
+			{
+				"name": "WellTotalDepth",
+				"type": "DECIMAL",
+				"precision": 10,
+				"scale": 2
+			},
+			{
+				"name": "WellStatCode",
+				"type": "UTF8"
+			},
+			{
+				"name": "WellStatDate",
+				"type": "DATE"
+			},
+			{
+				"name": "FluidDesc",
+				"type": "UTF8"
+			},
+			{
+				"name": "ModeDesc",
+				"type": "UTF8"
+			},
+			{
+				"name": "TypeDesc",
+				"type": "UTF8"
+			},
+			{
+				"name": "StructureDesc",
+				"type": "UTF8"
+			},
+			{
+				"name": "BatchID",
+				"type": "UTF8"
+			},
+			{
+				"name": "IngestionDate",
+				"type": "TIMESTAMP_MICROS"
+			},
+			{
+				"name": "SourceFile",
+				"type": "UTF8"
+			}
+		]
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

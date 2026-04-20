@@ -1,0 +1,28 @@
+{
+	"name": "PL_Load_ADLS_Gold_to_SQL_Gold",
+	"properties": {
+		"activities": [
+			{
+				"name": "Copy data1",
+				"type": "Copy",
+				"state": "Inactive",
+				"onInactiveMarkAs": "Succeeded",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"enableStaging": false
+				}
+			}
+		],
+		"annotations": [],
+		"lastPublishTime": "2026-04-20T01:01:50Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}
