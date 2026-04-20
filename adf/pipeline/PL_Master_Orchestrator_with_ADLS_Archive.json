@@ -1,5 +1,5 @@
 {
-	"name": "PL_Master_Orchestrator_with_ADLS",
+	"name": "PL_Master_Orchestrator_with_ADLS_Archive",
 	"properties": {
 		"activities": [
 			{
@@ -133,22 +133,178 @@
 				}
 			},
 			{
-				"name": "ADLS Archival Copy",
-				"type": "ExecutePipeline",
-				"state": "Inactive",
-				"onInactiveMarkAs": "Succeeded",
-				"dependsOn": [],
+				"name": "Archive_DimOperator",
+				"type": "Copy",
+				"dependsOn": [
+					{
+						"activity": "SCD2 for gold",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
 					"secureInput": false
 				},
 				"userProperties": [],
 				"typeProperties": {
-					"pipeline": {
-						"referenceName": "PL_Archive_Gold_to_ADLS",
-						"type": "PipelineReference"
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": "SELECT * FROM gold.Dim_Operator WHERE Is_Current=1",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
 					},
-					"waitOnCompletion": true
-				}
+					"sink": {
+						"type": "ParquetSink",
+						"storeSettings": {
+							"type": "AzureBlobFSWriteSettings"
+						},
+						"formatSettings": {
+							"type": "ParquetWriteSettings"
+						}
+					},
+					"enableStaging": false,
+					"translator": {
+						"type": "TabularTranslator",
+						"typeConversion": true,
+						"typeConversionSettings": {
+							"allowDataTruncation": true,
+							"treatBooleanAsNumber": false
+						}
+					}
+				},
+				"inputs": [
+					{
+						"referenceName": "DS_AzureSQL_Gold",
+						"type": "DatasetReference"
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "DS_ADLS_Archive_Parquet",
+						"type": "DatasetReference"
+					}
+				]
+			},
+			{
+				"name": "Archive_DimWell",
+				"type": "Copy",
+				"dependsOn": [
+					{
+						"activity": "SCD2 for gold",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": "Archive_DimWell\tgold.Dim_Well\t/gold/dim_well/{RunDate}/\tSELECT * FROM gold.Dim_Well WHERE Is_Current=1",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"sink": {
+						"type": "ParquetSink",
+						"storeSettings": {
+							"type": "AzureBlobFSWriteSettings"
+						},
+						"formatSettings": {
+							"type": "ParquetWriteSettings"
+						}
+					},
+					"enableStaging": false,
+					"translator": {
+						"type": "TabularTranslator",
+						"typeConversion": true,
+						"typeConversionSettings": {
+							"allowDataTruncation": true,
+							"treatBooleanAsNumber": false
+						}
+					}
+				},
+				"inputs": [
+					{
+						"referenceName": "DS_AzureSQL_Gold",
+						"type": "DatasetReference"
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "DS_ADLS_Archive_Parquet",
+						"type": "DatasetReference"
+					}
+				]
+			},
+			{
+				"name": "Archive_FactWellSnapshot",
+				"type": "Copy",
+				"dependsOn": [
+					{
+						"activity": "SCD2 for gold",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": "Archive_FactWellSnapshot\tgold.Fact_WellSnapshot\t/gold/fact_wellsnapshot/{RunDate}/\tSELECT * FROM gold.Fact_WellSnapshot WHERE SnapshotDate=CAST(GETDATE() AS DATE)",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"sink": {
+						"type": "ParquetSink",
+						"storeSettings": {
+							"type": "AzureBlobFSWriteSettings"
+						},
+						"formatSettings": {
+							"type": "ParquetWriteSettings"
+						}
+					},
+					"enableStaging": false,
+					"translator": {
+						"type": "TabularTranslator",
+						"typeConversion": true,
+						"typeConversionSettings": {
+							"allowDataTruncation": true,
+							"treatBooleanAsNumber": false
+						}
+					}
+				},
+				"inputs": [
+					{
+						"referenceName": "DS_AzureSQL_Gold",
+						"type": "DatasetReference"
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "DS_ADLS_Archive_Parquet",
+						"type": "DatasetReference"
+					}
+				]
 			}
 		],
 		"annotations": [],
