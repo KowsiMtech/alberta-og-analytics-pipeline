@@ -1,0 +1,139 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "factoryName": {
+            "type": "string",
+            "metadata": "Data Factory name",
+            "defaultValue": "aer-oilgas-adf"
+        },
+        "LS_KeyVault_properties_typeProperties_baseUrl": {
+            "type": "string",
+            "defaultValue": "https://aer-oilgas-kv.vault.azure.net/"
+        },
+        "LS_OnPrem_SQL_properties_typeProperties_server": {
+            "type": "string",
+            "defaultValue": "KowsiDhina\\MSSQLSERVER01"
+        },
+        "LS_OnPrem_SQL_properties_typeProperties_database": {
+            "type": "string",
+            "defaultValue": "AER_OilGas_OnPrem"
+        },
+        "LS_OnPrem_SQL_properties_typeProperties_userName": {
+            "type": "string",
+            "defaultValue": "adf_user"
+        },
+        "LS_EIA_REST_properties_typeProperties_url": {
+            "type": "string",
+            "defaultValue": "https://api.eia.gov/"
+        },
+        "LS_AzureSQL_properties_typeProperties_server": {
+            "type": "string",
+            "defaultValue": "aer-server.database.windows.net"
+        },
+        "LS_AzureSQL_properties_typeProperties_database": {
+            "type": "string",
+            "defaultValue": "aer-oilgas-gold-db"
+        },
+        "LS_AzureSQL_properties_typeProperties_userName": {
+            "type": "string",
+            "defaultValue": "sqladminuser"
+        },
+        "LS_ADLS_Gen2_properties_typeProperties_url": {
+            "type": "string",
+            "defaultValue": "https://aeroilgasstorage.dfs.core.windows.net"
+        },
+        "LS_Synapse_Serverless_properties_typeProperties_server": {
+            "type": "string",
+            "defaultValue": "aer-synapse-ws-ondemand.sql.azuresynapse.net"
+        },
+        "LS_Synapse_Serverless_properties_typeProperties_database": {
+            "type": "string",
+            "defaultValue": "aer_synapse_db"
+        },
+        "containerUri": {
+            "type": "string",
+            "metadata": "URI to storage account containing linked ARM templates"
+        },
+        "containerSasToken": {
+            "type": "string",
+            "metadata": "Sas token to storage account containing linked ARM templates"
+        }
+    },
+    "variables": {
+        "factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+    },
+    "resources": [
+        {
+            "name": "aer-oilgas-adf_ArmTemplate_0",
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2024-03-01",
+            "properties": {
+                "mode": "incremental",
+                "templateLink": {
+                    "uri": "[concat(parameters('containerUri'), '/ArmTemplate_0.json', parameters('containerSasToken'))]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "factoryName": {
+                        "value": "[parameters('factoryName')]"
+                    },
+                    "LS_KeyVault_properties_typeProperties_baseUrl": {
+                        "value": "[parameters('LS_KeyVault_properties_typeProperties_baseUrl')]"
+                    },
+                    "LS_EIA_REST_properties_typeProperties_url": {
+                        "value": "[parameters('LS_EIA_REST_properties_typeProperties_url')]"
+                    },
+                    "LS_Synapse_Serverless_properties_typeProperties_server": {
+                        "value": "[parameters('LS_Synapse_Serverless_properties_typeProperties_server')]"
+                    },
+                    "LS_Synapse_Serverless_properties_typeProperties_database": {
+                        "value": "[parameters('LS_Synapse_Serverless_properties_typeProperties_database')]"
+                    },
+                    "LS_OnPrem_SQL_properties_typeProperties_server": {
+                        "value": "[parameters('LS_OnPrem_SQL_properties_typeProperties_server')]"
+                    },
+                    "LS_OnPrem_SQL_properties_typeProperties_database": {
+                        "value": "[parameters('LS_OnPrem_SQL_properties_typeProperties_database')]"
+                    },
+                    "LS_OnPrem_SQL_properties_typeProperties_userName": {
+                        "value": "[parameters('LS_OnPrem_SQL_properties_typeProperties_userName')]"
+                    },
+                    "LS_AzureSQL_properties_typeProperties_server": {
+                        "value": "[parameters('LS_AzureSQL_properties_typeProperties_server')]"
+                    },
+                    "LS_AzureSQL_properties_typeProperties_database": {
+                        "value": "[parameters('LS_AzureSQL_properties_typeProperties_database')]"
+                    },
+                    "LS_AzureSQL_properties_typeProperties_userName": {
+                        "value": "[parameters('LS_AzureSQL_properties_typeProperties_userName')]"
+                    },
+                    "LS_ADLS_Gen2_properties_typeProperties_url": {
+                        "value": "[parameters('LS_ADLS_Gen2_properties_typeProperties_url')]"
+                    }
+                }
+            },
+            "dependsOn": []
+        },
+        {
+            "name": "aer-oilgas-adf_ArmTemplate_1",
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2024-03-01",
+            "properties": {
+                "mode": "incremental",
+                "templateLink": {
+                    "uri": "[concat(parameters('containerUri'), '/ArmTemplate_1.json', parameters('containerSasToken'))]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "factoryName": {
+                        "value": "[parameters('factoryName')]"
+                    }
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Resources/deployments', 'aer-oilgas-adf_ArmTemplate_0')]"
+            ]
+        }
+    ]
+}
