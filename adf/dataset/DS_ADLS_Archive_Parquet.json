@@ -18,14 +18,8 @@
 		"typeProperties": {
 			"location": {
 				"type": "AzureBlobFSLocation",
-				"fileName": {
-					"value": "@dataset().FileName",
-					"type": "Expression"
-				},
-				"folderPath": {
-					"value": "@dataset().FolderPath",
-					"type": "Expression"
-				},
+				"fileName": "@dataset().FileName",
+				"folderPath": "@dataset().FolderPath",
 				"fileSystem": "aer-og-data"
 			},
 			"compressionCodec": "snappy"
