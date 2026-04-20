@@ -1,0 +1,16 @@
+{
+	"name": "DS_AzureSQL_Gold",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_AzureSQL",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [],
+		"typeProperties": {
+			"schema": "gold",
+			"table": "Dim_Operator"
+		}
+	}
+}
