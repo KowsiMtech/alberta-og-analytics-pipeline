@@ -1,0 +1,2417 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"type": "string",
+			"metadata": "Data Factory name",
+			"defaultValue": "aer-oilgas-adf"
+		},
+		"LS_ADLS_Gen2_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://aeroilgasstorage.dfs.core.windows.net"
+		},
+		"LS_AzureSQL_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "aer-server.database.windows.net"
+		},
+		"LS_AzureSQL_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "aer-oilgas-gold-db"
+		},
+		"LS_AzureSQL_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "sqladminuser"
+		},
+		"LS_EIA_REST_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://api.eia.gov/"
+		},
+		"LS_KeyVault_properties_typeProperties_baseUrl": {
+			"type": "string",
+			"defaultValue": "https://aer-oilgas-kv.vault.azure.net/"
+		},
+		"LS_OnPrem_SQL_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "KowsiDhina\\MSSQLSERVER01"
+		},
+		"LS_OnPrem_SQL_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "AER_OilGas_OnPrem"
+		},
+		"LS_OnPrem_SQL_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "adf_user"
+		},
+		"LS_Synapse_Serverless_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "aer-synapse-ws-ondemand.sql.azuresynapse.net"
+		},
+		"LS_Synapse_Serverless_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "aer_synapse_db"
+		}
+	},
+	"variables": {
+		"factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+	},
+	"resources": [
+		{
+			"name": "[concat(parameters('factoryName'), '/PL_Archive_Gold_to_ADLS')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"description": "Archives Azure SQL Gold tables to ADLS Parquet - runs after SCD2 MERGE",
+				"activities": [
+					{
+						"name": "Archive_Dim_Operator",
+						"type": "Copy",
+						"state": "Inactive",
+						"onInactiveMarkAs": "Succeeded",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.02:00:00",
+							"retry": 1,
+							"retryIntervalInSeconds": 30
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "ParquetSource",
+								"storeSettings": {
+									"type": "AzureBlobFSReadSettings",
+									"recursive": true,
+									"enablePartitionDiscovery": false
+								},
+								"formatSettings": {
+									"type": "ParquetReadSettings"
+								}
+							},
+							"sink": {
+								"type": "ParquetSink",
+								"storeSettings": {
+									"type": "AzureBlobFSWriteSettings"
+								},
+								"formatSettings": {
+									"type": "ParquetWriteSettings"
+								}
+							},
+							"enableStaging": false,
+							"translator": {
+								"type": "TabularTranslator",
+								"typeConversion": true,
+								"typeConversionSettings": {
+									"allowDataTruncation": true,
+									"treatBooleanAsNumber": false
+								}
+							}
+						},
+						"inputs": [
+							{
+								"referenceName": "DS_ADLS_Archive_Parquet",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "DS_ADLS_Archive_Parquet",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						]
+					},
+					{
+						"name": "Archive_Dim_Well",
+						"type": "Copy",
+						"state": "Inactive",
+						"onInactiveMarkAs": "Succeeded",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.02:00:00",
+							"retry": 1,
+							"retryIntervalInSeconds": 30
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "ParquetSource",
+								"storeSettings": {
+									"type": "AzureBlobFSReadSettings",
+									"recursive": true,
+									"enablePartitionDiscovery": false
+								},
+								"formatSettings": {
+									"type": "ParquetReadSettings"
+								}
+							},
+							"sink": {
+								"type": "ParquetSink",
+								"storeSettings": {
+									"type": "AzureBlobFSWriteSettings"
+								},
+								"formatSettings": {
+									"type": "ParquetWriteSettings"
+								}
+							},
+							"enableStaging": false,
+							"translator": {
+								"type": "TabularTranslator",
+								"typeConversion": true,
+								"typeConversionSettings": {
+									"allowDataTruncation": true,
+									"treatBooleanAsNumber": false
+								}
+							}
+						},
+						"inputs": [
+							{
+								"referenceName": "DS_ADLS_Archive_Parquet",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "DS_ADLS_Archive_Parquet",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						]
+					},
+					{
+						"name": "Archive_Dim_LicenceStatus",
+						"type": "Copy",
+						"state": "Inactive",
+						"onInactiveMarkAs": "Succeeded",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.02:00:00",
+							"retry": 1,
+							"retryIntervalInSeconds": 30
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "ParquetSource",
+								"storeSettings": {
+									"type": "AzureBlobFSReadSettings",
+									"recursive": true,
+									"enablePartitionDiscovery": false
+								},
+								"formatSettings": {
+									"type": "ParquetReadSettings"
+								}
+							},
+							"sink": {
+								"type": "ParquetSink",
+								"storeSettings": {
+									"type": "AzureBlobFSWriteSettings"
+								},
+								"formatSettings": {
+									"type": "ParquetWriteSettings"
+								}
+							},
+							"enableStaging": false,
+							"translator": {
+								"type": "TabularTranslator",
+								"typeConversion": true,
+								"typeConversionSettings": {
+									"allowDataTruncation": true,
+									"treatBooleanAsNumber": false
+								}
+							}
+						},
+						"inputs": [
+							{
+								"referenceName": "DS_ADLS_Archive_Parquet",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "DS_ADLS_Archive_Parquet",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						]
+					},
+					{
+						"name": "Archive_Dim_WellType",
+						"type": "Copy",
+						"state": "Inactive",
+						"onInactiveMarkAs": "Succeeded",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.02:00:00",
+							"retry": 1,
+							"retryIntervalInSeconds": 30
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "ParquetSource",
+								"storeSettings": {
+									"type": "AzureBlobFSReadSettings",
+									"recursive": true,
+									"enablePartitionDiscovery": false
+								},
+								"formatSettings": {
+									"type": "ParquetReadSettings"
+								}
+							},
+							"sink": {
+								"type": "ParquetSink",
+								"storeSettings": {
+									"type": "AzureBlobFSWriteSettings"
+								},
+								"formatSettings": {
+									"type": "ParquetWriteSettings"
+								}
+							},
+							"enableStaging": false,
+							"translator": {
+								"type": "TabularTranslator",
+								"typeConversion": true,
+								"typeConversionSettings": {
+									"allowDataTruncation": true,
+									"treatBooleanAsNumber": false
+								}
+							}
+						},
+						"inputs": [
+							{
+								"referenceName": "DS_ADLS_Archive_Parquet",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "DS_ADLS_Archive_Parquet",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						]
+					},
+					{
+						"name": "Archive_Fact_WellSnapshot",
+						"type": "Copy",
+						"state": "Inactive",
+						"onInactiveMarkAs": "Succeeded",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.02:00:00",
+							"retry": 1,
+							"retryIntervalInSeconds": 30
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "ParquetSource",
+								"storeSettings": {
+									"type": "AzureBlobFSReadSettings",
+									"recursive": true,
+									"enablePartitionDiscovery": false
+								},
+								"formatSettings": {
+									"type": "ParquetReadSettings"
+								}
+							},
+							"sink": {
+								"type": "ParquetSink",
+								"storeSettings": {
+									"type": "AzureBlobFSWriteSettings"
+								},
+								"formatSettings": {
+									"type": "ParquetWriteSettings"
+								}
+							},
+							"enableStaging": false,
+							"translator": {
+								"type": "TabularTranslator",
+								"typeConversion": true,
+								"typeConversionSettings": {
+									"allowDataTruncation": true,
+									"treatBooleanAsNumber": false
+								}
+							}
+						},
+						"inputs": [
+							{
+								"referenceName": "DS_ADLS_Archive_Parquet",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "DS_ADLS_Archive_Parquet",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						]
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/DS_ADLS_Archive_Parquet')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PL_Bronze_OilPrice_to_Gold')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "Bronze oil price to gold",
+						"type": "Script",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"linkedServiceName": {
+							"referenceName": "LS_Synapse_Serverless",
+							"type": "LinkedServiceReference"
+						},
+						"typeProperties": {
+							"scripts": [
+								{
+									"type": "NonQuery",
+									"text": "USE aer_synapse_db;\n\nDECLARE @RunDate NVARCHAR(10) = CONVERT(NVARCHAR(10), GETDATE(), 120);\nDECLARE @RunDateClean NVARCHAR(8) = REPLACE(@RunDate, '-', '');\n\n-- Drop if re-running\nDECLARE @DropSQL NVARCHAR(MAX) = N'\n    IF OBJECT_ID(''dbo.fact_oilprice_' + @RunDateClean + N''') IS NOT NULL\n        DROP EXTERNAL TABLE dbo.fact_oilprice_' + @RunDateClean + N';';\nEXEC sp_executesql @DropSQL;\n\n-- CETAS: Bronze EIA Parquet → Gold OilPrice Parquet\nDECLARE @SQL NVARCHAR(MAX) = N'\nCREATE EXTERNAL TABLE dbo.fact_oilprice_' + @RunDateClean + N'\nWITH (\n    LOCATION = ''/gold/fact_oilprice/' + @RunDate + N'/'',\n    DATA_SOURCE = aer_adls,\n    FILE_FORMAT = parquet_format\n) AS\nSELECT \n    TRY_CAST([period] AS DATE) AS PriceDate,\n    TRY_CAST([value] AS DECIMAL(10,2)) AS OilPrice_USD,\n    [series-description] AS SeriesDescription,\n    GETDATE() AS Loaded_At\nFROM OPENROWSET(\n    BULK ''/bronze/oilprice/' + @RunDate + N'/*.parquet'',\n    DATA_SOURCE = ''aer_adls'',\n    FORMAT = ''PARQUET''\n) AS b\nWHERE [period] IS NOT NULL \n  AND [value] IS NOT NULL\n  AND TRY_CAST([value] AS DECIMAL(10,2)) IS NOT NULL;';\nEXEC sp_executesql @SQL;"
+								}
+							],
+							"scriptBlockExecutionTimeout": "02:00:00"
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-04-20T01:01:50Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_Synapse_Serverless')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PL_Bronze_to_Silver_quarantine')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "bronze to silver and quarantine",
+						"type": "Script",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"linkedServiceName": {
+							"referenceName": "LS_Synapse_Serverless",
+							"type": "LinkedServiceReference"
+						},
+						"typeProperties": {
+							"scripts": [
+								{
+									"type": "NonQuery",
+									"text": "USE aer_synapse_db;\nDECLARE @RunDate NVARCHAR(10) = CONVERT(NVARCHAR(10), GETDATE(), 120);\nDECLARE @RunDateClean NVARCHAR(8) = REPLACE(@RunDate, '-', '');\n\nDECLARE @DropSQL NVARCHAR(MAX) = N'\n    IF OBJECT_ID(''dbo.quarantine_' + @RunDateClean + N''') IS NOT NULL\n        DROP EXTERNAL TABLE dbo.quarantine_' + @RunDateClean + N';\n    IF OBJECT_ID(''dbo.silver_clean_' + @RunDateClean + N''') IS NOT NULL\n        DROP EXTERNAL TABLE dbo.silver_clean_' + @RunDateClean + N';';\nEXEC sp_executesql @DropSQL;\n\nDECLARE @QuarantineSQL NVARCHAR(MAX) = N'\nCREATE EXTERNAL TABLE dbo.quarantine_' + @RunDateClean + N'\nWITH (LOCATION=''/quarantine/well_rejects/' + @RunDate + N'/'',\n      DATA_SOURCE=aer_adls, FILE_FORMAT=parquet_format) AS\nSELECT UWI_DISPLAY_FORMAT AS WellID, WELL_NAME AS WellName,\n       LICENSE_NO AS LicenceNumber, LICENCE_STATUS AS LicenceStatus,\n       LICENSE_ISSUE_DATE AS LicenceIssueDate,\n       OPERATOR_CODE AS OperatorCode, WELL_TOTAL_DEPTH AS WellTotalDepth,\n       CASE\n           WHEN UWI_DISPLAY_FORMAT IS NULL OR UWI_DISPLAY_FORMAT='''' THEN ''NULL_UWI''\n           WHEN LEN(LICENSE_ISSUE_DATE)<>8 THEN ''INVALID_DATE''\n           WHEN TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2))<0 THEN ''NEGATIVE_DEPTH''\n           ELSE ''OTHER''\n       END AS RejectReason,\n       GETDATE() AS QuarantineDate\nFROM OPENROWSET(BULK ''/bronze/well/' + @RunDate + N'/*.parquet'',\n     DATA_SOURCE=''aer_adls'', FORMAT=''PARQUET'') AS b\nWHERE UWI_DISPLAY_FORMAT IS NULL OR UWI_DISPLAY_FORMAT=''''\n   OR LEN(LICENSE_ISSUE_DATE)<>8\n   OR TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2))<0;';\nEXEC sp_executesql @QuarantineSQL;\n\nDECLARE @SilverSQL NVARCHAR(MAX) = N'\nCREATE EXTERNAL TABLE dbo.silver_clean_' + @RunDateClean + N'\nWITH (LOCATION=''/silver/clean/' + @RunDate + N'/'',\n      DATA_SOURCE=aer_adls, FILE_FORMAT=parquet_format) AS\nSELECT UWI_DISPLAY_FORMAT AS WellID,\n       KEY_LIST_OF_WELLS AS WellKeyID,\n       LTRIM(RTRIM(WELL_NAME)) AS WellName,\n       FIELD_CODE AS FieldCode, POOL_CODE AS PoolCode,\n       LICENSE_NO AS LicenceNumber, LICENCE_STATUS AS LicenceStatus,\n       TRY_CONVERT(DATE, LICENSE_ISSUE_DATE, 112) AS LicenceIssueDate,\n       LICENSEE_CODE AS LicenseeCode, OPERATOR_CODE AS OperatorCode,\n       TRY_CONVERT(DATE, FIN_DRL_DATE, 112) AS FinDrlDate,\n       TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2)) AS WellTotalDepth,\n       WELL_STAT_CODE AS WellStatCode,\n       TRY_CONVERT(DATE, WELL_STAT_DATE, 112) AS WellStatDate,\n       CASE WHEN FLUID_SHORT_DESC=''N/A'' THEN NULL\n            ELSE LTRIM(RTRIM(FLUID_SHORT_DESC)) END AS FluidDesc,\n       CASE WHEN MODE_SHORT_DESC=''N/A'' THEN NULL\n            ELSE LTRIM(RTRIM(MODE_SHORT_DESC)) END AS ModeDesc,\n       CASE WHEN TYPE_SHORT_DESC=''N/A'' THEN NULL\n            ELSE LTRIM(RTRIM(TYPE_SHORT_DESC)) END AS TypeDesc,\n       CASE WHEN STRUCTURE_SHORT_DESC=''N/A'' THEN NULL\n            ELSE LTRIM(RTRIM(STRUCTURE_SHORT_DESC)) END AS StructureDesc,\n       ''BATCH_' + @RunDate + N''' AS BatchID,\n       GETDATE() AS IngestionDate, ''WellList.txt'' AS SourceFile\nFROM OPENROWSET(BULK ''/bronze/well/' + @RunDate + N'/*.parquet'',\n     DATA_SOURCE=''aer_adls'', FORMAT=''PARQUET'') AS b\nWHERE UWI_DISPLAY_FORMAT IS NOT NULL AND UWI_DISPLAY_FORMAT<>''''\n  AND LEN(LICENSE_ISSUE_DATE)=8\n  AND TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2))>=0;';\nEXEC sp_executesql @SilverSQL;"
+								}
+							],
+							"scriptBlockExecutionTimeout": "02:00:00"
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-04-20T00:14:41Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_Synapse_Serverless')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PL_EIA_to_Staging')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"description": "Fetches daily WTI oil prices from EIA REST API and loads into staging.OilPrice. API key fetched from Key Vault at runtime - zero hardcoded secrets.",
+				"activities": [
+					{
+						"name": "GetEIAKey",
+						"description": "Fetch EIA API key from Azure Key Vault using Managed Identity",
+						"type": "WebActivity",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.00:01:00",
+							"retry": 2,
+							"retryIntervalInSeconds": 30
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"method": "GET",
+							"headers": {},
+							"url": {
+								"value": "@concat('https://aer-oilgas-kv.vault.azure.net/secrets/eia-api-key?api-version=7.0')",
+								"type": "Expression"
+							},
+							"authentication": {
+								"type": "MSI",
+								"resource": "https://vault.azure.net"
+							}
+						}
+					},
+					{
+						"name": "Copy EIA to SQL",
+						"type": "Copy",
+						"dependsOn": [
+							{
+								"activity": "GetEIAKey",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.00:10:00",
+							"retry": 2,
+							"retryIntervalInSeconds": 60,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "RestSource",
+								"additionalColumns": [
+									{
+										"name": "IngestionDate",
+										"value": {
+											"value": "@utcnow()",
+											"type": "Expression"
+										}
+									}
+								],
+								"httpRequestTimeout": "00:01:40",
+								"requestInterval": "00.00:00:00.010",
+								"requestMethod": "GET",
+								"paginationRules": {
+									"supportRFC5988": "true"
+								}
+							},
+							"sink": {
+								"type": "AzureSqlSink",
+								"preCopyScript": "TRUNCATE TABLE staging.OilPrice",
+								"writeBehavior": "insert",
+								"sqlWriterUseTableLock": false,
+								"disableMetricsCollection": false
+							},
+							"enableStaging": false,
+							"translator": {
+								"type": "TabularTranslator",
+								"mappings": [
+									{
+										"source": {
+											"path": "[['period']"
+										},
+										"sink": {
+											"name": "period",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"path": "[['value']"
+										},
+										"sink": {
+											"name": "value",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"path": "[['series-description']"
+										},
+										"sink": {
+											"name": "series-description",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"path": "[['product-name']"
+										},
+										"sink": {
+											"name": "product-name",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"path": "[['units']"
+										},
+										"sink": {
+											"name": "units",
+											"type": "String"
+										}
+									}
+								],
+								"collectionReference": "$['response']['data']"
+							}
+						},
+						"inputs": [
+							{
+								"referenceName": "DS_EIA_REST_Source",
+								"type": "DatasetReference",
+								"parameters": {
+									"relativeUrl": "@concat('v2/petroleum/pri/spt/data/?api_key=', activity('GetEIAKey').output.value, '&frequency=daily&data[0]=value&facets[series][]=RWTC&sort[0][column]=period&sort[0][direction]=desc&length=5000')"
+								}
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "DS_AzureSQL_OilPrice_Sink",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						]
+					},
+					{
+						"name": "Copy EIA Data to Adls",
+						"type": "Copy",
+						"dependsOn": [
+							{
+								"activity": "GetEIAKey",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.00:10:00",
+							"retry": 2,
+							"retryIntervalInSeconds": 60,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "RestSource",
+								"additionalColumns": [
+									{
+										"name": "IngestionDate",
+										"value": {
+											"value": "@utcnow()",
+											"type": "Expression"
+										}
+									}
+								],
+								"httpRequestTimeout": "00:01:40",
+								"requestInterval": "00.00:00:00.010",
+								"requestMethod": "GET",
+								"paginationRules": {
+									"supportRFC5988": "true"
+								}
+							},
+							"sink": {
+								"type": "ParquetSink",
+								"storeSettings": {
+									"type": "AzureBlobFSWriteSettings"
+								},
+								"formatSettings": {
+									"type": "ParquetWriteSettings"
+								}
+							},
+							"enableStaging": false,
+							"translator": {
+								"type": "TabularTranslator",
+								"mappings": [
+									{
+										"source": {
+											"path": "[['period']"
+										},
+										"sink": {
+											"name": "period",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"path": "[['value']"
+										},
+										"sink": {
+											"name": "value",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"path": "[['series-description']"
+										},
+										"sink": {
+											"name": "series-description",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"path": "[['product-name']"
+										},
+										"sink": {
+											"name": "product-name",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"path": "[['units']"
+										},
+										"sink": {
+											"name": "units",
+											"type": "String"
+										}
+									}
+								],
+								"collectionReference": "$['response']['data']"
+							}
+						},
+						"inputs": [
+							{
+								"referenceName": "DS_EIA_REST_Source",
+								"type": "DatasetReference",
+								"parameters": {
+									"relativeUrl": "@concat(   'v2/petroleum/pri/spt/data/?api_key=',   activity('GetEIAKey').output.value,   '&frequency=daily&data[0]=value&facets[series][]=RWTC' )"
+								}
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "DS_Bronze_OilPrice",
+								"type": "DatasetReference",
+								"parameters": {
+									"FolderPath": "@concat('bronze/oilprice/', formatDateTime(utcnow(),'yyyy-MM-dd'))",
+									"FileName": "@concat('OilPrice_', formatDateTime(utcnow(),'yyyy-MM-dd'), '.parquet')"
+								}
+							}
+						]
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"parameters": {
+					"EIA_ApiKey": {
+						"type": "string"
+					},
+					"EIA_PageSize": {
+						"type": "int",
+						"defaultValue": 5000
+					}
+				},
+				"variables": {
+					"v_EIA_ApiKey": {
+						"type": "String"
+					}
+				},
+				"annotations": [
+					"EIA",
+					"WTI",
+					"OilPrice",
+					"REST",
+					"KeyVault"
+				],
+				"lastPublishTime": "2026-04-19T21:18:16Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/DS_EIA_REST_Source')]",
+				"[concat(variables('factoryId'), '/datasets/DS_AzureSQL_OilPrice_Sink')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Bronze_OilPrice')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PL_Load_ADLS_Gold_to_SQL_Gold')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "Copy data1",
+						"type": "Copy",
+						"state": "Inactive",
+						"onInactiveMarkAs": "Succeeded",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"enableStaging": false
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-04-20T01:01:50Z"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PL_Master_Orchestrator')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "Execute PLST37_to_Bronze",
+						"type": "ExecutePipeline",
+						"dependsOn": [],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_ST37_to_Bronze",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					},
+					{
+						"name": "Execute PL_EIA_to_Bronze",
+						"type": "ExecutePipeline",
+						"dependsOn": [],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_EIA_to_Staging",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					},
+					{
+						"name": "Execute PL_Bronze_to_Silver",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "Execute PLST37_to_Bronze",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_Bronze_to_Silver_quarantine",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					},
+					{
+						"name": "Bronze oil price to gold",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "Execute PL_EIA_to_Bronze",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_Bronze_OilPrice_to_Gold",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					},
+					{
+						"name": "silver to staging sql",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "Execute PL_Bronze_to_Silver",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "Bronze oil price to gold",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_Silver_to_Staging_SQL",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					},
+					{
+						"name": "Execute SCD2 for gold",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "silver to staging sql",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_SCD2_MERGE",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-04-20T14:12:52Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/pipelines/PL_ST37_to_Bronze')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_EIA_to_Staging')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_Bronze_to_Silver_quarantine')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_Bronze_OilPrice_to_Gold')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_Silver_to_Staging_SQL')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_SCD2_MERGE')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PL_Master_Orchestrator_with_ADLS')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "PLST37_to_Bronze",
+						"type": "ExecutePipeline",
+						"dependsOn": [],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_ST37_to_Bronze",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					},
+					{
+						"name": "PL_EIA_to_Bronze",
+						"type": "ExecutePipeline",
+						"dependsOn": [],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_EIA_to_Staging",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					},
+					{
+						"name": "PL_Bronze_to_Silver",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "PLST37_to_Bronze",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_Bronze_to_Silver_quarantine",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					},
+					{
+						"name": "Bronze oil price to gold",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "PL_EIA_to_Bronze",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_Bronze_OilPrice_to_Gold",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					},
+					{
+						"name": "silver to staging sql",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "PL_Bronze_to_Silver",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "Bronze oil price to gold",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_Silver_to_Staging_SQL",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					},
+					{
+						"name": "SCD2 for gold",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "silver to staging sql",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_SCD2_MERGE",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					},
+					{
+						"name": "ADLS Archival Copy",
+						"type": "ExecutePipeline",
+						"state": "Inactive",
+						"onInactiveMarkAs": "Succeeded",
+						"dependsOn": [],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_Archive_Gold_to_ADLS",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-04-20T02:12:31Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/pipelines/PL_ST37_to_Bronze')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_EIA_to_Staging')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_Bronze_to_Silver_quarantine')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_Bronze_OilPrice_to_Gold')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_Silver_to_Staging_SQL')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_SCD2_MERGE')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_Archive_Gold_to_ADLS')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PL_SCD2_MERGE')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "SCD2 Merge",
+						"type": "Script",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"linkedServiceName": {
+							"referenceName": "LS_AzureSQL",
+							"type": "LinkedServiceReference"
+						},
+						"typeProperties": {
+							"scripts": [
+								{
+									"type": "NonQuery",
+									"text": "DECLARE @BatchDate DATE = CAST(GETDATE() AS DATE);\n\nUPDATE t\nSET t.[Is_Current] = 0, t.Effective_To = @BatchDate, t.Updated_At = GETDATE()\nFROM gold.Dim_Operator t\nINNER JOIN (\n    SELECT DISTINCT OperatorCode, LicenseeCode\n    FROM staging.Silver_Wells\n    WHERE OperatorCode IS NOT NULL AND OperatorCode <> ''\n) s ON t.OperatorCode = s.OperatorCode AND t.[Is_Current] = 1\nWHERE ISNULL(t.LicenseeCode,'') <> ISNULL(s.LicenseeCode,'');\n\nINSERT INTO gold.Dim_Operator (OperatorCode, LicenseeCode, Effective_From, Effective_To, [Is_Current])\nSELECT DISTINCT s.OperatorCode, s.LicenseeCode, @BatchDate, '9999-12-31', 1\nFROM staging.Silver_Wells s\nWHERE s.OperatorCode IS NOT NULL AND s.OperatorCode <> ''\n  AND NOT EXISTS (\n      SELECT 1 FROM gold.Dim_Operator d\n      WHERE d.OperatorCode = s.OperatorCode\n        AND d.LicenseeCode = s.LicenseeCode\n        AND d.[Is_Current] = 1);\n\nUPDATE t\nSET t.[Is_Current] = 0, t.Effective_To = @BatchDate, t.Updated_At = GETDATE()\nFROM gold.Dim_Well t\nINNER JOIN staging.Silver_Wells s ON t.WellID = s.WellID AND t.[Is_Current] = 1\nWHERE ISNULL(t.OperatorCode,'') <> ISNULL(s.OperatorCode,'')\n   OR ISNULL(t.WellStatCode,'') <> ISNULL(s.WellStatCode,'')\n   OR ISNULL(t.ModeDesc,'') <> ISNULL(s.ModeDesc,'');\n\nINSERT INTO gold.Dim_Well\n    (WellID, WellName, FieldCode, LicenseeCode, OperatorCode, WellTotalDepth, WellStatCode, FluidDesc, ModeDesc, Effective_From, Effective_To, [Is_Current])\nSELECT s.WellID, s.WellName, s.FieldCode, s.LicenseeCode, s.OperatorCode,\n       s.WellTotalDepth, s.WellStatCode, s.FluidDesc, s.ModeDesc,\n       @BatchDate, '9999-12-31', 1\nFROM staging.Silver_Wells s\nWHERE NOT EXISTS (\n    SELECT 1 FROM gold.Dim_Well d\n    WHERE d.WellID = s.WellID AND d.[Is_Current] = 1);\n\nMERGE gold.Dim_LicenceStatus AS t\nUSING (SELECT DISTINCT LicenceStatus FROM staging.Silver_Wells WHERE LicenceStatus IS NOT NULL) AS s\nON t.LicenceStatus = s.LicenceStatus\nWHEN NOT MATCHED THEN INSERT (LicenceStatus) VALUES (s.LicenceStatus);\n\nMERGE gold.Dim_WellType AS t\nUSING (SELECT DISTINCT FluidDesc, ModeDesc, TypeDesc, StructureDesc FROM staging.Silver_Wells) AS s\nON ISNULL(t.FluidDesc,'')=ISNULL(s.FluidDesc,'') AND ISNULL(t.ModeDesc,'')=ISNULL(s.ModeDesc,'')\n   AND ISNULL(t.TypeDesc,'')=ISNULL(s.TypeDesc,'') AND ISNULL(t.StructureDesc,'')=ISNULL(s.StructureDesc,'')\nWHEN NOT MATCHED THEN INSERT (FluidDesc, ModeDesc, TypeDesc, StructureDesc)\n    VALUES (s.FluidDesc, s.ModeDesc, s.TypeDesc, s.StructureDesc);\n\nMERGE gold.Fact_OilPrice AS t\nUSING (\n    SELECT TRY_CAST(period AS DATE) AS PriceDate,\n           TRY_CAST(value AS DECIMAL(10,2)) AS OilPrice_USD,\n           [series-description] AS SeriesDescription\n    FROM staging.OilPrice WHERE period IS NOT NULL AND value IS NOT NULL\n) AS s\nON t.PriceDate = s.PriceDate\nWHEN MATCHED THEN UPDATE SET t.OilPrice_USD = s.OilPrice_USD, t.Updated_At = GETDATE()\nWHEN NOT MATCHED THEN INSERT (PriceDate, OilPrice_USD, SeriesDescription)\n    VALUES (s.PriceDate, s.OilPrice_USD, s.SeriesDescription);\n\nTRUNCATE TABLE gold.Fact_WellSnapshot;\nINSERT INTO gold.Fact_WellSnapshot\n    (SnapshotDate, WellID, OperatorCode, LicenceStatus, FluidDesc, ModeDesc, FieldCode, WellTotalDepth)\nSELECT @BatchDate, WellID, OperatorCode, LicenceStatus, FluidDesc, ModeDesc, FieldCode, WellTotalDepth\nFROM staging.Silver_Wells WHERE WellID IS NOT NULL;"
+								}
+							],
+							"scriptBlockExecutionTimeout": "02:00:00"
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-04-20T01:34:48Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_AzureSQL')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PL_SCD_demo')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "SCD Demo",
+						"type": "Script",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"linkedServiceName": {
+							"referenceName": "LS_AzureSQL",
+							"type": "LinkedServiceReference"
+						},
+						"typeProperties": {
+							"scripts": [
+								{
+									"type": "Query",
+									"text": "SELECT OperatorCode, LicenseeCode, [Is_Current], Effective_From, Effective_To\nFROM gold.Dim_Operator\nWHERE OperatorCode = '0Z5F0' AND LicenseeCode = '0HE90';"
+								},
+								{
+									"type": "Query",
+									"text": "UPDATE staging.Silver_Wells\nSET LicenseeCode = 'NEWCO'\nWHERE OperatorCode = '0Z5F0' AND LicenseeCode = '0HE90';"
+								},
+								{
+									"type": "Query",
+									"text": "DECLARE @BatchDate DATE = CAST(GETDATE() AS DATE);\n\nUPDATE t\nSET t.[Is_Current] = 0, t.Effective_To = @BatchDate, t.Updated_At = GETDATE()\nFROM gold.Dim_Operator t\nINNER JOIN (\n    SELECT DISTINCT OperatorCode, LicenseeCode\n    FROM staging.Silver_Wells\n    WHERE OperatorCode IS NOT NULL AND OperatorCode <> ''\n) s ON t.OperatorCode = s.OperatorCode AND t.[Is_Current] = 1\nWHERE ISNULL(t.LicenseeCode,'') <> ISNULL(s.LicenseeCode,'');\n\nINSERT INTO gold.Dim_Operator\n    (OperatorCode, LicenseeCode, Effective_From, Effective_To, [Is_Current])\nSELECT DISTINCT s.OperatorCode, s.LicenseeCode, @BatchDate, '9999-12-31', 1\nFROM staging.Silver_Wells s\nWHERE s.OperatorCode IS NOT NULL AND s.OperatorCode <> ''\n  AND NOT EXISTS (\n      SELECT 1 FROM gold.Dim_Operator d\n      WHERE d.OperatorCode = s.OperatorCode\n        AND d.LicenseeCode = s.LicenseeCode\n        AND d.[Is_Current] = 1);"
+								}
+							],
+							"scriptBlockExecutionTimeout": "02:00:00"
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-04-20T01:46:34Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_AzureSQL')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PL_ST37_to_Bronze')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "Copy OnPremData",
+						"type": "Copy",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "SqlServerSource",
+								"sqlReaderQuery": {
+									"value": "@concat('SELECT * FROM ',pipeline().parameters.SourceSchema,\n  '.',pipeline().parameters.SourceTable)\n",
+									"type": "Expression"
+								},
+								"queryTimeout": "02:00:00",
+								"partitionOption": "None"
+							},
+							"sink": {
+								"type": "ParquetSink",
+								"storeSettings": {
+									"type": "AzureBlobFSWriteSettings"
+								},
+								"formatSettings": {
+									"type": "ParquetWriteSettings"
+								}
+							},
+							"enableStaging": false,
+							"translator": {
+								"type": "TabularTranslator",
+								"typeConversion": true,
+								"typeConversionSettings": {
+									"allowDataTruncation": true,
+									"treatBooleanAsNumber": false
+								}
+							}
+						},
+						"inputs": [
+							{
+								"referenceName": "DS_OnPrem_WellList",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "DS_Bronze_Well",
+								"type": "DatasetReference",
+								"parameters": {
+									"FolderPath": {
+										"value": "@concat('bronze/well/', formatDateTime(utcNow(),'yyyy-MM-dd'))",
+										"type": "Expression"
+									},
+									"FileName": "@concat(pipeline().parameters.SourceTable, '_', formatDateTime(utcNow(),'yyyy-MM-dd'), '.parquet')"
+								}
+							}
+						]
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"parameters": {
+					"SourceSchema": {
+						"type": "string",
+						"defaultValue": "dbo"
+					},
+					"SourceTable": {
+						"type": "string",
+						"defaultValue": "WellList"
+					},
+					"BatchID": {
+						"type": "string",
+						"defaultValue": "@concat('BATCH_',pipeline().RunId)"
+					},
+					"EIA_PageSize": {
+						"type": "int",
+						"defaultValue": 5000
+					},
+					"RunDate": {
+						"type": "string",
+						"defaultValue": "formatDateTime(utcnow(),'yyyy-MM-dd')"
+					}
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-04-19T19:46:47Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/DS_OnPrem_WellList')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Bronze_Well')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PL_Silver_to_Staging_SQL')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "ADLS Silver Parquet to Staging Sql",
+						"type": "Copy",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "ParquetSource",
+								"storeSettings": {
+									"type": "AzureBlobFSReadSettings",
+									"recursive": true,
+									"wildcardFolderPath": {
+										"value": "@concat('silver/clean/', formatDateTime(utcnow(),'yyyy-MM-dd'))",
+										"type": "Expression"
+									},
+									"wildcardFileName": "*.parquet",
+									"enablePartitionDiscovery": false
+								},
+								"formatSettings": {
+									"type": "ParquetReadSettings"
+								}
+							},
+							"sink": {
+								"type": "AzureSqlSink",
+								"preCopyScript": "TRUNCATE TABLE staging.Silver_Wells",
+								"writeBehavior": "insert",
+								"sqlWriterUseTableLock": false,
+								"disableMetricsCollection": false
+							},
+							"enableStaging": false,
+							"translator": {
+								"type": "TabularTranslator",
+								"mappings": [
+									{
+										"source": {
+											"name": "WellID",
+											"type": "String",
+											"physicalType": "UTF8"
+										},
+										"sink": {
+											"name": "WellID",
+											"type": "String",
+											"physicalType": "nvarchar"
+										}
+									},
+									{
+										"source": {
+											"name": "WellKeyID",
+											"type": "String",
+											"physicalType": "UTF8"
+										},
+										"sink": {
+											"name": "WellKeyID",
+											"type": "String",
+											"physicalType": "nvarchar"
+										}
+									},
+									{
+										"source": {
+											"name": "WellName",
+											"type": "String",
+											"physicalType": "UTF8"
+										},
+										"sink": {
+											"name": "WellName",
+											"type": "String",
+											"physicalType": "nvarchar"
+										}
+									},
+									{
+										"source": {
+											"name": "FieldCode",
+											"type": "String",
+											"physicalType": "UTF8"
+										},
+										"sink": {
+											"name": "FieldCode",
+											"type": "String",
+											"physicalType": "nvarchar"
+										}
+									},
+									{
+										"source": {
+											"name": "PoolCode",
+											"type": "String",
+											"physicalType": "UTF8"
+										},
+										"sink": {
+											"name": "PoolCode",
+											"type": "String",
+											"physicalType": "nvarchar"
+										}
+									},
+									{
+										"source": {
+											"name": "LicenceNumber",
+											"type": "String",
+											"physicalType": "UTF8"
+										},
+										"sink": {
+											"name": "LicenceNumber",
+											"type": "String",
+											"physicalType": "nvarchar"
+										}
+									},
+									{
+										"source": {
+											"name": "LicenceStatus",
+											"type": "String",
+											"physicalType": "UTF8"
+										},
+										"sink": {
+											"name": "LicenceStatus",
+											"type": "String",
+											"physicalType": "nvarchar"
+										}
+									},
+									{
+										"source": {
+											"name": "LicenceIssueDate",
+											"type": "DateTime",
+											"physicalType": "DATE"
+										},
+										"sink": {
+											"name": "LicenceIssueDate",
+											"type": "Date",
+											"physicalType": "date"
+										}
+									},
+									{
+										"source": {
+											"name": "LicenseeCode",
+											"type": "String",
+											"physicalType": "UTF8"
+										},
+										"sink": {
+											"name": "LicenseeCode",
+											"type": "String",
+											"physicalType": "nvarchar"
+										}
+									},
+									{
+										"source": {
+											"name": "OperatorCode",
+											"type": "String",
+											"physicalType": "UTF8"
+										},
+										"sink": {
+											"name": "OperatorCode",
+											"type": "String",
+											"physicalType": "nvarchar"
+										}
+									},
+									{
+										"source": {
+											"name": "FinDrlDate",
+											"type": "DateTime",
+											"physicalType": "DATE"
+										},
+										"sink": {
+											"name": "FinDrlDate",
+											"type": "Date",
+											"physicalType": "date"
+										}
+									},
+									{
+										"source": {
+											"name": "WellTotalDepth",
+											"type": "Decimal",
+											"physicalType": "DECIMAL",
+											"scale": 2,
+											"precision": 10
+										},
+										"sink": {
+											"name": "WellTotalDepth",
+											"type": "Decimal",
+											"physicalType": "decimal",
+											"scale": 2,
+											"precision": 10
+										}
+									},
+									{
+										"source": {
+											"name": "WellStatCode",
+											"type": "String",
+											"physicalType": "UTF8"
+										},
+										"sink": {
+											"name": "WellStatCode",
+											"type": "String",
+											"physicalType": "nvarchar"
+										}
+									},
+									{
+										"source": {
+											"name": "WellStatDate",
+											"type": "DateTime",
+											"physicalType": "DATE"
+										},
+										"sink": {
+											"name": "WellStatDate",
+											"type": "Date",
+											"physicalType": "date"
+										}
+									},
+									{
+										"source": {
+											"name": "FluidDesc",
+											"type": "String",
+											"physicalType": "UTF8"
+										},
+										"sink": {
+											"name": "FluidDesc",
+											"type": "String",
+											"physicalType": "nvarchar"
+										}
+									},
+									{
+										"source": {
+											"name": "ModeDesc",
+											"type": "String",
+											"physicalType": "UTF8"
+										},
+										"sink": {
+											"name": "ModeDesc",
+											"type": "String",
+											"physicalType": "nvarchar"
+										}
+									},
+									{
+										"source": {
+											"name": "TypeDesc",
+											"type": "String",
+											"physicalType": "UTF8"
+										},
+										"sink": {
+											"name": "TypeDesc",
+											"type": "String",
+											"physicalType": "nvarchar"
+										}
+									},
+									{
+										"source": {
+											"name": "StructureDesc",
+											"type": "String",
+											"physicalType": "UTF8"
+										},
+										"sink": {
+											"name": "StructureDesc",
+											"type": "String",
+											"physicalType": "nvarchar"
+										}
+									},
+									{
+										"source": {
+											"name": "BatchID",
+											"type": "String",
+											"physicalType": "UTF8"
+										},
+										"sink": {
+											"name": "BatchID",
+											"type": "String",
+											"physicalType": "nvarchar"
+										}
+									}
+								],
+								"typeConversion": true,
+								"typeConversionSettings": {
+									"allowDataTruncation": true,
+									"treatBooleanAsNumber": false
+								}
+							}
+						},
+						"inputs": [
+							{
+								"referenceName": "DS_Silver_Parquet",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "DS_Staging_Silver_SQL",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						]
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-04-19T23:04:52Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/DS_Silver_Parquet')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Staging_Silver_SQL')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_ADLS_Archive_Parquet')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"FolderPath": {
+						"type": "string"
+					},
+					"FileName": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": {
+							"value": "@dataset().FileName",
+							"type": "Expression"
+						},
+						"folderPath": {
+							"value": "@dataset().FolderPath",
+							"type": "Expression"
+						},
+						"fileSystem": "aer-og-data"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_ADLS_Gen2')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_AzureSQL_Gold')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [],
+				"typeProperties": {
+					"schema": "gold",
+					"table": "Dim_Operator"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_AzureSQL')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_AzureSQL_OilPrice_Sink')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [
+					{
+						"name": "PriceDate",
+						"type": "date"
+					},
+					{
+						"name": "OilPrice_USD",
+						"type": "decimal",
+						"precision": 10,
+						"scale": 2
+					},
+					{
+						"name": "SeriesDescription",
+						"type": "nvarchar"
+					},
+					{
+						"name": "ProductName",
+						"type": "nvarchar"
+					},
+					{
+						"name": "Units",
+						"type": "nvarchar"
+					}
+				],
+				"typeProperties": {
+					"schema": "staging",
+					"table": "OilPrice"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_AzureSQL')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_Bronze_OilPrice')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"FolderPath": {
+						"type": "string",
+						"defaultValue": "bronze/oilprice"
+					},
+					"FileName": {
+						"type": "string",
+						"defaultValue": "OilPrice.parquet"
+					}
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": {
+							"value": "@dataset().FileName",
+							"type": "Expression"
+						},
+						"folderPath": {
+							"value": "@dataset().FolderPath",
+							"type": "Expression"
+						},
+						"fileSystem": "aer-og-data"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_ADLS_Gen2')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_Bronze_Well')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"FolderPath": {
+						"type": "string"
+					},
+					"FileName": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": {
+							"value": "@dataset().FileName",
+							"type": "Expression"
+						},
+						"folderPath": {
+							"value": "@dataset().FolderPath",
+							"type": "Expression"
+						},
+						"fileSystem": "aer-og-data"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_ADLS_Gen2')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_EIA_REST_Source')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_EIA_REST",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"relativeUrl": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "RestResource",
+				"typeProperties": {
+					"relativeUrl": {
+						"value": "@dataset().relativeUrl",
+						"type": "Expression"
+					}
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_EIA_REST')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_Gold_OilPrice_Parquet')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": "gold/fact_oilprice",
+						"fileSystem": "aer-og-data"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": [
+					{
+						"name": "PriceDate",
+						"type": "DATE"
+					},
+					{
+						"name": "OilPrice_USD",
+						"type": "DECIMAL",
+						"precision": 10,
+						"scale": 2
+					},
+					{
+						"name": "SeriesDescription",
+						"type": "UTF8"
+					},
+					{
+						"name": "Loaded_At",
+						"type": "TIMESTAMP_MICROS"
+					}
+				]
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_ADLS_Gen2')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_OnPrem_WellList')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_OnPrem_SQL",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "SqlServerTable",
+				"schema": [
+					{
+						"name": "UWI_DISPLAY_FORMAT",
+						"type": "nvarchar"
+					},
+					{
+						"name": "KEY_LIST_OF_WELLS",
+						"type": "nvarchar"
+					},
+					{
+						"name": "UPDATE_FLAG",
+						"type": "nvarchar"
+					},
+					{
+						"name": "WELL_NAME",
+						"type": "nvarchar"
+					},
+					{
+						"name": "FIELD_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "POOL_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "OS_AREA_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "OS_DEP_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "LICENSE_NO",
+						"type": "nvarchar"
+					},
+					{
+						"name": "LICENCE_STATUS",
+						"type": "nvarchar"
+					},
+					{
+						"name": "LICENSE_ISSUE_DATE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "LICENSEE_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "AGENT_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "OPERATOR_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "FIN_DRL_DATE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "WELL_TOTAL_DEPTH",
+						"type": "nvarchar"
+					},
+					{
+						"name": "WELL_STAT_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "WELL_STAT_DATE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "FLUID_SHORT_DESC",
+						"type": "nvarchar"
+					},
+					{
+						"name": "MODE_SHORT_DESC",
+						"type": "nvarchar"
+					},
+					{
+						"name": "TYPE_SHORT_DESC",
+						"type": "nvarchar"
+					},
+					{
+						"name": "STRUCTURE_SHORT_DESC",
+						"type": "nvarchar"
+					},
+					{
+						"name": "SCHEME_TYPE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "SCHEME_SUB_TYPE",
+						"type": "nvarchar"
+					}
+				],
+				"typeProperties": {
+					"schema": "dbo",
+					"table": "WellList"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_OnPrem_SQL')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_Silver_Parquet')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": "silver/clean",
+						"fileSystem": "aer-og-data"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": [
+					{
+						"name": "WellID",
+						"type": "UTF8"
+					},
+					{
+						"name": "WellKeyID",
+						"type": "UTF8"
+					},
+					{
+						"name": "WellName",
+						"type": "UTF8"
+					},
+					{
+						"name": "FieldCode",
+						"type": "UTF8"
+					},
+					{
+						"name": "PoolCode",
+						"type": "UTF8"
+					},
+					{
+						"name": "LicenceNumber",
+						"type": "UTF8"
+					},
+					{
+						"name": "LicenceStatus",
+						"type": "UTF8"
+					},
+					{
+						"name": "LicenceIssueDate",
+						"type": "DATE"
+					},
+					{
+						"name": "LicenseeCode",
+						"type": "UTF8"
+					},
+					{
+						"name": "OperatorCode",
+						"type": "UTF8"
+					},
+					{
+						"name": "FinDrlDate",
+						"type": "DATE"
+					},
+					{
+						"name": "WellTotalDepth",
+						"type": "DECIMAL",
+						"precision": 10,
+						"scale": 2
+					},
+					{
+						"name": "WellStatCode",
+						"type": "UTF8"
+					},
+					{
+						"name": "WellStatDate",
+						"type": "DATE"
+					},
+					{
+						"name": "FluidDesc",
+						"type": "UTF8"
+					},
+					{
+						"name": "ModeDesc",
+						"type": "UTF8"
+					},
+					{
+						"name": "TypeDesc",
+						"type": "UTF8"
+					},
+					{
+						"name": "StructureDesc",
+						"type": "UTF8"
+					},
+					{
+						"name": "BatchID",
+						"type": "UTF8"
+					},
+					{
+						"name": "IngestionDate",
+						"type": "TIMESTAMP_MICROS"
+					},
+					{
+						"name": "SourceFile",
+						"type": "UTF8"
+					}
+				]
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_ADLS_Gen2')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_Staging_OilPrice_SQL')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [],
+				"typeProperties": {
+					"schema": "staging",
+					"table": "OilPrice"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_AzureSQL')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_Staging_Silver_SQL')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [
+					{
+						"name": "WellID",
+						"type": "nvarchar"
+					},
+					{
+						"name": "WellKeyID",
+						"type": "nvarchar"
+					},
+					{
+						"name": "WellName",
+						"type": "nvarchar"
+					},
+					{
+						"name": "FieldCode",
+						"type": "nvarchar"
+					},
+					{
+						"name": "PoolCode",
+						"type": "nvarchar"
+					},
+					{
+						"name": "LicenceNumber",
+						"type": "nvarchar"
+					},
+					{
+						"name": "LicenceStatus",
+						"type": "nvarchar"
+					},
+					{
+						"name": "LicenceIssueDate",
+						"type": "date"
+					},
+					{
+						"name": "LicenseeCode",
+						"type": "nvarchar"
+					},
+					{
+						"name": "OperatorCode",
+						"type": "nvarchar"
+					},
+					{
+						"name": "FinDrlDate",
+						"type": "date"
+					},
+					{
+						"name": "WellTotalDepth",
+						"type": "decimal",
+						"precision": 10,
+						"scale": 2
+					},
+					{
+						"name": "WellStatCode",
+						"type": "nvarchar"
+					},
+					{
+						"name": "WellStatDate",
+						"type": "date"
+					},
+					{
+						"name": "FluidDesc",
+						"type": "nvarchar"
+					},
+					{
+						"name": "ModeDesc",
+						"type": "nvarchar"
+					},
+					{
+						"name": "TypeDesc",
+						"type": "nvarchar"
+					},
+					{
+						"name": "StructureDesc",
+						"type": "nvarchar"
+					},
+					{
+						"name": "BatchID",
+						"type": "nvarchar"
+					},
+					{
+						"name": "IngestionDate",
+						"type": "datetime2",
+						"scale": 7
+					}
+				],
+				"typeProperties": {
+					"schema": "staging",
+					"table": "Silver_Wells"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_AzureSQL')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/LS_ADLS_Gen2')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureBlobFS",
+				"typeProperties": {
+					"url": "[parameters('LS_ADLS_Gen2_properties_typeProperties_url')]",
+					"accountKey": {
+						"type": "AzureKeyVaultSecret",
+						"store": {
+							"referenceName": "LS_KeyVault",
+							"type": "LinkedServiceReference"
+						},
+						"secretName": "adls-account-key"
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_KeyVault')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/LS_AzureSQL')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureSqlDatabase",
+				"typeProperties": {
+					"server": "[parameters('LS_AzureSQL_properties_typeProperties_server')]",
+					"database": "[parameters('LS_AzureSQL_properties_typeProperties_database')]",
+					"encrypt": "mandatory",
+					"trustServerCertificate": false,
+					"authenticationType": "SQL",
+					"userName": "[parameters('LS_AzureSQL_properties_typeProperties_userName')]",
+					"password": {
+						"type": "AzureKeyVaultSecret",
+						"store": {
+							"referenceName": "LS_KeyVault",
+							"type": "LinkedServiceReference"
+						},
+						"secretName": "azure-sql-password"
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_KeyVault')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/LS_EIA_REST')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "RestService",
+				"typeProperties": {
+					"url": "[parameters('LS_EIA_REST_properties_typeProperties_url')]",
+					"enableServerCertificateValidation": true,
+					"authenticationType": "Anonymous"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/LS_KeyVault')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureKeyVault",
+				"typeProperties": {
+					"baseUrl": "[parameters('LS_KeyVault_properties_typeProperties_baseUrl')]"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/LS_OnPrem_SQL')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "SqlServer",
+				"typeProperties": {
+					"server": "[parameters('LS_OnPrem_SQL_properties_typeProperties_server')]",
+					"database": "[parameters('LS_OnPrem_SQL_properties_typeProperties_database')]",
+					"encrypt": "optional",
+					"trustServerCertificate": false,
+					"authenticationType": "SQL",
+					"userName": "[parameters('LS_OnPrem_SQL_properties_typeProperties_userName')]",
+					"password": {
+						"type": "AzureKeyVaultSecret",
+						"store": {
+							"referenceName": "LS_KeyVault",
+							"type": "LinkedServiceReference"
+						},
+						"secretName": "sql-server-password"
+					}
+				},
+				"connectVia": {
+					"referenceName": "aer-shir",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/integrationRuntimes/aer-shir')]",
+				"[concat(variables('factoryId'), '/linkedServices/LS_KeyVault')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/LS_Synapse_Serverless')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureSqlDW",
+				"typeProperties": {
+					"server": "[parameters('LS_Synapse_Serverless_properties_typeProperties_server')]",
+					"database": "[parameters('LS_Synapse_Serverless_properties_typeProperties_database')]",
+					"encrypt": "mandatory",
+					"trustServerCertificate": false,
+					"authenticationType": "SystemAssignedManagedIdentity"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/TR_Daily_Schedule')]",
+			"type": "Microsoft.DataFactory/factories/triggers",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"runtimeState": "Started",
+				"pipelines": [
+					{
+						"pipelineReference": {
+							"referenceName": "PL_Master_Orchestrator",
+							"type": "PipelineReference"
+						},
+						"parameters": {}
+					}
+				],
+				"type": "ScheduleTrigger",
+				"typeProperties": {
+					"recurrence": {
+						"frequency": "Hour",
+						"interval": 24,
+						"startTime": "2026-04-19T01:00:00",
+						"endTime": "2026-04-22T02:16:00",
+						"timeZone": "Mountain Standard Time"
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/pipelines/PL_Master_Orchestrator')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/aer-shir')]",
+			"type": "Microsoft.DataFactory/factories/integrationRuntimes",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"type": "SelfHosted",
+				"typeProperties": {
+					"selfContainedInteractiveAuthoringEnabled": true
+				}
+			},
+			"dependsOn": []
+		}
+	]
+}

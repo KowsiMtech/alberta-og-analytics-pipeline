@@ -1,0 +1,48 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"value": "aer-oilgas-adf"
+		},
+		"LS_ADLS_Gen2_properties_typeProperties_url": {
+			"value": "https://aeroilgasstorage.dfs.core.windows.net"
+		},
+		"LS_AzureSQL_properties_typeProperties_server": {
+			"value": "aer-server.database.windows.net"
+		},
+		"LS_AzureSQL_properties_typeProperties_database": {
+			"value": "aer-oilgas-gold-db"
+		},
+		"LS_AzureSQL_properties_typeProperties_userName": {
+			"value": "sqladminuser"
+		},
+		"LS_EIA_REST_properties_typeProperties_url": {
+			"value": "https://api.eia.gov/"
+		},
+		"LS_KeyVault_properties_typeProperties_baseUrl": {
+			"value": "https://aer-oilgas-kv.vault.azure.net/"
+		},
+		"LS_OnPrem_SQL_properties_typeProperties_server": {
+			"value": "KowsiDhina\\MSSQLSERVER01"
+		},
+		"LS_OnPrem_SQL_properties_typeProperties_database": {
+			"value": "AER_OilGas_OnPrem"
+		},
+		"LS_OnPrem_SQL_properties_typeProperties_userName": {
+			"value": "adf_user"
+		},
+		"LS_Synapse_Serverless_properties_typeProperties_server": {
+			"value": "aer-synapse-ws-ondemand.sql.azuresynapse.net"
+		},
+		"LS_Synapse_Serverless_properties_typeProperties_database": {
+			"value": "aer_synapse_db"
+		},
+		"containerUri": {
+			"value": ""
+		},
+		"containerSasToken": {
+			"value": ""
+		}
+	}
+}
