@@ -66,6 +66,17 @@ Assumed the role of a Data Engineer responsible for implementing an end-to-end d
     - `gold.Fact_WellSnapshot` (daily reload)
     - `gold.vw_WellMarketTrend` (analytical view)
 
+## Business Questions Answered
+
+| # | Question | Gold Source | Dashboard Page |
+|---|----------|-------------|----------------|
+| Q1 | Active wells by field/operator | `gold.Fact_WellSnapshot` | Page 3 |
+| Q2 | Operators with most wells | `gold.Dim_Operator` + `Fact_WellSnapshot` | Page 1, Page 4 |
+| Q3 | WTI oil price trends | `gold.Fact_OilPrice` | Page 2 |
+| Q4 | Activity vs oil price correlation | `gold.vw_WellMarketTrend` | Page 5 (view) |
+| Q5 | Operator ownership transfers | `gold.Dim_Operator` (SCD2) | Page 4 |
+| Q6 | Well type & licence distribution | `gold.Dim_WellType` + `Dim_LicenceStatus` | Page 3 |
+
 ## Data Visualization
 
 - **Power BI**: Created 5-page dashboard analyzing Alberta well activity and WTI oil price trends. Connected via Azure SQL Database (Import mode) for sub-second query performance.
