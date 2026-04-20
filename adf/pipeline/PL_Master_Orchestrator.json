@@ -1,5 +1,5 @@
 {
-	"name": "PL_Master_Orchestrator_with_ADLS_Archive",
+	"name": "PL_Master_Orchestrator",
 	"properties": {
 		"activities": [
 			{
