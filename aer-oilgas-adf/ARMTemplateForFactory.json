@@ -61,31 +61,25 @@
 			"type": "Microsoft.DataFactory/factories/pipelines",
 			"apiVersion": "2018-06-01",
 			"properties": {
-				"description": "Archives Azure SQL Gold tables to ADLS Parquet - runs after SCD2 MERGE",
 				"activities": [
 					{
-						"name": "Archive_Dim_Operator",
+						"name": "Archive_DimOperator",
 						"type": "Copy",
-						"state": "Inactive",
-						"onInactiveMarkAs": "Succeeded",
 						"dependsOn": [],
 						"policy": {
-							"timeout": "0.02:00:00",
-							"retry": 1,
-							"retryIntervalInSeconds": 30
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
 						},
 						"userProperties": [],
 						"typeProperties": {
 							"source": {
-								"type": "ParquetSource",
-								"storeSettings": {
-									"type": "AzureBlobFSReadSettings",
-									"recursive": true,
-									"enablePartitionDiscovery": false
-								},
-								"formatSettings": {
-									"type": "ParquetReadSettings"
-								}
+								"type": "AzureSqlSource",
+								"sqlReaderQuery": "SELECT * FROM gold.Dim_Operator WHERE Is_Current=1",
+								"queryTimeout": "02:00:00",
+								"partitionOption": "None"
 							},
 							"sink": {
 								"type": "ParquetSink",
@@ -108,7 +102,7 @@
 						},
 						"inputs": [
 							{
-								"referenceName": "DS_ADLS_Archive_Parquet",
+								"referenceName": "DS_AzureSQL_Gold",
 								"type": "DatasetReference",
 								"parameters": {}
 							}
@@ -117,33 +111,33 @@
 							{
 								"referenceName": "DS_ADLS_Archive_Parquet",
 								"type": "DatasetReference",
-								"parameters": {}
+								"parameters": {
+									"FolderPath": {
+										"value": "gold/dim_operator/@{formatDateTime(utcNow(), 'yyyy-MM-dd')}/",
+										"type": "Expression"
+									}
+								}
 							}
 						]
 					},
 					{
-						"name": "Archive_Dim_Well",
+						"name": "Archive_DimWell",
 						"type": "Copy",
-						"state": "Inactive",
-						"onInactiveMarkAs": "Succeeded",
 						"dependsOn": [],
 						"policy": {
-							"timeout": "0.02:00:00",
-							"retry": 1,
-							"retryIntervalInSeconds": 30
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
 						},
 						"userProperties": [],
 						"typeProperties": {
 							"source": {
-								"type": "ParquetSource",
-								"storeSettings": {
-									"type": "AzureBlobFSReadSettings",
-									"recursive": true,
-									"enablePartitionDiscovery": false
-								},
-								"formatSettings": {
-									"type": "ParquetReadSettings"
-								}
+								"type": "AzureSqlSource",
+								"sqlReaderQuery": "SELECT * FROM gold.Dim_Well WHERE Is_Current=1",
+								"queryTimeout": "02:00:00",
+								"partitionOption": "None"
 							},
 							"sink": {
 								"type": "ParquetSink",
@@ -166,7 +160,7 @@
 						},
 						"inputs": [
 							{
-								"referenceName": "DS_ADLS_Archive_Parquet",
+								"referenceName": "DS_AzureSQL_Gold",
 								"type": "DatasetReference",
 								"parameters": {}
 							}
@@ -175,33 +169,33 @@
 							{
 								"referenceName": "DS_ADLS_Archive_Parquet",
 								"type": "DatasetReference",
-								"parameters": {}
+								"parameters": {
+									"FolderPath": {
+										"value": "gold/dim_well/@{formatDateTime(utcNow(), 'yyyy-MM-dd')}/",
+										"type": "Expression"
+									}
+								}
 							}
 						]
 					},
 					{
-						"name": "Archive_Dim_LicenceStatus",
+						"name": "Archive_FactWellSnapshot",
 						"type": "Copy",
-						"state": "Inactive",
-						"onInactiveMarkAs": "Succeeded",
 						"dependsOn": [],
 						"policy": {
-							"timeout": "0.02:00:00",
-							"retry": 1,
-							"retryIntervalInSeconds": 30
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
 						},
 						"userProperties": [],
 						"typeProperties": {
 							"source": {
-								"type": "ParquetSource",
-								"storeSettings": {
-									"type": "AzureBlobFSReadSettings",
-									"recursive": true,
-									"enablePartitionDiscovery": false
-								},
-								"formatSettings": {
-									"type": "ParquetReadSettings"
-								}
+								"type": "AzureSqlSource",
+								"sqlReaderQuery": "SELECT * FROM gold.Fact_WellSnapshot WHERE SnapshotDate=CAST(GETDATE() AS DATE)",
+								"queryTimeout": "02:00:00",
+								"partitionOption": "None"
 							},
 							"sink": {
 								"type": "ParquetSink",
@@ -224,7 +218,7 @@
 						},
 						"inputs": [
 							{
-								"referenceName": "DS_ADLS_Archive_Parquet",
+								"referenceName": "DS_AzureSQL_Gold",
 								"type": "DatasetReference",
 								"parameters": {}
 							}
@@ -233,33 +227,33 @@
 							{
 								"referenceName": "DS_ADLS_Archive_Parquet",
 								"type": "DatasetReference",
-								"parameters": {}
+								"parameters": {
+									"FolderPath": {
+										"value": "gold/fact_wellsnapshot/@{formatDateTime(utcNow(), 'yyyy-MM-dd')}/",
+										"type": "Expression"
+									}
+								}
 							}
 						]
 					},
 					{
-						"name": "Archive_Dim_WellType",
+						"name": "Archive_DimLicenceStatus",
 						"type": "Copy",
-						"state": "Inactive",
-						"onInactiveMarkAs": "Succeeded",
 						"dependsOn": [],
 						"policy": {
-							"timeout": "0.02:00:00",
-							"retry": 1,
-							"retryIntervalInSeconds": 30
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
 						},
 						"userProperties": [],
 						"typeProperties": {
 							"source": {
-								"type": "ParquetSource",
-								"storeSettings": {
-									"type": "AzureBlobFSReadSettings",
-									"recursive": true,
-									"enablePartitionDiscovery": false
-								},
-								"formatSettings": {
-									"type": "ParquetReadSettings"
-								}
+								"type": "AzureSqlSource",
+								"sqlReaderQuery": "SELECT * FROM gold.Dim_LicenceStatus",
+								"queryTimeout": "02:00:00",
+								"partitionOption": "None"
 							},
 							"sink": {
 								"type": "ParquetSink",
@@ -282,7 +276,7 @@
 						},
 						"inputs": [
 							{
-								"referenceName": "DS_ADLS_Archive_Parquet",
+								"referenceName": "DS_AzureSQL_Gold",
 								"type": "DatasetReference",
 								"parameters": {}
 							}
@@ -291,33 +285,33 @@
 							{
 								"referenceName": "DS_ADLS_Archive_Parquet",
 								"type": "DatasetReference",
-								"parameters": {}
+								"parameters": {
+									"FolderPath": {
+										"value": "gold/dim_licencestatus/@{formatDateTime(utcNow(), 'yyyy-MM-dd')}/",
+										"type": "Expression"
+									}
+								}
 							}
 						]
 					},
 					{
-						"name": "Archive_Fact_WellSnapshot",
+						"name": "Archive_DimWellType",
 						"type": "Copy",
-						"state": "Inactive",
-						"onInactiveMarkAs": "Succeeded",
 						"dependsOn": [],
 						"policy": {
-							"timeout": "0.02:00:00",
-							"retry": 1,
-							"retryIntervalInSeconds": 30
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
 						},
 						"userProperties": [],
 						"typeProperties": {
 							"source": {
-								"type": "ParquetSource",
-								"storeSettings": {
-									"type": "AzureBlobFSReadSettings",
-									"recursive": true,
-									"enablePartitionDiscovery": false
-								},
-								"formatSettings": {
-									"type": "ParquetReadSettings"
-								}
+								"type": "AzureSqlSource",
+								"sqlReaderQuery": "SELECT * FROM gold.Dim_WellType",
+								"queryTimeout": "02:00:00",
+								"partitionOption": "None"
 							},
 							"sink": {
 								"type": "ParquetSink",
@@ -340,7 +334,7 @@
 						},
 						"inputs": [
 							{
-								"referenceName": "DS_ADLS_Archive_Parquet",
+								"referenceName": "DS_AzureSQL_Gold",
 								"type": "DatasetReference",
 								"parameters": {}
 							}
@@ -349,7 +343,12 @@
 							{
 								"referenceName": "DS_ADLS_Archive_Parquet",
 								"type": "DatasetReference",
-								"parameters": {}
+								"parameters": {
+									"FolderPath": {
+										"value": "gold/dim_welltype/@{formatDateTime(utcNow(), 'yyyy-MM-dd')}/",
+										"type": "Expression"
+									}
+								}
 							}
 						]
 					}
@@ -357,9 +356,11 @@
 				"policy": {
 					"elapsedTimeMetric": {}
 				},
-				"annotations": []
+				"annotations": [],
+				"lastPublishTime": "2026-04-20T02:12:31Z"
 			},
 			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/DS_AzureSQL_Gold')]",
 				"[concat(variables('factoryId'), '/datasets/DS_ADLS_Archive_Parquet')]"
 			]
 		},
@@ -940,7 +941,7 @@
 			]
 		},
 		{
-			"name": "[concat(parameters('factoryName'), '/PL_Master_Orchestrator_with_ADLS')]",
+			"name": "[concat(parameters('factoryName'), '/PL_Master_Orchestrator_with_ADLS_Archive')]",
 			"type": "Microsoft.DataFactory/factories/pipelines",
 			"apiVersion": "2018-06-01",
 			"properties": {
@@ -1082,11 +1083,16 @@
 						}
 					},
 					{
-						"name": "ADLS Archival Copy",
+						"name": "Archival Copy to gold ADLS",
 						"type": "ExecutePipeline",
-						"state": "Inactive",
-						"onInactiveMarkAs": "Succeeded",
-						"dependsOn": [],
+						"dependsOn": [
+							{
+								"activity": "SCD2 for gold",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
 						"policy": {
 							"secureInput": false
 						},
@@ -1638,9 +1644,6 @@
 				"parameters": {
 					"FolderPath": {
 						"type": "string"
-					},
-					"FileName": {
-						"type": "string"
 					}
 				},
 				"annotations": [],
@@ -1648,10 +1651,6 @@
 				"typeProperties": {
 					"location": {
 						"type": "AzureBlobFSLocation",
-						"fileName": {
-							"value": "@dataset().FileName",
-							"type": "Expression"
-						},
 						"folderPath": {
 							"value": "@dataset().FolderPath",
 							"type": "Expression"
