@@ -175,7 +175,6 @@ Secrets are retrieved at runtime via:
 - **Database**: Azure SQL Database Basic tier ($7/month)
 - **Security**: Azure Key Vault + Managed Identity + Microsoft Entra ID
 - **Visualization**: Power BI Desktop + Power BI Service
-- **CI/CD**: GitHub Actions for ADF deployment
 - **Source Data**: AER ST37 (Alberta Energy Regulator) + EIA REST API (U.S. Government)
 
 ## Cost Analysis (Actual from Azure Billing — AER Project Only)
