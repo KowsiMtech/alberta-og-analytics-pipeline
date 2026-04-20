@@ -1375,7 +1375,7 @@
 						}
 					},
 					{
-						"name": "SCD2 for gold ",
+						"name": "SCD2 for gold",
 						"type": "ExecutePipeline",
 						"dependsOn": [
 							{
@@ -1403,7 +1403,7 @@
 						"type": "ExecutePipeline",
 						"dependsOn": [
 							{
-								"activity": "SCD2 for gold ",
+								"activity": "SCD2 for gold",
 								"dependencyConditions": [
 									"Succeeded"
 								]
