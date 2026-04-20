@@ -133,7 +133,7 @@
 				}
 			},
 			{
-				"name": "Archival Copy to gold ADLS",
+				"name": "ADLS gold Archival Copy",
 				"type": "ExecutePipeline",
 				"dependsOn": [
 					{
