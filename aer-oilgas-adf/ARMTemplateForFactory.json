@@ -238,6 +238,7 @@
 					},
 					{
 						"name": "Archive_DimLicenceStatus",
+						"description": "SELECT * FROM gold.Dim_LicenceStatus",
 						"type": "Copy",
 						"dependsOn": [],
 						"policy": {
