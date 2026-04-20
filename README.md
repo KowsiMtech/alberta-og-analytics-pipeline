@@ -103,7 +103,7 @@ Assumed the role of a Data Engineer responsible for implementing an end-to-end d
 ## Triggers
 
 - **Scheduled Trigger** (`TR_Daily_Schedule`): Runs `PL_Master_Orchestrator` daily at 1:00 AM UTC.
-  - Triggers EIA API ingestion (API → Bronze → SQL Staging)
+  - Triggers EIA API ingestion via `PL_EIA_to_Staging` (API → Bronze → SQL Staging)
   - Triggers on-prem SQL Server ingestion (ST37 → Bronze)
   - Silver layer follows after Bronze succeeds (dependency chain)
   - Gold layer (SCD2 MERGE) is continuation of Silver layer
@@ -113,7 +113,7 @@ Assumed the role of a Data Engineer responsible for implementing an end-to-end d
 | # | Pipeline | Purpose |
 |---|---|---|
 | 1 | `PL_ST37_to_Bronze` | On-prem SQL → ADLS Bronze (Self-Host IR) |
-| 2 | `PL_EIA_to_Bronze` | EIA REST API → ADLS Bronze + SQL Staging |
+| 2 | `PL_EIA_to_Staging` | EIA REST API → ADLS Bronze + SQL Staging |
 | 3 | `PL_Bronze_to_Silver_quarantine` | Synapse CETAS → Silver + Quarantine |
 | 4 | `PL_Bronze_OilPrice_to_Gold` | Synapse CETAS → Gold OilPrice Parquet |
 | 5 | `PL_Silver_to_Staging_SQL` | ADLS Silver → Azure SQL staging |
