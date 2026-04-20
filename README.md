@@ -179,8 +179,6 @@ Secrets are retrieved at runtime via:
 | Bandwidth | CA$0.00 | CA$0.00 |
 | **Total (AER Project)** | **CA$0.84/week** | **~CA$3.50/month** |
 
-Note: Databricks CA$0.28 on billing is from separate portfolio projects (Formula1, Berka banking), not AER pipeline.
-
 ## Key Learnings
 
 1. **Synapse Serverless cannot perform SCD Type 2** — Parquet files are immutable, no row-level UPDATE possible. Required architectural pivot to Azure SQL DB for MERGE operations.
