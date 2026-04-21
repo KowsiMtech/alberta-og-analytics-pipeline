@@ -133,8 +133,6 @@ Assumed the role of a Data Engineer responsible for implementing an end-to-end d
 
 ## Project Deliverables
 
-All relevant details uploaded to GitHub, including:
-
 - **SQL Scripts**: 
   - DDL (schema creation): `staging.Silver_Wells`, `staging.OilPrice`, `gold.Dim_Operator`, `gold.Dim_Well`, `gold.Dim_LicenceStatus`, `gold.Dim_WellType`, `gold.Fact_OilPrice`, `gold.Fact_WellSnapshot`, `gold.vw_WellMarketTrend`
   - DML (sample data): `dbo.WellList` table populated from AER ST37 file
