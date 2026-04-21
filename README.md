@@ -97,7 +97,7 @@ Assumed the role of a Data Engineer responsible for implementing an end-to-end d
 
 ![Oil Price Trends](powerbi/screenshots/page2_oil_price_trends.png)
 
-> WTI crude peaked at $145.31 in July 2008 and collapsed during the 2014–2016 OPEC oversupply crisis. Alberta drilling activity directly mirrors price movements — operators license aggressively above $80 WTI and halt below $50. The 30-day average of $99.90 signals near-term market stability, supporting continued drilling investment across Calgary basin operators.
+> WTI crude oil peaked at $100 in 2008 before crashing during the global financial crisis, collapsed again to $40 during the 2020 COVID demand shock, and recovered strongly to $93 in 2022 driven by post-pandemic supply constraints and Russia-Ukraine war tensions. The current 30-day average of $72.01 reflects ongoing market softening as OPEC+ adjusts production targets. Alberta operators respond directly to these price signals — the scatter plot shows that at current WTI levels, the largest operator maintains over 400,000 active wells while smaller operators scale back significantly, demonstrating price-sensitive drilling behavior across Calgary's energy sector.
 
 ---
 
