@@ -1,6 +1,6 @@
 # Alberta Oil & Gas Analytics Pipeline
 
-This project provides hands-on experience implementing an enterprise-grade Alberta energy data pipeline using Azure data services. The project ingests real Alberta Energy Regulator (AER) ST37 well registry data and U.S. Energy Information Administration (EIA) WTI crude oil prices, transforms data through a complete medallion architecture, and delivers Power BI dashboards for the Calgary energy sector.
+End-to-end Azure data pipeline ingesting real Alberta Energy Regulator (AER) ST37 well registry data (660K+ rows) and EIA WTI crude oil prices, transformed through a medallion architecture (Bronze → Silver → Gold), and delivered as Power BI dashboards for the Calgary energy sector.
 
 ## Architecture
 
@@ -8,11 +8,6 @@ This project provides hands-on experience implementing an enterprise-grade Alber
 ![Architecture Diagram](architecture/aer_architecture.png?v=2)
 - **Pattern**: Batch Medallion Architecture (Bronze → Silver → Gold) with TRUE SCD Type 2 via Azure SQL DB MERGE.
 
-
-
-## Role
-
-Assumed the role of a Data Engineer responsible for implementing an end-to-end data pipeline in Azure for the Calgary energy sector, targeting employers like Cenovus, Suncor, CNRL, and Husky.
 
 ## Source Systems
 
