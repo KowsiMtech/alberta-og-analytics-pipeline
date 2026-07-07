@@ -1006,6 +1006,64 @@
 							"waitOnCompletion": true,
 							"parameters": {}
 						}
+					},
+					{
+						"name": "handling pipeline failure",
+						"type": "SqlServerStoredProcedure",
+						"dependsOn": [
+							{
+								"activity": "PL_EIA_to_Bronze",
+								"dependencyConditions": [
+									"Failed"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"storedProcedureName": "[[dbo].[Log_ADF_Failure]",
+							"storedProcedureParameters": {
+								"ActivityName": {
+									"value": "Copy EIA",
+									"type": "String"
+								},
+								"ErrorMessage": {
+									"value": {
+										"value": "@activity('PL_EIA_to_Bronze').error.message",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"PipelineName": {
+									"value": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"PipelineRunId": {
+									"value": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"Status": {
+									"value": "failed",
+									"type": "String"
+								}
+							}
+						},
+						"linkedServiceName": {
+							"referenceName": "LS_AzureSQL",
+							"type": "LinkedServiceReference"
+						}
 					}
 				],
 				"policy": {
@@ -1021,7 +1079,8 @@
 				"[concat(variables('factoryId'), '/pipelines/PL_Bronze_OilPrice_to_Gold')]",
 				"[concat(variables('factoryId'), '/pipelines/PL_Silver_to_Staging_SQL')]",
 				"[concat(variables('factoryId'), '/pipelines/PL_SCD2_MERGE')]",
-				"[concat(variables('factoryId'), '/pipelines/PL_Archive_Gold_to_ADLS')]"
+				"[concat(variables('factoryId'), '/pipelines/PL_Archive_Gold_to_ADLS')]",
+				"[concat(variables('factoryId'), '/linkedServices/LS_AzureSQL')]"
 			]
 		},
 		{
