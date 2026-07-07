@@ -154,6 +154,64 @@
 					},
 					"waitOnCompletion": true
 				}
+			},
+			{
+				"name": "handling pipeline failure",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "PL_EIA_to_Bronze",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[Log_ADF_Failure]",
+					"storedProcedureParameters": {
+						"ActivityName": {
+							"value": "Copy EIA",
+							"type": "String"
+						},
+						"ErrorMessage": {
+							"value": {
+								"value": "@activity('PL_EIA_to_Bronze').error.message",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineRunId": {
+							"value": {
+								"value": "@pipeline().RunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"Status": {
+							"value": "failed",
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
 			}
 		],
 		"annotations": [],
