@@ -1030,7 +1030,7 @@
 							"storedProcedureName": "[[dbo].[Log_ADF_Failure]",
 							"storedProcedureParameters": {
 								"ActivityName": {
-									"value": "Copy EIA",
+									"value": "copy well data bronze to silver",
 									"type": "String"
 								},
 								"ErrorMessage": {
@@ -1088,7 +1088,7 @@
 							"storedProcedureName": "[[dbo].[Log_ADF_Failure]",
 							"storedProcedureParameters": {
 								"ActivityName": {
-									"value": "Copy EIA",
+									"value": "oil prize bronze to gold",
 									"type": "String"
 								},
 								"ErrorMessage": {
