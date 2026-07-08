@@ -123,7 +123,7 @@
 							]
 						},
 						{
-							"name": "Update Watermark",
+							"name": "Log Success",
 							"type": "SqlServerStoredProcedure",
 							"dependsOn": [
 								{
@@ -144,26 +144,170 @@
 							"typeProperties": {
 								"storedProcedureName": "[dbo].[sp_InsertPipelineRunLog]",
 								"storedProcedureParameters": {
-									"SourceSchema": {
+									"PipelineName": {
 										"value": {
-											"value": "@item().SourceSchema",
+											"value": "@pipeline().Pipeline",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineRunID": {
+										"value": {
+											"value": "@pipeline().RunId",
 											"type": "Expression"
 										},
 										"type": "String"
 									},
 									"SourceTable": {
 										"value": {
-											"value": "@item().SourceTable",
+											"value": "@concat(item().SourceSchema,'.',item().SourceTable)",
 											"type": "Expression"
 										},
 										"type": "String"
 									},
-									"WatermarkColumn": {
+									"TargetTable": {
 										"value": {
-											"value": "@item().WatermarkColumn",
+											"value": "@concat(item().TargetSchema,'.',item().TargetTable)",
 											"type": "Expression"
 										},
 										"type": "String"
+									},
+									"LoadType": {
+										"value": {
+											"value": "@item().LoadType",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"Status": {
+										"value": "Succeeded",
+										"type": "String"
+									},
+									"RowsCopied": {
+										"value": {
+											"value": "@activity('Copy Tables').output.rowsCopied",
+											"type": "Expression"
+										},
+										"type": "Int64"
+									},
+									"ErrorMessage": {
+										"value": "",
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "ls_metadatadriven_watermark",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "Log Failure",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Copy Tables",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.01:00:00",
+								"retry": 1,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[dbo].[sp_InsertPipelineRunLog]",
+								"storedProcedureParameters": {
+									"PipelineName": {
+										"value": {
+											"value": "@pipeline().Pipeline",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineRunID": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"SourceTable": {
+										"value": {
+											"value": "@concat(item().SourceSchema,'.',item().SourceTable)",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"TargetTable": {
+										"value": {
+											"value": "@concat(item().TargetSchema,'.',item().TargetTable)",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"LoadType": {
+										"value": {
+											"value": "@item().LoadType",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"Status": {
+										"value": "Failed",
+										"type": "String"
+									},
+									"RowsCopied": {
+										"value": 0,
+										"type": "Int64"
+									},
+									"ErrorMessage": {
+										"value": {
+											"value": "@activity('Copy Tables').error.message",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "ls_metadatadriven_watermark",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "Update Watermark",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Log Success",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.01:00:00",
+								"retry": 1,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[dbo].[sp_UpdateWatermark]",
+								"storedProcedureParameters": {
+									"MetadataID": {
+										"value": {
+											"value": "@item().MetadataID",
+											"type": "Expression"
+										},
+										"type": "Int32"
 									}
 								}
 							},
