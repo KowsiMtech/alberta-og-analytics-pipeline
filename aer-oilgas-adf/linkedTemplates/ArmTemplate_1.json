@@ -615,7 +615,7 @@
 						}
 					},
 					{
-						"name": "ForEach1",
+						"name": "ForEach Table",
 						"type": "ForEach",
 						"dependsOn": [
 							{
