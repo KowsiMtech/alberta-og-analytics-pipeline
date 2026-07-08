@@ -1,0 +1,19 @@
+{
+	"name": "MetadataDrivenCopyTask_xjb_ControlDS",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "ls_metadatadriven_watermark",
+			"type": "LinkedServiceReference"
+		},
+		"folder": {
+			"name": "MetadataDrivenCopyTask_xjb_20260707"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [],
+		"typeProperties": {
+			"schema": "dbo",
+			"table": "MainControlTable_xjb"
+		}
+	}
+}
