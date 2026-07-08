@@ -7,6 +7,18 @@
 			"metadata": "Data Factory name",
 			"defaultValue": "aer-oilgas-adf"
 		},
+		"LS_SourceSQL_password": {
+			"type": "secureString",
+			"metadata": "Secure string for 'password' of 'LS_SourceSQL'"
+		},
+		"LS_TargetSQL_password": {
+			"type": "secureString",
+			"metadata": "Secure string for 'password' of 'LS_TargetSQL'"
+		},
+		"ls_metadatadriven_watermark_password": {
+			"type": "secureString",
+			"metadata": "Secure string for 'password' of 'ls_metadatadriven_watermark'"
+		},
 		"LS_EIA_REST_properties_typeProperties_url": {
 			"type": "string",
 			"defaultValue": "https://api.eia.gov/"
@@ -15,6 +27,18 @@
 			"type": "string",
 			"defaultValue": "https://aer-oilgas-kv.vault.azure.net/"
 		},
+		"LS_SourceSQL_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "aer-server.database.windows.net"
+		},
+		"LS_SourceSQL_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "aer-oilgas-gold-db"
+		},
+		"LS_SourceSQL_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "sqladminuser"
+		},
 		"LS_Synapse_Serverless_properties_typeProperties_server": {
 			"type": "string",
 			"defaultValue": "aer-synapse-ws-ondemand.sql.azuresynapse.net"
@@ -22,6 +46,30 @@
 		"LS_Synapse_Serverless_properties_typeProperties_database": {
 			"type": "string",
 			"defaultValue": "aer_synapse_db"
+		},
+		"LS_TargetSQL_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "aer-server.database.windows.net"
+		},
+		"LS_TargetSQL_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "aer-oilgas-gold-db"
+		},
+		"LS_TargetSQL_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "sqladminuser"
+		},
+		"ls_metadatadriven_watermark_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "aer-server.database.windows.net"
+		},
+		"ls_metadatadriven_watermark_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "aer-oilgas-gold-db"
+		},
+		"ls_metadatadriven_watermark_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "sqladminuser"
 		},
 		"LS_ADLS_Gen2_properties_typeProperties_url": {
 			"type": "string",
@@ -118,6 +166,28 @@
 			"dependsOn": []
 		},
 		{
+			"name": "[concat(parameters('factoryName'), '/LS_SourceSQL')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureSqlDatabase",
+				"typeProperties": {
+					"server": "[parameters('LS_SourceSQL_properties_typeProperties_server')]",
+					"database": "[parameters('LS_SourceSQL_properties_typeProperties_database')]",
+					"encrypt": "mandatory",
+					"trustServerCertificate": false,
+					"authenticationType": "SQL",
+					"userName": "[parameters('LS_SourceSQL_properties_typeProperties_userName')]",
+					"password": {
+						"type": "SecureString",
+						"value": "[parameters('LS_SourceSQL_password')]"
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
 			"name": "[concat(parameters('factoryName'), '/LS_Synapse_Serverless')]",
 			"type": "Microsoft.DataFactory/factories/linkedServices",
 			"apiVersion": "2018-06-01",
@@ -130,6 +200,50 @@
 					"encrypt": "mandatory",
 					"trustServerCertificate": false,
 					"authenticationType": "SystemAssignedManagedIdentity"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/LS_TargetSQL')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureSqlDatabase",
+				"typeProperties": {
+					"server": "[parameters('LS_TargetSQL_properties_typeProperties_server')]",
+					"database": "[parameters('LS_TargetSQL_properties_typeProperties_database')]",
+					"encrypt": "mandatory",
+					"trustServerCertificate": false,
+					"authenticationType": "SQL",
+					"userName": "[parameters('LS_TargetSQL_properties_typeProperties_userName')]",
+					"password": {
+						"type": "SecureString",
+						"value": "[parameters('LS_TargetSQL_password')]"
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ls_metadatadriven_watermark')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureSqlDatabase",
+				"typeProperties": {
+					"server": "[parameters('ls_metadatadriven_watermark_properties_typeProperties_server')]",
+					"database": "[parameters('ls_metadatadriven_watermark_properties_typeProperties_database')]",
+					"encrypt": "mandatory",
+					"trustServerCertificate": false,
+					"authenticationType": "SQL",
+					"userName": "[parameters('ls_metadatadriven_watermark_properties_typeProperties_userName')]",
+					"password": {
+						"type": "SecureString",
+						"value": "[parameters('ls_metadatadriven_watermark_password')]"
+					}
 				}
 			},
 			"dependsOn": []
@@ -258,6 +372,76 @@
 			},
 			"dependsOn": [
 				"[concat(variables('factoryId'), '/linkedServices/LS_EIA_REST')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_SourceSQL')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_SourceSQL",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"SchemaName": {
+						"type": "string"
+					},
+					"TableName": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [],
+				"typeProperties": {
+					"schema": {
+						"value": "@dataset().SchemaName",
+						"type": "Expression"
+					},
+					"table": {
+						"value": "@dataset().TableName",
+						"type": "Expression"
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_SourceSQL')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_TargetSQL')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_TargetSQL",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"SchemaName": {
+						"type": "string"
+					},
+					"TableName": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [],
+				"typeProperties": {
+					"schema": {
+						"value": "@dataset().SchemaName",
+						"type": "Expression"
+					},
+					"table": {
+						"value": "@dataset().TableName",
+						"type": "Expression"
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_TargetSQL')]"
 			]
 		},
 		{
@@ -490,294 +674,6 @@
 			},
 			"dependsOn": [
 				"[concat(variables('factoryId'), '/linkedServices/LS_AzureSQL')]"
-			]
-		},
-		{
-			"name": "[concat(parameters('factoryName'), '/DS_AzureSQL_OilPrice_Sink')]",
-			"type": "Microsoft.DataFactory/factories/datasets",
-			"apiVersion": "2018-06-01",
-			"properties": {
-				"linkedServiceName": {
-					"referenceName": "LS_AzureSQL",
-					"type": "LinkedServiceReference"
-				},
-				"annotations": [],
-				"type": "AzureSqlTable",
-				"schema": [
-					{
-						"name": "PriceDate",
-						"type": "date"
-					},
-					{
-						"name": "OilPrice_USD",
-						"type": "decimal",
-						"precision": 10,
-						"scale": 2
-					},
-					{
-						"name": "SeriesDescription",
-						"type": "nvarchar"
-					},
-					{
-						"name": "ProductName",
-						"type": "nvarchar"
-					},
-					{
-						"name": "Units",
-						"type": "nvarchar"
-					}
-				],
-				"typeProperties": {
-					"schema": "staging",
-					"table": "OilPrice"
-				}
-			},
-			"dependsOn": [
-				"[concat(variables('factoryId'), '/linkedServices/LS_AzureSQL')]"
-			]
-		},
-		{
-			"name": "[concat(parameters('factoryName'), '/DS_Bronze_OilPrice')]",
-			"type": "Microsoft.DataFactory/factories/datasets",
-			"apiVersion": "2018-06-01",
-			"properties": {
-				"linkedServiceName": {
-					"referenceName": "LS_ADLS_Gen2",
-					"type": "LinkedServiceReference"
-				},
-				"parameters": {
-					"FolderPath": {
-						"type": "string",
-						"defaultValue": "bronze/oilprice"
-					},
-					"FileName": {
-						"type": "string",
-						"defaultValue": "OilPrice.parquet"
-					}
-				},
-				"annotations": [],
-				"type": "Parquet",
-				"typeProperties": {
-					"location": {
-						"type": "AzureBlobFSLocation",
-						"fileName": {
-							"value": "@dataset().FileName",
-							"type": "Expression"
-						},
-						"folderPath": {
-							"value": "@dataset().FolderPath",
-							"type": "Expression"
-						},
-						"fileSystem": "aer-og-data"
-					},
-					"compressionCodec": "snappy"
-				},
-				"schema": []
-			},
-			"dependsOn": [
-				"[concat(variables('factoryId'), '/linkedServices/LS_ADLS_Gen2')]"
-			]
-		},
-		{
-			"name": "[concat(parameters('factoryName'), '/DS_Bronze_Well')]",
-			"type": "Microsoft.DataFactory/factories/datasets",
-			"apiVersion": "2018-06-01",
-			"properties": {
-				"linkedServiceName": {
-					"referenceName": "LS_ADLS_Gen2",
-					"type": "LinkedServiceReference"
-				},
-				"parameters": {
-					"FolderPath": {
-						"type": "string"
-					},
-					"FileName": {
-						"type": "string"
-					}
-				},
-				"annotations": [],
-				"type": "Parquet",
-				"typeProperties": {
-					"location": {
-						"type": "AzureBlobFSLocation",
-						"fileName": {
-							"value": "@dataset().FileName",
-							"type": "Expression"
-						},
-						"folderPath": {
-							"value": "@dataset().FolderPath",
-							"type": "Expression"
-						},
-						"fileSystem": "aer-og-data"
-					},
-					"compressionCodec": "snappy"
-				},
-				"schema": []
-			},
-			"dependsOn": [
-				"[concat(variables('factoryId'), '/linkedServices/LS_ADLS_Gen2')]"
-			]
-		},
-		{
-			"name": "[concat(parameters('factoryName'), '/DS_Gold_OilPrice_Parquet')]",
-			"type": "Microsoft.DataFactory/factories/datasets",
-			"apiVersion": "2018-06-01",
-			"properties": {
-				"linkedServiceName": {
-					"referenceName": "LS_ADLS_Gen2",
-					"type": "LinkedServiceReference"
-				},
-				"annotations": [],
-				"type": "Parquet",
-				"typeProperties": {
-					"location": {
-						"type": "AzureBlobFSLocation",
-						"folderPath": "gold/fact_oilprice",
-						"fileSystem": "aer-og-data"
-					},
-					"compressionCodec": "snappy"
-				},
-				"schema": [
-					{
-						"name": "PriceDate",
-						"type": "DATE"
-					},
-					{
-						"name": "OilPrice_USD",
-						"type": "DECIMAL",
-						"precision": 10,
-						"scale": 2
-					},
-					{
-						"name": "SeriesDescription",
-						"type": "UTF8"
-					},
-					{
-						"name": "Loaded_At",
-						"type": "TIMESTAMP_MICROS"
-					}
-				]
-			},
-			"dependsOn": [
-				"[concat(variables('factoryId'), '/linkedServices/LS_ADLS_Gen2')]"
-			]
-		},
-		{
-			"name": "[concat(parameters('factoryName'), '/DS_OnPrem_WellList')]",
-			"type": "Microsoft.DataFactory/factories/datasets",
-			"apiVersion": "2018-06-01",
-			"properties": {
-				"linkedServiceName": {
-					"referenceName": "LS_OnPrem_SQL",
-					"type": "LinkedServiceReference"
-				},
-				"annotations": [],
-				"type": "SqlServerTable",
-				"schema": [
-					{
-						"name": "UWI_DISPLAY_FORMAT",
-						"type": "nvarchar"
-					},
-					{
-						"name": "KEY_LIST_OF_WELLS",
-						"type": "nvarchar"
-					},
-					{
-						"name": "UPDATE_FLAG",
-						"type": "nvarchar"
-					},
-					{
-						"name": "WELL_NAME",
-						"type": "nvarchar"
-					},
-					{
-						"name": "FIELD_CODE",
-						"type": "nvarchar"
-					},
-					{
-						"name": "POOL_CODE",
-						"type": "nvarchar"
-					},
-					{
-						"name": "OS_AREA_CODE",
-						"type": "nvarchar"
-					},
-					{
-						"name": "OS_DEP_CODE",
-						"type": "nvarchar"
-					},
-					{
-						"name": "LICENSE_NO",
-						"type": "nvarchar"
-					},
-					{
-						"name": "LICENCE_STATUS",
-						"type": "nvarchar"
-					},
-					{
-						"name": "LICENSE_ISSUE_DATE",
-						"type": "nvarchar"
-					},
-					{
-						"name": "LICENSEE_CODE",
-						"type": "nvarchar"
-					},
-					{
-						"name": "AGENT_CODE",
-						"type": "nvarchar"
-					},
-					{
-						"name": "OPERATOR_CODE",
-						"type": "nvarchar"
-					},
-					{
-						"name": "FIN_DRL_DATE",
-						"type": "nvarchar"
-					},
-					{
-						"name": "WELL_TOTAL_DEPTH",
-						"type": "nvarchar"
-					},
-					{
-						"name": "WELL_STAT_CODE",
-						"type": "nvarchar"
-					},
-					{
-						"name": "WELL_STAT_DATE",
-						"type": "nvarchar"
-					},
-					{
-						"name": "FLUID_SHORT_DESC",
-						"type": "nvarchar"
-					},
-					{
-						"name": "MODE_SHORT_DESC",
-						"type": "nvarchar"
-					},
-					{
-						"name": "TYPE_SHORT_DESC",
-						"type": "nvarchar"
-					},
-					{
-						"name": "STRUCTURE_SHORT_DESC",
-						"type": "nvarchar"
-					},
-					{
-						"name": "SCHEME_TYPE",
-						"type": "nvarchar"
-					},
-					{
-						"name": "SCHEME_SUB_TYPE",
-						"type": "nvarchar"
-					}
-				],
-				"typeProperties": {
-					"schema": "dbo",
-					"table": "WellList"
-				}
-			},
-			"dependsOn": [
-				"[concat(variables('factoryId'), '/linkedServices/LS_OnPrem_SQL')]"
 			]
 		}
 	]

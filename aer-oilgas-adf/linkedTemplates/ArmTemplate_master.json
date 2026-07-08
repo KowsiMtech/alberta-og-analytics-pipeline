@@ -7,6 +7,18 @@
 			"metadata": "Data Factory name",
 			"defaultValue": "aer-oilgas-adf"
 		},
+		"LS_SourceSQL_password": {
+			"type": "secureString",
+			"metadata": "Secure string for 'password' of 'LS_SourceSQL'"
+		},
+		"LS_TargetSQL_password": {
+			"type": "secureString",
+			"metadata": "Secure string for 'password' of 'LS_TargetSQL'"
+		},
+		"ls_metadatadriven_watermark_password": {
+			"type": "secureString",
+			"metadata": "Secure string for 'password' of 'ls_metadatadriven_watermark'"
+		},
 		"LS_ADLS_Gen2_properties_typeProperties_url": {
 			"type": "string",
 			"defaultValue": "https://aeroilgasstorage.dfs.core.windows.net"
@@ -43,6 +55,18 @@
 			"type": "string",
 			"defaultValue": "adf_user"
 		},
+		"LS_SourceSQL_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "aer-server.database.windows.net"
+		},
+		"LS_SourceSQL_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "aer-oilgas-gold-db"
+		},
+		"LS_SourceSQL_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "sqladminuser"
+		},
 		"LS_Synapse_Serverless_properties_typeProperties_server": {
 			"type": "string",
 			"defaultValue": "aer-synapse-ws-ondemand.sql.azuresynapse.net"
@@ -50,6 +74,30 @@
 		"LS_Synapse_Serverless_properties_typeProperties_database": {
 			"type": "string",
 			"defaultValue": "aer_synapse_db"
+		},
+		"LS_TargetSQL_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "aer-server.database.windows.net"
+		},
+		"LS_TargetSQL_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "aer-oilgas-gold-db"
+		},
+		"LS_TargetSQL_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "sqladminuser"
+		},
+		"ls_metadatadriven_watermark_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "aer-server.database.windows.net"
+		},
+		"ls_metadatadriven_watermark_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "aer-oilgas-gold-db"
+		},
+		"ls_metadatadriven_watermark_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "sqladminuser"
 		},
 		"containerUri": {
 			"type": "string",
@@ -78,17 +126,53 @@
 					"factoryName": {
 						"value": "[parameters('factoryName')]"
 					},
+					"LS_SourceSQL_password": {
+						"value": "[parameters('LS_SourceSQL_password')]"
+					},
+					"LS_TargetSQL_password": {
+						"value": "[parameters('LS_TargetSQL_password')]"
+					},
+					"ls_metadatadriven_watermark_password": {
+						"value": "[parameters('ls_metadatadriven_watermark_password')]"
+					},
 					"LS_EIA_REST_properties_typeProperties_url": {
 						"value": "[parameters('LS_EIA_REST_properties_typeProperties_url')]"
 					},
 					"LS_KeyVault_properties_typeProperties_baseUrl": {
 						"value": "[parameters('LS_KeyVault_properties_typeProperties_baseUrl')]"
 					},
+					"LS_SourceSQL_properties_typeProperties_server": {
+						"value": "[parameters('LS_SourceSQL_properties_typeProperties_server')]"
+					},
+					"LS_SourceSQL_properties_typeProperties_database": {
+						"value": "[parameters('LS_SourceSQL_properties_typeProperties_database')]"
+					},
+					"LS_SourceSQL_properties_typeProperties_userName": {
+						"value": "[parameters('LS_SourceSQL_properties_typeProperties_userName')]"
+					},
 					"LS_Synapse_Serverless_properties_typeProperties_server": {
 						"value": "[parameters('LS_Synapse_Serverless_properties_typeProperties_server')]"
 					},
 					"LS_Synapse_Serverless_properties_typeProperties_database": {
 						"value": "[parameters('LS_Synapse_Serverless_properties_typeProperties_database')]"
+					},
+					"LS_TargetSQL_properties_typeProperties_server": {
+						"value": "[parameters('LS_TargetSQL_properties_typeProperties_server')]"
+					},
+					"LS_TargetSQL_properties_typeProperties_database": {
+						"value": "[parameters('LS_TargetSQL_properties_typeProperties_database')]"
+					},
+					"LS_TargetSQL_properties_typeProperties_userName": {
+						"value": "[parameters('LS_TargetSQL_properties_typeProperties_userName')]"
+					},
+					"ls_metadatadriven_watermark_properties_typeProperties_server": {
+						"value": "[parameters('ls_metadatadriven_watermark_properties_typeProperties_server')]"
+					},
+					"ls_metadatadriven_watermark_properties_typeProperties_database": {
+						"value": "[parameters('ls_metadatadriven_watermark_properties_typeProperties_database')]"
+					},
+					"ls_metadatadriven_watermark_properties_typeProperties_userName": {
+						"value": "[parameters('ls_metadatadriven_watermark_properties_typeProperties_userName')]"
 					},
 					"LS_ADLS_Gen2_properties_typeProperties_url": {
 						"value": "[parameters('LS_ADLS_Gen2_properties_typeProperties_url')]"

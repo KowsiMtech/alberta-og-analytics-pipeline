@@ -7,6 +7,18 @@
 			"metadata": "Data Factory name",
 			"defaultValue": "aer-oilgas-adf"
 		},
+		"LS_SourceSQL_password": {
+			"type": "secureString",
+			"metadata": "Secure string for 'password' of 'LS_SourceSQL'"
+		},
+		"LS_TargetSQL_password": {
+			"type": "secureString",
+			"metadata": "Secure string for 'password' of 'LS_TargetSQL'"
+		},
+		"ls_metadatadriven_watermark_password": {
+			"type": "secureString",
+			"metadata": "Secure string for 'password' of 'ls_metadatadriven_watermark'"
+		},
 		"LS_ADLS_Gen2_properties_typeProperties_url": {
 			"type": "string",
 			"defaultValue": "https://aeroilgasstorage.dfs.core.windows.net"
@@ -43,6 +55,18 @@
 			"type": "string",
 			"defaultValue": "adf_user"
 		},
+		"LS_SourceSQL_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "aer-server.database.windows.net"
+		},
+		"LS_SourceSQL_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "aer-oilgas-gold-db"
+		},
+		"LS_SourceSQL_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "sqladminuser"
+		},
 		"LS_Synapse_Serverless_properties_typeProperties_server": {
 			"type": "string",
 			"defaultValue": "aer-synapse-ws-ondemand.sql.azuresynapse.net"
@@ -50,12 +74,373 @@
 		"LS_Synapse_Serverless_properties_typeProperties_database": {
 			"type": "string",
 			"defaultValue": "aer_synapse_db"
+		},
+		"LS_TargetSQL_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "aer-server.database.windows.net"
+		},
+		"LS_TargetSQL_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "aer-oilgas-gold-db"
+		},
+		"LS_TargetSQL_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "sqladminuser"
+		},
+		"ls_metadatadriven_watermark_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "aer-server.database.windows.net"
+		},
+		"ls_metadatadriven_watermark_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "aer-oilgas-gold-db"
+		},
+		"ls_metadatadriven_watermark_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "sqladminuser"
 		}
 	},
 	"variables": {
 		"factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
 	},
 	"resources": [
+		{
+			"name": "[concat(parameters('factoryName'), '/Metadata_driven_pipeline')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "Lookup metadata",
+						"type": "Lookup",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "AzureSqlSource",
+								"sqlReaderQuery": "SELECT * FROM dbo.PipelineMetadata WHERE IsActive = 1;",
+								"queryTimeout": "02:00:00",
+								"partitionOption": "None"
+							},
+							"dataset": {
+								"referenceName": "DS_metadata_table",
+								"type": "DatasetReference",
+								"parameters": {}
+							},
+							"firstRowOnly": false
+						}
+					},
+					{
+						"name": "ForEach1",
+						"type": "ForEach",
+						"dependsOn": [
+							{
+								"activity": "Lookup metadata",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"items": {
+								"value": "@activity('Lookup metadata').output.value",
+								"type": "Expression"
+							},
+							"isSequential": false,
+							"batchCount": 5,
+							"activities": [
+								{
+									"name": "Copy Tables",
+									"type": "Copy",
+									"dependsOn": [],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"source": {
+											"type": "AzureSqlSource",
+											"sqlReaderQuery": {
+												"value": "@if(equals(item().LoadType,'Full'), concat('SELECT * FROM [',item().SourceSchema,'].[',item().SourceTable,']'), concat('SELECT * FROM [',item().SourceSchema,'].[',item().SourceTable,'] WHERE [',item().WatermarkColumn,'] > ''',item().LastWatermarkValue,''''))",
+												"type": "Expression"
+											},
+											"queryTimeout": "02:00:00",
+											"partitionOption": "None"
+										},
+										"sink": {
+											"type": "AzureSqlSink",
+											"preCopyScript": {
+												"value": "@if(equals(item().LoadType,'Full'), concat('TRUNCATE TABLE [',item().TargetSchema,'].[',item().TargetTable,']'), '')",
+												"type": "Expression"
+											},
+											"writeBehavior": "insert",
+											"sqlWriterUseTableLock": false
+										},
+										"enableStaging": false,
+										"translator": {
+											"type": "TabularTranslator",
+											"typeConversion": true,
+											"typeConversionSettings": {
+												"allowDataTruncation": true,
+												"treatBooleanAsNumber": false
+											}
+										}
+									},
+									"inputs": [
+										{
+											"referenceName": "DS_SourceSQL",
+											"type": "DatasetReference",
+											"parameters": {
+												"SchemaName": {
+													"value": "@item().SourceSchema",
+													"type": "Expression"
+												},
+												"TableName": {
+													"value": "@item().SourceTable",
+													"type": "Expression"
+												}
+											}
+										}
+									],
+									"outputs": [
+										{
+											"referenceName": "DS_TargetSQL",
+											"type": "DatasetReference",
+											"parameters": {
+												"SchemaName": {
+													"value": "@item().TargetSchema",
+													"type": "Expression"
+												},
+												"TableName": {
+													"value": "@item().TargetTable",
+													"type": "Expression"
+												}
+											}
+										}
+									]
+								},
+								{
+									"name": "Log Success",
+									"type": "SqlServerStoredProcedure",
+									"dependsOn": [
+										{
+											"activity": "Copy Tables",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.01:00:00",
+										"retry": 1,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"storedProcedureName": "[[dbo].[sp_InsertPipelineRunLog]",
+										"storedProcedureParameters": {
+											"PipelineName": {
+												"value": {
+													"value": "@pipeline().Pipeline",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"PipelineRunID": {
+												"value": {
+													"value": "@pipeline().RunId",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"SourceTable": {
+												"value": {
+													"value": "@concat(item().SourceSchema,'.',item().SourceTable)",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"TargetTable": {
+												"value": {
+													"value": "@concat(item().TargetSchema,'.',item().TargetTable)",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"LoadType": {
+												"value": {
+													"value": "@item().LoadType",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"Status": {
+												"value": "Succeeded",
+												"type": "String"
+											},
+											"RowsCopied": {
+												"value": {
+													"value": "@activity('Copy Tables').output.rowsCopied",
+													"type": "Expression"
+												},
+												"type": "Int64"
+											},
+											"ErrorMessage": {
+												"value": "",
+												"type": "String"
+											}
+										}
+									},
+									"linkedServiceName": {
+										"referenceName": "ls_metadatadriven_watermark",
+										"type": "LinkedServiceReference"
+									}
+								},
+								{
+									"name": "Log Failure",
+									"type": "SqlServerStoredProcedure",
+									"dependsOn": [
+										{
+											"activity": "Copy Tables",
+											"dependencyConditions": [
+												"Failed"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.01:00:00",
+										"retry": 1,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"storedProcedureName": "[[dbo].[sp_InsertPipelineRunLog]",
+										"storedProcedureParameters": {
+											"PipelineName": {
+												"value": {
+													"value": "@pipeline().Pipeline",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"PipelineRunID": {
+												"value": {
+													"value": "@pipeline().RunId",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"SourceTable": {
+												"value": {
+													"value": "@concat(item().SourceSchema,'.',item().SourceTable)",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"TargetTable": {
+												"value": {
+													"value": "@concat(item().TargetSchema,'.',item().TargetTable)",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"LoadType": {
+												"value": {
+													"value": "@item().LoadType",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"Status": {
+												"value": "Failed",
+												"type": "String"
+											},
+											"RowsCopied": {
+												"value": 0,
+												"type": "Int64"
+											},
+											"ErrorMessage": {
+												"value": {
+													"value": "@activity('Copy Tables').error.message",
+													"type": "Expression"
+												},
+												"type": "String"
+											}
+										}
+									},
+									"linkedServiceName": {
+										"referenceName": "ls_metadatadriven_watermark",
+										"type": "LinkedServiceReference"
+									}
+								},
+								{
+									"name": "Update Watermark",
+									"type": "SqlServerStoredProcedure",
+									"dependsOn": [
+										{
+											"activity": "Log Success",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.01:00:00",
+										"retry": 1,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"storedProcedureName": "[[dbo].[sp_UpdateWatermark]",
+										"storedProcedureParameters": {
+											"MetadataID": {
+												"value": {
+													"value": "@item().MetadataID",
+													"type": "Expression"
+												},
+												"type": "Int32"
+											}
+										}
+									},
+									"linkedServiceName": {
+										"referenceName": "ls_metadatadriven_watermark",
+										"type": "LinkedServiceReference"
+									}
+								}
+							]
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/DS_metadata_table')]",
+				"[concat(variables('factoryId'), '/datasets/DS_SourceSQL')]",
+				"[concat(variables('factoryId'), '/datasets/DS_TargetSQL')]",
+				"[concat(variables('factoryId'), '/linkedServices/ls_metadatadriven_watermark')]"
+			]
+		},
 		{
 			"name": "[concat(parameters('factoryName'), '/PL_Archive_Gold_to_ADLS')]",
 			"type": "Microsoft.DataFactory/factories/pipelines",
@@ -2133,6 +2518,41 @@
 			]
 		},
 		{
+			"name": "[concat(parameters('factoryName'), '/DS_SourceSQL')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_SourceSQL",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"SchemaName": {
+						"type": "string"
+					},
+					"TableName": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [],
+				"typeProperties": {
+					"schema": {
+						"value": "@dataset().SchemaName",
+						"type": "Expression"
+					},
+					"table": {
+						"value": "@dataset().TableName",
+						"type": "Expression"
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_SourceSQL')]"
+			]
+		},
+		{
 			"name": "[concat(parameters('factoryName'), '/DS_Staging_OilPrice_SQL')]",
 			"type": "Microsoft.DataFactory/factories/datasets",
 			"apiVersion": "2018-06-01",
@@ -2259,6 +2679,102 @@
 			]
 		},
 		{
+			"name": "[concat(parameters('factoryName'), '/DS_TargetSQL')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_TargetSQL",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"SchemaName": {
+						"type": "string"
+					},
+					"TableName": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [],
+				"typeProperties": {
+					"schema": {
+						"value": "@dataset().SchemaName",
+						"type": "Expression"
+					},
+					"table": {
+						"value": "@dataset().TableName",
+						"type": "Expression"
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_TargetSQL')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_metadata_table')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [
+					{
+						"name": "MetadataID",
+						"type": "int",
+						"precision": 10
+					},
+					{
+						"name": "SourceSchema",
+						"type": "varchar"
+					},
+					{
+						"name": "SourceTable",
+						"type": "varchar"
+					},
+					{
+						"name": "TargetSchema",
+						"type": "varchar"
+					},
+					{
+						"name": "TargetTable",
+						"type": "varchar"
+					},
+					{
+						"name": "WatermarkColumn",
+						"type": "varchar"
+					},
+					{
+						"name": "LastWatermarkValue",
+						"type": "datetime",
+						"precision": 23,
+						"scale": 3
+					},
+					{
+						"name": "LoadType",
+						"type": "varchar"
+					},
+					{
+						"name": "IsActive",
+						"type": "bit"
+					}
+				],
+				"typeProperties": {
+					"schema": "dbo",
+					"table": "PipelineMetadata"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_AzureSQL')]"
+			]
+		},
+		{
 			"name": "[concat(parameters('factoryName'), '/LS_ADLS_Gen2')]",
 			"type": "Microsoft.DataFactory/factories/linkedServices",
 			"apiVersion": "2018-06-01",
@@ -2371,6 +2887,28 @@
 			]
 		},
 		{
+			"name": "[concat(parameters('factoryName'), '/LS_SourceSQL')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureSqlDatabase",
+				"typeProperties": {
+					"server": "[parameters('LS_SourceSQL_properties_typeProperties_server')]",
+					"database": "[parameters('LS_SourceSQL_properties_typeProperties_database')]",
+					"encrypt": "mandatory",
+					"trustServerCertificate": false,
+					"authenticationType": "SQL",
+					"userName": "[parameters('LS_SourceSQL_properties_typeProperties_userName')]",
+					"password": {
+						"type": "SecureString",
+						"value": "[parameters('LS_SourceSQL_password')]"
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
 			"name": "[concat(parameters('factoryName'), '/LS_Synapse_Serverless')]",
 			"type": "Microsoft.DataFactory/factories/linkedServices",
 			"apiVersion": "2018-06-01",
@@ -2383,6 +2921,50 @@
 					"encrypt": "mandatory",
 					"trustServerCertificate": false,
 					"authenticationType": "SystemAssignedManagedIdentity"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/LS_TargetSQL')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureSqlDatabase",
+				"typeProperties": {
+					"server": "[parameters('LS_TargetSQL_properties_typeProperties_server')]",
+					"database": "[parameters('LS_TargetSQL_properties_typeProperties_database')]",
+					"encrypt": "mandatory",
+					"trustServerCertificate": false,
+					"authenticationType": "SQL",
+					"userName": "[parameters('LS_TargetSQL_properties_typeProperties_userName')]",
+					"password": {
+						"type": "SecureString",
+						"value": "[parameters('LS_TargetSQL_password')]"
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ls_metadatadriven_watermark')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureSqlDatabase",
+				"typeProperties": {
+					"server": "[parameters('ls_metadatadriven_watermark_properties_typeProperties_server')]",
+					"database": "[parameters('ls_metadatadriven_watermark_properties_typeProperties_database')]",
+					"encrypt": "mandatory",
+					"trustServerCertificate": false,
+					"authenticationType": "SQL",
+					"userName": "[parameters('ls_metadatadriven_watermark_properties_typeProperties_userName')]",
+					"password": {
+						"type": "SecureString",
+						"value": "[parameters('ls_metadatadriven_watermark_password')]"
+					}
 				}
 			},
 			"dependsOn": []

@@ -13,6 +13,284 @@
 	},
 	"resources": [
 		{
+			"name": "[concat(parameters('factoryName'), '/DS_AzureSQL_OilPrice_Sink')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [
+					{
+						"name": "PriceDate",
+						"type": "date"
+					},
+					{
+						"name": "OilPrice_USD",
+						"type": "decimal",
+						"precision": 10,
+						"scale": 2
+					},
+					{
+						"name": "SeriesDescription",
+						"type": "nvarchar"
+					},
+					{
+						"name": "ProductName",
+						"type": "nvarchar"
+					},
+					{
+						"name": "Units",
+						"type": "nvarchar"
+					}
+				],
+				"typeProperties": {
+					"schema": "staging",
+					"table": "OilPrice"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_Bronze_OilPrice')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"FolderPath": {
+						"type": "string",
+						"defaultValue": "bronze/oilprice"
+					},
+					"FileName": {
+						"type": "string",
+						"defaultValue": "OilPrice.parquet"
+					}
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": {
+							"value": "@dataset().FileName",
+							"type": "Expression"
+						},
+						"folderPath": {
+							"value": "@dataset().FolderPath",
+							"type": "Expression"
+						},
+						"fileSystem": "aer-og-data"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": []
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_Bronze_Well')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"FolderPath": {
+						"type": "string"
+					},
+					"FileName": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": {
+							"value": "@dataset().FileName",
+							"type": "Expression"
+						},
+						"folderPath": {
+							"value": "@dataset().FolderPath",
+							"type": "Expression"
+						},
+						"fileSystem": "aer-og-data"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": []
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_Gold_OilPrice_Parquet')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": "gold/fact_oilprice",
+						"fileSystem": "aer-og-data"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": [
+					{
+						"name": "PriceDate",
+						"type": "DATE"
+					},
+					{
+						"name": "OilPrice_USD",
+						"type": "DECIMAL",
+						"precision": 10,
+						"scale": 2
+					},
+					{
+						"name": "SeriesDescription",
+						"type": "UTF8"
+					},
+					{
+						"name": "Loaded_At",
+						"type": "TIMESTAMP_MICROS"
+					}
+				]
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_OnPrem_WellList')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_OnPrem_SQL",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "SqlServerTable",
+				"schema": [
+					{
+						"name": "UWI_DISPLAY_FORMAT",
+						"type": "nvarchar"
+					},
+					{
+						"name": "KEY_LIST_OF_WELLS",
+						"type": "nvarchar"
+					},
+					{
+						"name": "UPDATE_FLAG",
+						"type": "nvarchar"
+					},
+					{
+						"name": "WELL_NAME",
+						"type": "nvarchar"
+					},
+					{
+						"name": "FIELD_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "POOL_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "OS_AREA_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "OS_DEP_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "LICENSE_NO",
+						"type": "nvarchar"
+					},
+					{
+						"name": "LICENCE_STATUS",
+						"type": "nvarchar"
+					},
+					{
+						"name": "LICENSE_ISSUE_DATE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "LICENSEE_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "AGENT_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "OPERATOR_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "FIN_DRL_DATE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "WELL_TOTAL_DEPTH",
+						"type": "nvarchar"
+					},
+					{
+						"name": "WELL_STAT_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "WELL_STAT_DATE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "FLUID_SHORT_DESC",
+						"type": "nvarchar"
+					},
+					{
+						"name": "MODE_SHORT_DESC",
+						"type": "nvarchar"
+					},
+					{
+						"name": "TYPE_SHORT_DESC",
+						"type": "nvarchar"
+					},
+					{
+						"name": "STRUCTURE_SHORT_DESC",
+						"type": "nvarchar"
+					},
+					{
+						"name": "SCHEME_TYPE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "SCHEME_SUB_TYPE",
+						"type": "nvarchar"
+					}
+				],
+				"typeProperties": {
+					"schema": "dbo",
+					"table": "WellList"
+				}
+			},
+			"dependsOn": []
+		},
+		{
 			"name": "[concat(parameters('factoryName'), '/DS_Silver_Parquet')]",
 			"type": "Microsoft.DataFactory/factories/datasets",
 			"apiVersion": "2018-06-01",
@@ -243,6 +521,399 @@
 				}
 			},
 			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_metadata_table')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [
+					{
+						"name": "MetadataID",
+						"type": "int",
+						"precision": 10
+					},
+					{
+						"name": "SourceSchema",
+						"type": "varchar"
+					},
+					{
+						"name": "SourceTable",
+						"type": "varchar"
+					},
+					{
+						"name": "TargetSchema",
+						"type": "varchar"
+					},
+					{
+						"name": "TargetTable",
+						"type": "varchar"
+					},
+					{
+						"name": "WatermarkColumn",
+						"type": "varchar"
+					},
+					{
+						"name": "LastWatermarkValue",
+						"type": "datetime",
+						"precision": 23,
+						"scale": 3
+					},
+					{
+						"name": "LoadType",
+						"type": "varchar"
+					},
+					{
+						"name": "IsActive",
+						"type": "bit"
+					}
+				],
+				"typeProperties": {
+					"schema": "dbo",
+					"table": "PipelineMetadata"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/Metadata_driven_pipeline')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "Lookup metadata",
+						"type": "Lookup",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "AzureSqlSource",
+								"sqlReaderQuery": "SELECT * FROM dbo.PipelineMetadata WHERE IsActive = 1;",
+								"queryTimeout": "02:00:00",
+								"partitionOption": "None"
+							},
+							"dataset": {
+								"referenceName": "DS_metadata_table",
+								"type": "DatasetReference",
+								"parameters": {}
+							},
+							"firstRowOnly": false
+						}
+					},
+					{
+						"name": "ForEach1",
+						"type": "ForEach",
+						"dependsOn": [
+							{
+								"activity": "Lookup metadata",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"items": {
+								"value": "@activity('Lookup metadata').output.value",
+								"type": "Expression"
+							},
+							"isSequential": false,
+							"batchCount": 5,
+							"activities": [
+								{
+									"name": "Copy Tables",
+									"type": "Copy",
+									"dependsOn": [],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"source": {
+											"type": "AzureSqlSource",
+											"sqlReaderQuery": {
+												"value": "@if(equals(item().LoadType,'Full'), concat('SELECT * FROM [',item().SourceSchema,'].[',item().SourceTable,']'), concat('SELECT * FROM [',item().SourceSchema,'].[',item().SourceTable,'] WHERE [',item().WatermarkColumn,'] > ''',item().LastWatermarkValue,''''))",
+												"type": "Expression"
+											},
+											"queryTimeout": "02:00:00",
+											"partitionOption": "None"
+										},
+										"sink": {
+											"type": "AzureSqlSink",
+											"preCopyScript": {
+												"value": "@if(equals(item().LoadType,'Full'), concat('TRUNCATE TABLE [',item().TargetSchema,'].[',item().TargetTable,']'), '')",
+												"type": "Expression"
+											},
+											"writeBehavior": "insert",
+											"sqlWriterUseTableLock": false
+										},
+										"enableStaging": false,
+										"translator": {
+											"type": "TabularTranslator",
+											"typeConversion": true,
+											"typeConversionSettings": {
+												"allowDataTruncation": true,
+												"treatBooleanAsNumber": false
+											}
+										}
+									},
+									"inputs": [
+										{
+											"referenceName": "DS_SourceSQL",
+											"type": "DatasetReference",
+											"parameters": {
+												"SchemaName": {
+													"value": "@item().SourceSchema",
+													"type": "Expression"
+												},
+												"TableName": {
+													"value": "@item().SourceTable",
+													"type": "Expression"
+												}
+											}
+										}
+									],
+									"outputs": [
+										{
+											"referenceName": "DS_TargetSQL",
+											"type": "DatasetReference",
+											"parameters": {
+												"SchemaName": {
+													"value": "@item().TargetSchema",
+													"type": "Expression"
+												},
+												"TableName": {
+													"value": "@item().TargetTable",
+													"type": "Expression"
+												}
+											}
+										}
+									]
+								},
+								{
+									"name": "Log Success",
+									"type": "SqlServerStoredProcedure",
+									"dependsOn": [
+										{
+											"activity": "Copy Tables",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.01:00:00",
+										"retry": 1,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"storedProcedureName": "[[dbo].[sp_InsertPipelineRunLog]",
+										"storedProcedureParameters": {
+											"PipelineName": {
+												"value": {
+													"value": "@pipeline().Pipeline",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"PipelineRunID": {
+												"value": {
+													"value": "@pipeline().RunId",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"SourceTable": {
+												"value": {
+													"value": "@concat(item().SourceSchema,'.',item().SourceTable)",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"TargetTable": {
+												"value": {
+													"value": "@concat(item().TargetSchema,'.',item().TargetTable)",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"LoadType": {
+												"value": {
+													"value": "@item().LoadType",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"Status": {
+												"value": "Succeeded",
+												"type": "String"
+											},
+											"RowsCopied": {
+												"value": {
+													"value": "@activity('Copy Tables').output.rowsCopied",
+													"type": "Expression"
+												},
+												"type": "Int64"
+											},
+											"ErrorMessage": {
+												"value": "",
+												"type": "String"
+											}
+										}
+									},
+									"linkedServiceName": {
+										"referenceName": "ls_metadatadriven_watermark",
+										"type": "LinkedServiceReference"
+									}
+								},
+								{
+									"name": "Log Failure",
+									"type": "SqlServerStoredProcedure",
+									"dependsOn": [
+										{
+											"activity": "Copy Tables",
+											"dependencyConditions": [
+												"Failed"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.01:00:00",
+										"retry": 1,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"storedProcedureName": "[[dbo].[sp_InsertPipelineRunLog]",
+										"storedProcedureParameters": {
+											"PipelineName": {
+												"value": {
+													"value": "@pipeline().Pipeline",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"PipelineRunID": {
+												"value": {
+													"value": "@pipeline().RunId",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"SourceTable": {
+												"value": {
+													"value": "@concat(item().SourceSchema,'.',item().SourceTable)",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"TargetTable": {
+												"value": {
+													"value": "@concat(item().TargetSchema,'.',item().TargetTable)",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"LoadType": {
+												"value": {
+													"value": "@item().LoadType",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"Status": {
+												"value": "Failed",
+												"type": "String"
+											},
+											"RowsCopied": {
+												"value": 0,
+												"type": "Int64"
+											},
+											"ErrorMessage": {
+												"value": {
+													"value": "@activity('Copy Tables').error.message",
+													"type": "Expression"
+												},
+												"type": "String"
+											}
+										}
+									},
+									"linkedServiceName": {
+										"referenceName": "ls_metadatadriven_watermark",
+										"type": "LinkedServiceReference"
+									}
+								},
+								{
+									"name": "Update Watermark",
+									"type": "SqlServerStoredProcedure",
+									"dependsOn": [
+										{
+											"activity": "Log Success",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.01:00:00",
+										"retry": 1,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"storedProcedureName": "[[dbo].[sp_UpdateWatermark]",
+										"storedProcedureParameters": {
+											"MetadataID": {
+												"value": {
+													"value": "@item().MetadataID",
+													"type": "Expression"
+												},
+												"type": "Int32"
+											}
+										}
+									},
+									"linkedServiceName": {
+										"referenceName": "ls_metadatadriven_watermark",
+										"type": "LinkedServiceReference"
+									}
+								}
+							]
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/DS_metadata_table')]"
+			]
 		},
 		{
 			"name": "[concat(parameters('factoryName'), '/PL_Archive_Gold_to_ADLS')]",
@@ -901,7 +1572,10 @@
 				],
 				"lastPublishTime": "2026-04-19T21:18:16Z"
 			},
-			"dependsOn": []
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/DS_AzureSQL_OilPrice_Sink')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Bronze_OilPrice')]"
+			]
 		},
 		{
 			"name": "[concat(parameters('factoryName'), '/PL_ST37_to_Bronze')]",
@@ -1000,7 +1674,10 @@
 				"annotations": [],
 				"lastPublishTime": "2026-04-19T19:46:47Z"
 			},
-			"dependsOn": []
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/DS_OnPrem_WellList')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Bronze_Well')]"
+			]
 		},
 		{
 			"name": "[concat(parameters('factoryName'), '/PL_Silver_to_Staging_SQL')]",
