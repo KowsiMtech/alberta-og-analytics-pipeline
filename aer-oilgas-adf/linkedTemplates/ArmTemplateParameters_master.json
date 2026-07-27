@@ -41,6 +41,12 @@
 		"LS_OnPrem_SQL_properties_typeProperties_userName": {
 			"value": "adf_user"
 		},
+		"LS_Sftp_properties_typeProperties_host": {
+			"value": "storageadfmaster.blob.core.windows.net"
+		},
+		"LS_Sftp_properties_typeProperties_userName": {
+			"value": "storageadfmaster.sftpadmin"
+		},
 		"LS_SourceSQL_properties_typeProperties_server": {
 			"value": "aer-server.database.windows.net"
 		},

@@ -55,6 +55,14 @@
 			"type": "string",
 			"defaultValue": "adf_user"
 		},
+		"LS_Sftp_properties_typeProperties_host": {
+			"type": "string",
+			"defaultValue": "storageadfmaster.blob.core.windows.net"
+		},
+		"LS_Sftp_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "storageadfmaster.sftpadmin"
+		},
 		"LS_SourceSQL_properties_typeProperties_server": {
 			"type": "string",
 			"defaultValue": "aer-server.database.windows.net"
@@ -194,6 +202,12 @@
 					},
 					"LS_OnPrem_SQL_properties_typeProperties_userName": {
 						"value": "[parameters('LS_OnPrem_SQL_properties_typeProperties_userName')]"
+					},
+					"LS_Sftp_properties_typeProperties_host": {
+						"value": "[parameters('LS_Sftp_properties_typeProperties_host')]"
+					},
+					"LS_Sftp_properties_typeProperties_userName": {
+						"value": "[parameters('LS_Sftp_properties_typeProperties_userName')]"
 					}
 				}
 			},
@@ -217,6 +231,26 @@
 			},
 			"dependsOn": [
 				"[resourceId('Microsoft.Resources/deployments', 'aer-oilgas-adf_ArmTemplate_0')]"
+			]
+		},
+		{
+			"name": "aer-oilgas-adf_ArmTemplate_2",
+			"type": "Microsoft.Resources/deployments",
+			"apiVersion": "2024-03-01",
+			"properties": {
+				"mode": "incremental",
+				"templateLink": {
+					"uri": "[concat(parameters('containerUri'), '/ArmTemplate_2.json', parameters('containerSasToken'))]",
+					"contentVersion": "1.0.0.0"
+				},
+				"parameters": {
+					"factoryName": {
+						"value": "[parameters('factoryName')]"
+					}
+				}
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Resources/deployments', 'aer-oilgas-adf_ArmTemplate_1')]"
 			]
 		}
 	]
