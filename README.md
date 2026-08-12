@@ -214,8 +214,6 @@ Secrets are retrieved at runtime via:
 1. **Synapse Serverless cannot perform SCD Type 2** — Parquet files are immutable, no row-level UPDATE possible. Required architectural pivot to Azure SQL DB for MERGE operations.
 2. **Composite key design** — Real Alberta data has operators with multiple licensees (Cenovus has 9+), requiring `OperatorCode + LicenseeCode` composite key in NOT EXISTS clause.
 3. **Cost-conscious architecture** — Azure SQL DB Basic ($7/mo) chosen over Synapse Dedicated Pool ($1,000+/mo) for SCD MERGE workload.
-4. **Real data > tutorial data** — AER public data revealed business patterns (M&A activity tracked via SCD2) not visible in synthetic datasets.
-
 ---
 
 **Author**: Kowsalya Gopinathan  
