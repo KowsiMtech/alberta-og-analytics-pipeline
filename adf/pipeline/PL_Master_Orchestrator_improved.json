@@ -3,7 +3,7 @@
 	"properties": {
 		"activities": [
 			{
-				"name": "Script1",
+				"name": "Pipeline Start Script",
 				"type": "SqlServerStoredProcedure",
 				"dependsOn": [],
 				"policy": {
@@ -47,7 +47,7 @@
 				"type": "Lookup",
 				"dependsOn": [
 					{
-						"activity": "Script1",
+						"activity": "Pipeline Start Script",
 						"dependencyConditions": [
 							"Succeeded"
 						]
