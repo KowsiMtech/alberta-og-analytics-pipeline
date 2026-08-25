@@ -1,0 +1,23 @@
+{
+	"name": "DS_ADLS_Quarantine_Folder",
+	"properties": {
+		"parameters": {
+			"RunDate": {
+				"type": "string"
+			}
+		},
+		"annotations": [],
+		"type": "Binary",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"folderPath": {
+					"value": "quarantine/well_rejects/@{dataset().RunDate}",
+					"type": "Expression"
+				},
+				"fileSystem": "aer-og-data"
+			}
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}
