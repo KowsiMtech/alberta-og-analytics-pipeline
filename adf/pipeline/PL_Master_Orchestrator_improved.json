@@ -93,6 +93,56 @@
 						"value": "@equals(activity('GetIdempotencyStatus').output.firstRow.Status, 'RUNNING')",
 						"type": "Expression"
 					},
+					"ifFalseActivities": [
+						{
+							"name": "SkipRun_AlreadyProcessed",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[dbo].[Log_ADF_Failure]",
+								"storedProcedureParameters": {
+									"ActivityName": {
+										"value": "master orchestrator run - skipped, already processed",
+										"type": "String"
+									},
+									"ErrorMessage": {
+										"value": "Batch already RUNNING or COMPLETED for this date - idempotency check prevented duplicate run",
+										"type": "String"
+									},
+									"PipelineName": {
+										"value": {
+											"value": "@pipeline().Pipeline",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineRunId": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"Status": {
+										"value": "skipped",
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						}
+					],
 					"ifTrueActivities": [
 						{
 							"name": "PLST37_to_Bronze",
@@ -311,6 +361,10 @@
 										},
 										"type": "String"
 									},
+									"Status": {
+										"value": "SUCCEEDED",
+										"type": "String"
+									},
 									"SourceRowCount": {
 										"value": {
 											"value": "@activity('GetSilverCounts').output.firstRow.SourceRowCount",
@@ -392,6 +446,66 @@
 						"Status": {
 							"value": "failed",
 							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "EndPipelineRun_Failure",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "handling pipeline failure",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[usp_EndPipelineRun]",
+					"storedProcedureParameters": {
+						"PipelineName": {
+							"value": "PL_Master_Orchestrator",
+							"type": "String"
+						},
+						"BatchId": {
+							"value": {
+								"value": "@concat('BATCH_', formatDateTime(utcnow(),'yyyyMMdd'))",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ErrorMessage": {
+							"value": {
+								"value": "@coalesce(activity('CheckIdempotency').error.message, 'Pipeline failed - see activity run details for the specific failed step')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"SourceRowCount": {
+							"value": "0",
+							"type": "Int32"
+						},
+						"SilverRowCount": {
+							"value": "0",
+							"type": "Int32"
+						},
+						"QuarantineRowCount": {
+							"value": "0",
+							"type": "Int32"
 						}
 					}
 				},
