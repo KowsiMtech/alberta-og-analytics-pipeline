@@ -1,11 +1,10 @@
 {
 	"name": "LS_OnPrem_SQL",
-	"type": "Microsoft.DataFactory/factories/linkedservices",
 	"properties": {
 		"annotations": [],
 		"type": "SqlServer",
 		"typeProperties": {
-			"server": "KowsiDhina\\MSSQLSERVER01",
+			"server": ".",
 			"database": "AER_OilGas_OnPrem",
 			"encrypt": "optional",
 			"trustServerCertificate": false,
@@ -24,5 +23,6 @@
 			"referenceName": "aer-shir",
 			"type": "IntegrationRuntimeReference"
 		}
-	}
+	},
+	"type": "Microsoft.DataFactory/factories/linkedservices"
 }
