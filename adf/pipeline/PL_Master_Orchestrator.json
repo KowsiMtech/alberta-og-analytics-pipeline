@@ -319,7 +319,7 @@
 							"typeProperties": {
 								"source": {
 									"type": "AzureSqlSource",
-									"sqlReaderQuery": "SELECT (SELECT COUNT(*) FROM staging.Silver_Wells) AS SilverRowCount, (SELECT COUNT(*) FROM staging.Silver_Wells) AS SourceRowCount, 0 AS QuarantineRowCount",
+									"sqlReaderQuery": "DECLARE @RunDateClean NVARCHAR(8) = REPLACE(CONVERT(NVARCHAR(10), GETDATE(), 120), '-', '');\nDECLARE @SQL NVARCHAR(MAX) = N'\nSELECT \n    (SELECT COUNT(*) FROM staging.Silver_Wells) AS SilverRowCount,\n    (SELECT COUNT(*) FROM staging.Silver_Wells) AS SourceRowCount,\n    (SELECT COUNT(*) FROM dbo.quarantine_' + @RunDateClean + N') AS QuarantineRowCount';\nEXEC sp_executesql @SQL;",
 									"partitionOption": "None"
 								},
 								"dataset": {
@@ -359,10 +359,6 @@
 											"value": "@concat('BATCH_', formatDateTime(utcnow(),'yyyyMMdd'))",
 											"type": "Expression"
 										},
-										"type": "String"
-									},
-									"Status": {
-										"value": "SUCCEEDED",
 										"type": "String"
 									},
 									"SourceRowCount": {
