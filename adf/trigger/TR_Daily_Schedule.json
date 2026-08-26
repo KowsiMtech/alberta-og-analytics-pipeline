@@ -6,7 +6,7 @@
 		"pipelines": [
 			{
 				"pipelineReference": {
-					"referenceName": "PL_Master_Orchestrator",
+					"referenceName": "PL_Master_Orchestrator_old",
 					"type": "PipelineReference"
 				}
 			}
