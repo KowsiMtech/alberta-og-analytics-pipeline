@@ -1,0 +1,27 @@
+{
+	"name": "DS_ADLS_SilverClean_Folder",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_ADLS_Gen2",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"RunDate": {
+				"type": "string"
+			}
+		},
+		"annotations": [],
+		"type": "Binary",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"folderPath": {
+					"value": "silver/clean/@{dataset().RunDate}",
+					"type": "Expression"
+				},
+				"fileSystem": "aer-og-data"
+			}
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}
