@@ -192,10 +192,6 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"pipeline": {
-									"referenceName": "PL_Bronze_to_Silver_quarantine_new",
-									"type": "PipelineReference"
-								},
 								"waitOnCompletion": true
 							}
 						},
