@@ -45,7 +45,7 @@
 		},
 		"LS_OnPrem_SQL_properties_typeProperties_server": {
 			"type": "string",
-			"defaultValue": "KowsiDhina\\MSSQLSERVER01"
+			"defaultValue": "."
 		},
 		"LS_OnPrem_SQL_properties_typeProperties_database": {
 			"type": "string",

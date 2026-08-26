@@ -89,7 +89,7 @@
 		},
 		"LS_OnPrem_SQL_properties_typeProperties_server": {
 			"type": "string",
-			"defaultValue": "KowsiDhina\\MSSQLSERVER01"
+			"defaultValue": "."
 		},
 		"LS_OnPrem_SQL_properties_typeProperties_database": {
 			"type": "string",
@@ -142,6 +142,112 @@
 				},
 				"annotations": [],
 				"lastPublishTime": "2026-04-20T01:01:50Z"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/Send notification to a channel in Microsoft Teams1')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"description": "Use this pipeline template to send notification on a teams channel. \n\nhttps://adf.azure.com/en-us/monitoring/pipelineruns/f90465ff-b8ea-4f0f-9110-178164bc8ee4?factory=/subscriptions/7b68d2b5-dfbe-46e1-938f-98ed143b7953/resourceGroups/demo101-rg/providers/Microsoft.DataFactory/factories/demofactory101",
+				"activities": [
+					{
+						"name": "Set Facts",
+						"description": "Details on Fact schema for teams messages: https://adaptivecards.io/explorer/Fact.html",
+						"type": "SetVariable",
+						"dependsOn": [],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "messageCardString",
+							"value": {
+								"value": "{\n    \"@type\": \"MessageCard\",\n    \"@context\": \"http://schema.org/extensions\",\n    \"themeColor\": \"0076D7\",\n    \"summary\": \"Pipeline status alert message​​​​\",\n    \"sections\": [\n        {\n            \"activityTitle\": \"Pipeline alert​​​​\",\n            \"facts\": [\n                {\n                    \"name\": \"Pipeline RunId:\",\n                    \"value\": \"@{pipeline().parameters.pipelineRunId}\"\n                },\n                {\n                    \"name\": \"Activity name:\",\n                    \"value\": \"@{pipeline().parameters.activityName}\"\n                },\n                {\n                    \"name\": \"Activity status:\",\n                    \"value\": \"@{pipeline().parameters.activityStatus}\"\n                },\n                {\n                    \"name\": \"Execution duration (s):\",\n                    \"value\": \"@{pipeline().parameters.activityDuration}\"\n                },\n                {\n                    \"name\": \"Message\",\n                    \"value\": \"@{pipeline().parameters.activityMessage}\"\n                },\n                {\n                    \"name\": \"Notification time (UTC):\",\n                    \"value\": \"@{utcNow()}\"\n                },\n                {\n                    \"name\": \"Data Factory name:\",\n                    \"value\": \"@{pipeline().DataFactory}\"\n                }\n            ],\n            \"markdown\": true\n        }\n    ],\n    \"potentialAction\": [\n        {\n            \"@type\": \"OpenUri\",\n            \"name\": \"View pipeline run\",\n            \"targets\": [\n                {\n                    \"os\": \"default\",\n                    \"uri\": \"@{concat('https://adf.azure.com/monitoring/pipelineruns/',pipeline().parameters.pipelineRunId,'?factory=/subscriptions/',pipeline().parameters.dataFactorySubscription,'/resourceGroups/',pipeline().parameters.dataFactoryResourceGroup,'/providers/Microsoft.DataFactory/factories/',pipeline().DataFactory)}\"\n                }\n            ]\n        }\n    ]\n}",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "Call Teams Webhook",
+						"description": "Invokes teams channel's webbook.",
+						"type": "WebActivity",
+						"dependsOn": [
+							{
+								"activity": "Set Facts",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"method": "POST",
+							"headers": {},
+							"url": {
+								"value": "@pipeline().parameters.teamsWebhookUrl",
+								"type": "Expression"
+							},
+							"body": {
+								"value": "@json(variables('messageCardString'))",
+								"type": "Expression"
+							}
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"parameters": {
+					"dataFactorySubscription": {
+						"type": "string",
+						"defaultValue": "Azure subscription 1"
+					},
+					"dataFactoryResourceGroup": {
+						"type": "string",
+						"defaultValue": "aer-oilgas-rg"
+					},
+					"pipelineRunId": {
+						"type": "string",
+						"defaultValue": "Overwrite the value from the calling activity "
+					},
+					"teamsWebhookUrl": {
+						"type": "string",
+						"defaultValue": "<Update value>"
+					},
+					"activityName": {
+						"type": "string",
+						"defaultValue": "Overwrite the value from the calling activity "
+					},
+					"activityMessage": {
+						"type": "string",
+						"defaultValue": "Overwrite the value from the calling activity "
+					},
+					"activityDuration": {
+						"type": "string",
+						"defaultValue": "Overwrite the value from the calling activity "
+					},
+					"activityStatus": {
+						"type": "string",
+						"defaultValue": "Failed"
+					}
+				},
+				"variables": {
+					"messageCardString": {
+						"type": "String"
+					}
+				},
+				"annotations": [],
+				"lastPublishTime": "2021-06-01T09:19:35Z"
 			},
 			"dependsOn": []
 		},
@@ -257,6 +363,27 @@
 			"dependsOn": []
 		},
 		{
+			"name": "[concat(parameters('factoryName'), '/TR_Daily_Schedule')]",
+			"type": "Microsoft.DataFactory/factories/triggers",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"runtimeState": "Stopped",
+				"pipelines": [],
+				"type": "ScheduleTrigger",
+				"typeProperties": {
+					"recurrence": {
+						"frequency": "Hour",
+						"interval": 24,
+						"startTime": "2026-04-19T01:00:00",
+						"endTime": "2026-04-22T02:16:00",
+						"timeZone": "Mountain Standard Time"
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
 			"name": "[concat(parameters('factoryName'), '/aer-shir')]",
 			"type": "Microsoft.DataFactory/factories/integrationRuntimes",
 			"apiVersion": "2018-06-01",
@@ -267,92 +394,6 @@
 				}
 			},
 			"dependsOn": []
-		},
-		{
-			"name": "[concat(parameters('factoryName'), '/PL_Bronze_OilPrice_to_Gold')]",
-			"type": "Microsoft.DataFactory/factories/pipelines",
-			"apiVersion": "2018-06-01",
-			"properties": {
-				"activities": [
-					{
-						"name": "Bronze oil price to gold",
-						"type": "Script",
-						"dependsOn": [],
-						"policy": {
-							"timeout": "0.12:00:00",
-							"retry": 0,
-							"retryIntervalInSeconds": 30,
-							"secureOutput": false,
-							"secureInput": false
-						},
-						"userProperties": [],
-						"linkedServiceName": {
-							"referenceName": "LS_Synapse_Serverless",
-							"type": "LinkedServiceReference"
-						},
-						"typeProperties": {
-							"scripts": [
-								{
-									"type": "NonQuery",
-									"text": "USE aer_synapse_db;\n\nDECLARE @RunDate NVARCHAR(10) = CONVERT(NVARCHAR(10), GETDATE(), 120);\nDECLARE @RunDateClean NVARCHAR(8) = REPLACE(@RunDate, '-', '');\n\n-- Drop if re-running\nDECLARE @DropSQL NVARCHAR(MAX) = N'\n    IF OBJECT_ID(''dbo.fact_oilprice_' + @RunDateClean + N''') IS NOT NULL\n        DROP EXTERNAL TABLE dbo.fact_oilprice_' + @RunDateClean + N';';\nEXEC sp_executesql @DropSQL;\n\n-- CETAS: Bronze EIA Parquet → Gold OilPrice Parquet\nDECLARE @SQL NVARCHAR(MAX) = N'\nCREATE EXTERNAL TABLE dbo.fact_oilprice_' + @RunDateClean + N'\nWITH (\n    LOCATION = ''/gold/fact_oilprice/' + @RunDate + N'/'',\n    DATA_SOURCE = aer_adls,\n    FILE_FORMAT = parquet_format\n) AS\nSELECT \n    TRY_CAST([period] AS DATE) AS PriceDate,\n    TRY_CAST([value] AS DECIMAL(10,2)) AS OilPrice_USD,\n    [series-description] AS SeriesDescription,\n    GETDATE() AS Loaded_At\nFROM OPENROWSET(\n    BULK ''/bronze/oilprice/' + @RunDate + N'/*.parquet'',\n    DATA_SOURCE = ''aer_adls'',\n    FORMAT = ''PARQUET''\n) AS b\nWHERE [period] IS NOT NULL \n  AND [value] IS NOT NULL\n  AND TRY_CAST([value] AS DECIMAL(10,2)) IS NOT NULL;';\nEXEC sp_executesql @SQL;"
-								}
-							],
-							"scriptBlockExecutionTimeout": "02:00:00"
-						}
-					}
-				],
-				"policy": {
-					"elapsedTimeMetric": {}
-				},
-				"annotations": [],
-				"lastPublishTime": "2026-04-20T01:01:50Z"
-			},
-			"dependsOn": [
-				"[concat(variables('factoryId'), '/linkedServices/LS_Synapse_Serverless')]"
-			]
-		},
-		{
-			"name": "[concat(parameters('factoryName'), '/PL_Bronze_to_Silver_quarantine')]",
-			"type": "Microsoft.DataFactory/factories/pipelines",
-			"apiVersion": "2018-06-01",
-			"properties": {
-				"activities": [
-					{
-						"name": "bronze to silver and quarantine",
-						"type": "Script",
-						"dependsOn": [],
-						"policy": {
-							"timeout": "0.12:00:00",
-							"retry": 0,
-							"retryIntervalInSeconds": 30,
-							"secureOutput": false,
-							"secureInput": false
-						},
-						"userProperties": [],
-						"linkedServiceName": {
-							"referenceName": "LS_Synapse_Serverless",
-							"type": "LinkedServiceReference"
-						},
-						"typeProperties": {
-							"scripts": [
-								{
-									"type": "NonQuery",
-									"text": "USE aer_synapse_db;\nDECLARE @RunDate NVARCHAR(10) = CONVERT(NVARCHAR(10), GETDATE(), 120);\nDECLARE @RunDateClean NVARCHAR(8) = REPLACE(@RunDate, '-', '');\n\nDECLARE @DropSQL NVARCHAR(MAX) = N'\n    IF OBJECT_ID(''dbo.quarantine_' + @RunDateClean + N''') IS NOT NULL\n        DROP EXTERNAL TABLE dbo.quarantine_' + @RunDateClean + N';\n    IF OBJECT_ID(''dbo.silver_clean_' + @RunDateClean + N''') IS NOT NULL\n        DROP EXTERNAL TABLE dbo.silver_clean_' + @RunDateClean + N';';\nEXEC sp_executesql @DropSQL;\n\nDECLARE @QuarantineSQL NVARCHAR(MAX) = N'\nCREATE EXTERNAL TABLE dbo.quarantine_' + @RunDateClean + N'\nWITH (LOCATION=''/quarantine/well_rejects/' + @RunDate + N'/'',\n      DATA_SOURCE=aer_adls, FILE_FORMAT=parquet_format) AS\nSELECT UWI_DISPLAY_FORMAT AS WellID, WELL_NAME AS WellName,\n       LICENSE_NO AS LicenceNumber, LICENCE_STATUS AS LicenceStatus,\n       LICENSE_ISSUE_DATE AS LicenceIssueDate,\n       OPERATOR_CODE AS OperatorCode, WELL_TOTAL_DEPTH AS WellTotalDepth,\n       CASE\n           WHEN UWI_DISPLAY_FORMAT IS NULL OR UWI_DISPLAY_FORMAT='''' THEN ''NULL_UWI''\n           WHEN LEN(LICENSE_ISSUE_DATE)<>8 THEN ''INVALID_DATE''\n           WHEN TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2))<0 THEN ''NEGATIVE_DEPTH''\n           ELSE ''OTHER''\n       END AS RejectReason,\n       GETDATE() AS QuarantineDate\nFROM OPENROWSET(BULK ''/bronze/well/' + @RunDate + N'/*.parquet'',\n     DATA_SOURCE=''aer_adls'', FORMAT=''PARQUET'') AS b\nWHERE UWI_DISPLAY_FORMAT IS NULL OR UWI_DISPLAY_FORMAT=''''\n   OR LEN(LICENSE_ISSUE_DATE)<>8\n   OR TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2))<0;';\nEXEC sp_executesql @QuarantineSQL;\n\nDECLARE @SilverSQL NVARCHAR(MAX) = N'\nCREATE EXTERNAL TABLE dbo.silver_clean_' + @RunDateClean + N'\nWITH (LOCATION=''/silver/clean/' + @RunDate + N'/'',\n      DATA_SOURCE=aer_adls, FILE_FORMAT=parquet_format) AS\nSELECT UWI_DISPLAY_FORMAT AS WellID,\n       KEY_LIST_OF_WELLS AS WellKeyID,\n       LTRIM(RTRIM(WELL_NAME)) AS WellName,\n       FIELD_CODE AS FieldCode, POOL_CODE AS PoolCode,\n       LICENSE_NO AS LicenceNumber, LICENCE_STATUS AS LicenceStatus,\n       TRY_CONVERT(DATE, LICENSE_ISSUE_DATE, 112) AS LicenceIssueDate,\n       LICENSEE_CODE AS LicenseeCode, OPERATOR_CODE AS OperatorCode,\n       TRY_CONVERT(DATE, FIN_DRL_DATE, 112) AS FinDrlDate,\n       TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2)) AS WellTotalDepth,\n       WELL_STAT_CODE AS WellStatCode,\n       TRY_CONVERT(DATE, WELL_STAT_DATE, 112) AS WellStatDate,\n       CASE WHEN FLUID_SHORT_DESC=''N/A'' THEN NULL\n            ELSE LTRIM(RTRIM(FLUID_SHORT_DESC)) END AS FluidDesc,\n       CASE WHEN MODE_SHORT_DESC=''N/A'' THEN NULL\n            ELSE LTRIM(RTRIM(MODE_SHORT_DESC)) END AS ModeDesc,\n       CASE WHEN TYPE_SHORT_DESC=''N/A'' THEN NULL\n            ELSE LTRIM(RTRIM(TYPE_SHORT_DESC)) END AS TypeDesc,\n       CASE WHEN STRUCTURE_SHORT_DESC=''N/A'' THEN NULL\n            ELSE LTRIM(RTRIM(STRUCTURE_SHORT_DESC)) END AS StructureDesc,\n       ''BATCH_' + @RunDate + N''' AS BatchID,\n       GETDATE() AS IngestionDate, ''WellList.txt'' AS SourceFile\nFROM OPENROWSET(BULK ''/bronze/well/' + @RunDate + N'/*.parquet'',\n     DATA_SOURCE=''aer_adls'', FORMAT=''PARQUET'') AS b\nWHERE UWI_DISPLAY_FORMAT IS NOT NULL AND UWI_DISPLAY_FORMAT<>''''\n  AND LEN(LICENSE_ISSUE_DATE)=8\n  AND TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2))>=0;';\nEXEC sp_executesql @SilverSQL;"
-								}
-							],
-							"scriptBlockExecutionTimeout": "02:00:00"
-						}
-					}
-				],
-				"policy": {
-					"elapsedTimeMetric": {}
-				},
-				"annotations": [],
-				"lastPublishTime": "2026-04-20T00:14:41Z"
-			},
-			"dependsOn": [
-				"[concat(variables('factoryId'), '/linkedServices/LS_Synapse_Serverless')]"
-			]
 		},
 		{
 			"name": "[concat(parameters('factoryName'), '/DS_EIA_REST_Source')]",
@@ -399,6 +440,9 @@
 						"type": "string"
 					}
 				},
+				"folder": {
+					"name": "Metadata_driven_pipeline_dataset"
+				},
 				"annotations": [],
 				"type": "AzureSqlTable",
 				"schema": [],
@@ -434,6 +478,9 @@
 						"type": "string"
 					}
 				},
+				"folder": {
+					"name": "Metadata_driven_pipeline_dataset"
+				},
 				"annotations": [],
 				"type": "AzureSqlTable",
 				"schema": [],
@@ -450,106 +497,6 @@
 			},
 			"dependsOn": [
 				"[concat(variables('factoryId'), '/linkedServices/LS_TargetSQL')]"
-			]
-		},
-		{
-			"name": "[concat(parameters('factoryName'), '/MetadataDrivenCopyTask_xjb_ControlDS')]",
-			"type": "Microsoft.DataFactory/factories/datasets",
-			"apiVersion": "2018-06-01",
-			"properties": {
-				"linkedServiceName": {
-					"referenceName": "ls_metadatadriven_watermark",
-					"type": "LinkedServiceReference"
-				},
-				"folder": {
-					"name": "MetadataDrivenCopyTask_xjb_20260707"
-				},
-				"annotations": [],
-				"type": "AzureSqlTable",
-				"schema": [],
-				"typeProperties": {
-					"schema": "dbo",
-					"table": "MainControlTable_xjb"
-				}
-			},
-			"dependsOn": [
-				"[concat(variables('factoryId'), '/linkedServices/ls_metadatadriven_watermark')]"
-			]
-		},
-		{
-			"name": "[concat(parameters('factoryName'), '/MetadataDrivenCopyTask_xjb_DestinationDS')]",
-			"type": "Microsoft.DataFactory/factories/datasets",
-			"apiVersion": "2018-06-01",
-			"properties": {
-				"linkedServiceName": {
-					"referenceName": "LS_TargetSQL",
-					"type": "LinkedServiceReference"
-				},
-				"parameters": {
-					"cw_schema": {
-						"type": "String"
-					},
-					"cw_table": {
-						"type": "String"
-					}
-				},
-				"folder": {
-					"name": "MetadataDrivenCopyTask_xjb_20260707"
-				},
-				"annotations": [],
-				"type": "AzureSqlTable",
-				"schema": [],
-				"typeProperties": {
-					"schema": {
-						"value": "@dataset().cw_schema",
-						"type": "Expression"
-					},
-					"table": {
-						"value": "@dataset().cw_table",
-						"type": "Expression"
-					}
-				}
-			},
-			"dependsOn": [
-				"[concat(variables('factoryId'), '/linkedServices/LS_TargetSQL')]"
-			]
-		},
-		{
-			"name": "[concat(parameters('factoryName'), '/MetadataDrivenCopyTask_xjb_SourceDS')]",
-			"type": "Microsoft.DataFactory/factories/datasets",
-			"apiVersion": "2018-06-01",
-			"properties": {
-				"linkedServiceName": {
-					"referenceName": "LS_SourceSQL",
-					"type": "LinkedServiceReference"
-				},
-				"parameters": {
-					"cw_schema": {
-						"type": "String"
-					},
-					"cw_table": {
-						"type": "String"
-					}
-				},
-				"folder": {
-					"name": "MetadataDrivenCopyTask_xjb_20260707"
-				},
-				"annotations": [],
-				"type": "AzureSqlTable",
-				"schema": [],
-				"typeProperties": {
-					"schema": {
-						"value": "@dataset().cw_schema",
-						"type": "Expression"
-					},
-					"table": {
-						"value": "@dataset().cw_table",
-						"type": "Expression"
-					}
-				}
-			},
-			"dependsOn": [
-				"[concat(variables('factoryId'), '/linkedServices/LS_SourceSQL')]"
 			]
 		},
 		{
@@ -661,6 +608,133 @@
 			},
 			"dependsOn": [
 				"[concat(variables('factoryId'), '/linkedServices/LS_KeyVault')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PL_SCD2_MERGE')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "SCD2 Merge",
+						"type": "Script",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"linkedServiceName": {
+							"referenceName": "LS_AzureSQL",
+							"type": "LinkedServiceReference"
+						},
+						"typeProperties": {
+							"scripts": [
+								{
+									"type": "NonQuery",
+									"text": "DECLARE @BatchDate DATE = CAST(GETDATE() AS DATE);\n\nUPDATE t\nSET t.[Is_Current] = 0, t.Effective_To = @BatchDate, t.Updated_At = GETDATE()\nFROM gold.Dim_Operator t\nINNER JOIN (\n    SELECT DISTINCT OperatorCode, LicenseeCode\n    FROM staging.Silver_Wells\n    WHERE OperatorCode IS NOT NULL AND OperatorCode <> ''\n) s ON t.OperatorCode = s.OperatorCode AND t.[Is_Current] = 1\nWHERE ISNULL(t.LicenseeCode,'') <> ISNULL(s.LicenseeCode,'');\n\nINSERT INTO gold.Dim_Operator (OperatorCode, LicenseeCode, Effective_From, Effective_To, [Is_Current])\nSELECT DISTINCT s.OperatorCode, s.LicenseeCode, @BatchDate, '9999-12-31', 1\nFROM staging.Silver_Wells s\nWHERE s.OperatorCode IS NOT NULL AND s.OperatorCode <> ''\n  AND NOT EXISTS (\n      SELECT 1 FROM gold.Dim_Operator d\n      WHERE d.OperatorCode = s.OperatorCode\n        AND d.LicenseeCode = s.LicenseeCode\n        AND d.[Is_Current] = 1);\n\nUPDATE t\nSET t.[Is_Current] = 0, t.Effective_To = @BatchDate, t.Updated_At = GETDATE()\nFROM gold.Dim_Well t\nINNER JOIN staging.Silver_Wells s ON t.WellID = s.WellID AND t.[Is_Current] = 1\nWHERE ISNULL(t.OperatorCode,'') <> ISNULL(s.OperatorCode,'')\n   OR ISNULL(t.WellStatCode,'') <> ISNULL(s.WellStatCode,'')\n   OR ISNULL(t.ModeDesc,'') <> ISNULL(s.ModeDesc,'');\n\nINSERT INTO gold.Dim_Well\n    (WellID, WellName, FieldCode, LicenseeCode, OperatorCode, WellTotalDepth, WellStatCode, FluidDesc, ModeDesc, Effective_From, Effective_To, [Is_Current])\nSELECT s.WellID, s.WellName, s.FieldCode, s.LicenseeCode, s.OperatorCode,\n       s.WellTotalDepth, s.WellStatCode, s.FluidDesc, s.ModeDesc,\n       @BatchDate, '9999-12-31', 1\nFROM staging.Silver_Wells s\nWHERE NOT EXISTS (\n    SELECT 1 FROM gold.Dim_Well d\n    WHERE d.WellID = s.WellID AND d.[Is_Current] = 1);\n\nMERGE gold.Dim_LicenceStatus AS t\nUSING (SELECT DISTINCT LicenceStatus FROM staging.Silver_Wells WHERE LicenceStatus IS NOT NULL) AS s\nON t.LicenceStatus = s.LicenceStatus\nWHEN NOT MATCHED THEN INSERT (LicenceStatus) VALUES (s.LicenceStatus);\n\nMERGE gold.Dim_WellType AS t\nUSING (SELECT DISTINCT FluidDesc, ModeDesc, TypeDesc, StructureDesc FROM staging.Silver_Wells) AS s\nON ISNULL(t.FluidDesc,'')=ISNULL(s.FluidDesc,'') AND ISNULL(t.ModeDesc,'')=ISNULL(s.ModeDesc,'')\n   AND ISNULL(t.TypeDesc,'')=ISNULL(s.TypeDesc,'') AND ISNULL(t.StructureDesc,'')=ISNULL(s.StructureDesc,'')\nWHEN NOT MATCHED THEN INSERT (FluidDesc, ModeDesc, TypeDesc, StructureDesc)\n    VALUES (s.FluidDesc, s.ModeDesc, s.TypeDesc, s.StructureDesc);\n\nMERGE gold.Fact_OilPrice AS t\nUSING (\n    SELECT TRY_CAST(period AS DATE) AS PriceDate,\n           TRY_CAST(value AS DECIMAL(10,2)) AS OilPrice_USD,\n           [series-description] AS SeriesDescription\n    FROM staging.OilPrice WHERE period IS NOT NULL AND value IS NOT NULL\n) AS s\nON t.PriceDate = s.PriceDate\nWHEN MATCHED THEN UPDATE SET t.OilPrice_USD = s.OilPrice_USD, t.Updated_At = GETDATE()\nWHEN NOT MATCHED THEN INSERT (PriceDate, OilPrice_USD, SeriesDescription)\n    VALUES (s.PriceDate, s.OilPrice_USD, s.SeriesDescription);\n\nTRUNCATE TABLE gold.Fact_WellSnapshot;\nINSERT INTO gold.Fact_WellSnapshot\n    (SnapshotDate, WellID, OperatorCode, LicenceStatus, FluidDesc, ModeDesc, FieldCode, WellTotalDepth)\nSELECT @BatchDate, WellID, OperatorCode, LicenceStatus, FluidDesc, ModeDesc, FieldCode, WellTotalDepth\nFROM staging.Silver_Wells WHERE WellID IS NOT NULL;"
+								}
+							],
+							"scriptBlockExecutionTimeout": "02:00:00"
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-04-20T01:34:48Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_AzureSQL')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PL_SCD_demo')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "SCD Demo",
+						"type": "Script",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"linkedServiceName": {
+							"referenceName": "LS_AzureSQL",
+							"type": "LinkedServiceReference"
+						},
+						"typeProperties": {
+							"scripts": [
+								{
+									"type": "Query",
+									"text": "SELECT OperatorCode, LicenseeCode, [Is_Current], Effective_From, Effective_To\nFROM gold.Dim_Operator\nWHERE OperatorCode = '0Z5F0' AND LicenseeCode = '0HE90';"
+								},
+								{
+									"type": "Query",
+									"text": "UPDATE staging.Silver_Wells\nSET LicenseeCode = 'NEWCO'\nWHERE OperatorCode = '0Z5F0' AND LicenseeCode = '0HE90';"
+								},
+								{
+									"type": "Query",
+									"text": "DECLARE @BatchDate DATE = CAST(GETDATE() AS DATE);\n\nUPDATE t\nSET t.[Is_Current] = 0, t.Effective_To = @BatchDate, t.Updated_At = GETDATE()\nFROM gold.Dim_Operator t\nINNER JOIN (\n    SELECT DISTINCT OperatorCode, LicenseeCode\n    FROM staging.Silver_Wells\n    WHERE OperatorCode IS NOT NULL AND OperatorCode <> ''\n) s ON t.OperatorCode = s.OperatorCode AND t.[Is_Current] = 1\nWHERE ISNULL(t.LicenseeCode,'') <> ISNULL(s.LicenseeCode,'');\n\nINSERT INTO gold.Dim_Operator\n    (OperatorCode, LicenseeCode, Effective_From, Effective_To, [Is_Current])\nSELECT DISTINCT s.OperatorCode, s.LicenseeCode, @BatchDate, '9999-12-31', 1\nFROM staging.Silver_Wells s\nWHERE s.OperatorCode IS NOT NULL AND s.OperatorCode <> ''\n  AND NOT EXISTS (\n      SELECT 1 FROM gold.Dim_Operator d\n      WHERE d.OperatorCode = s.OperatorCode\n        AND d.LicenseeCode = s.LicenseeCode\n        AND d.[Is_Current] = 1);"
+								}
+							],
+							"scriptBlockExecutionTimeout": "02:00:00"
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-04-20T01:46:34Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_AzureSQL')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_ADLS_Archive_Parquet')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"FolderPath": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": {
+							"value": "@dataset().FolderPath",
+							"type": "Expression"
+						},
+						"fileSystem": "aer-og-data"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_ADLS_Gen2')]"
 			]
 		}
 	]

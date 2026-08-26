@@ -33,7 +33,7 @@
 			"value": "https://aer-oilgas-kv.vault.azure.net/"
 		},
 		"LS_OnPrem_SQL_properties_typeProperties_server": {
-			"value": "KowsiDhina\\MSSQLSERVER01"
+			"value": "."
 		},
 		"LS_OnPrem_SQL_properties_typeProperties_database": {
 			"value": "AER_OilGas_OnPrem"

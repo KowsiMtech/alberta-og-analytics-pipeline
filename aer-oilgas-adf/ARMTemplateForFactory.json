@@ -45,7 +45,7 @@
 		},
 		"LS_OnPrem_SQL_properties_typeProperties_server": {
 			"type": "string",
-			"defaultValue": "KowsiDhina\\MSSQLSERVER01"
+			"defaultValue": "."
 		},
 		"LS_OnPrem_SQL_properties_typeProperties_database": {
 			"type": "string",
@@ -112,6 +112,163 @@
 		"factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
 	},
 	"resources": [
+		{
+			"name": "[concat(parameters('factoryName'), '/BulkCopyfromDB_with_ControlTable')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"description": "Copy huge amount of data in bulk from database using external control table to store source table list with partitions for each table.\n\nWhen you want to migrate data from your Azure Synapse Analytics like Oracle server, Netezza server, Teradata server or SQL Server to Azure, you have to load huge amount of data from multiple tables in data sources. In most cases, data has to be further partitioned in each table so that you can load rows with multiple threads in parallel from single table.",
+				"activities": [
+					{
+						"name": "GetPartitionList",
+						"description": "Lookup activity to retrieve the list of partitions stored in the external control table.",
+						"type": "Lookup",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "SqlSource",
+								"sqlReaderQuery": {
+									"value": "select @{pipeline().parameters.Control_Table_Schema_PartitionID} as PartitionID, @{pipeline().parameters.Control_Table_Schema_SourceTableName} as SourceTableName, @{pipeline().parameters.Control_Table_Schema_FilterQuery} as FilterQuery from @{pipeline().parameters.Control_Table_Name}",
+									"type": "Expression"
+								},
+								"partitionOption": "None"
+							},
+							"dataset": {
+								"referenceName": "SqlServerExternal_ControlTable",
+								"type": "DatasetReference",
+								"parameters": {
+									"TableName": {
+										"value": "@pipeline().parameters.Control_Table_Name",
+										"type": "Expression"
+									}
+								}
+							},
+							"firstRowOnly": false
+						}
+					},
+					{
+						"name": "ForEachPartition",
+						"description": "ForEach activity to get the partition list from Lookup activity and then iterate each of them to Copy activity. ",
+						"type": "ForEach",
+						"dependsOn": [
+							{
+								"activity": "GetPartitionList",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"items": {
+								"value": "@activity('GetPartitionList').output.value",
+								"type": "Expression"
+							},
+							"batchCount": 5,
+							"activities": [
+								{
+									"name": "CopyOnePartition",
+									"description": "Copy activity to copy each partition from source database store to destination store.",
+									"type": "Copy",
+									"dependsOn": [],
+									"policy": {
+										"timeout": "7.00:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"source": {
+											"type": "SqlSource",
+											"sqlReaderQuery": {
+												"value": "@item().FilterQuery",
+												"type": "Expression"
+											},
+											"partitionOption": "None"
+										},
+										"sink": {
+											"type": "DelimitedTextSink",
+											"storeSettings": {
+												"type": "AzureBlobFSWriteSettings"
+											},
+											"formatSettings": {
+												"type": "DelimitedTextWriteSettings",
+												"quoteAllText": true,
+												"fileExtension": ".txt"
+											}
+										},
+										"enableStaging": false,
+										"dataIntegrationUnits": 0
+									},
+									"inputs": [
+										{
+											"referenceName": "SqlServerDataSource",
+											"type": "DatasetReference",
+											"parameters": {}
+										}
+									],
+									"outputs": [
+										{
+											"referenceName": "DataDestination",
+											"type": "DatasetReference",
+											"parameters": {
+												"Data_Destination_Container": {
+													"value": "@pipeline().parameters.Data_Destination_Container",
+													"type": "Expression"
+												},
+												"Data_Destination_Directory": {
+													"value": "@pipeline().parameters.Data_Destination_Directory",
+													"type": "Expression"
+												}
+											}
+										}
+									]
+								}
+							]
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"parameters": {
+					"Control_Table_Name": {
+						"type": "String"
+					},
+					"Control_Table_Schema_PartitionID": {
+						"type": "String"
+					},
+					"Control_Table_Schema_SourceTableName": {
+						"type": "String"
+					},
+					"Control_Table_Schema_FilterQuery": {
+						"type": "String"
+					},
+					"Data_Destination_Container": {
+						"type": "String"
+					},
+					"Data_Destination_Directory": {
+						"type": "String"
+					}
+				},
+				"annotations": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/SqlServerExternal_ControlTable')]",
+				"[concat(variables('factoryId'), '/datasets/SqlServerDataSource')]",
+				"[concat(variables('factoryId'), '/datasets/DataDestination')]"
+			]
+		},
 		{
 			"name": "[concat(parameters('factoryName'), '/Metadata_driven_pipeline')]",
 			"type": "Microsoft.DataFactory/factories/pipelines",
@@ -823,9 +980,47 @@
 			"properties": {
 				"activities": [
 					{
+						"name": "Delete Gold OilPrice Folder",
+						"type": "Delete",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"dataset": {
+								"referenceName": "DS_ADLS_GoldOilPrice_Folder",
+								"type": "DatasetReference",
+								"parameters": {
+									"RunDate": {
+										"value": "@formatDateTime(utcnow(),'yyyy-MM-dd')",
+										"type": "Expression"
+									}
+								}
+							},
+							"enableLogging": false,
+							"storeSettings": {
+								"type": "AzureBlobFSReadSettings",
+								"recursive": true,
+								"enablePartitionDiscovery": false
+							}
+						}
+					},
+					{
 						"name": "Bronze oil price to gold",
 						"type": "Script",
-						"dependsOn": [],
+						"dependsOn": [
+							{
+								"activity": "Delete Gold OilPrice Folder",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
 						"policy": {
 							"timeout": "0.12:00:00",
 							"retry": 0,
@@ -842,7 +1037,7 @@
 							"scripts": [
 								{
 									"type": "NonQuery",
-									"text": "USE aer_synapse_db;\n\nDECLARE @RunDate NVARCHAR(10) = CONVERT(NVARCHAR(10), GETDATE(), 120);\nDECLARE @RunDateClean NVARCHAR(8) = REPLACE(@RunDate, '-', '');\n\n-- Drop if re-running\nDECLARE @DropSQL NVARCHAR(MAX) = N'\n    IF OBJECT_ID(''dbo.fact_oilprice_' + @RunDateClean + N''') IS NOT NULL\n        DROP EXTERNAL TABLE dbo.fact_oilprice_' + @RunDateClean + N';';\nEXEC sp_executesql @DropSQL;\n\n-- CETAS: Bronze EIA Parquet → Gold OilPrice Parquet\nDECLARE @SQL NVARCHAR(MAX) = N'\nCREATE EXTERNAL TABLE dbo.fact_oilprice_' + @RunDateClean + N'\nWITH (\n    LOCATION = ''/gold/fact_oilprice/' + @RunDate + N'/'',\n    DATA_SOURCE = aer_adls,\n    FILE_FORMAT = parquet_format\n) AS\nSELECT \n    TRY_CAST([period] AS DATE) AS PriceDate,\n    TRY_CAST([value] AS DECIMAL(10,2)) AS OilPrice_USD,\n    [series-description] AS SeriesDescription,\n    GETDATE() AS Loaded_At\nFROM OPENROWSET(\n    BULK ''/bronze/oilprice/' + @RunDate + N'/*.parquet'',\n    DATA_SOURCE = ''aer_adls'',\n    FORMAT = ''PARQUET''\n) AS b\nWHERE [period] IS NOT NULL \n  AND [value] IS NOT NULL\n  AND TRY_CAST([value] AS DECIMAL(10,2)) IS NOT NULL;';\nEXEC sp_executesql @SQL;"
+									"text": "USE aer_synapse_db;\n\nDECLARE @RunDate NVARCHAR(10) = CONVERT(NVARCHAR(10), GETDATE(), 120);\nDECLARE @RunDateClean NVARCHAR(8) = REPLACE(@RunDate, '-', '');\nDECLARE @RunStamp NVARCHAR(25) = @RunDateClean + '_' + REPLACE(CONVERT(NVARCHAR(8), GETDATE(), 108), ':', '');\n\n-- Drop if re-running (metadata only; location is unique per run so no physical conflict)\nDECLARE @DropSQL NVARCHAR(MAX) = N'\n    IF OBJECT_ID(''dbo.fact_oilprice_' + @RunStamp + N''') IS NOT NULL\n        DROP EXTERNAL TABLE dbo.fact_oilprice_' + @RunStamp + N';';\nEXEC sp_executesql @DropSQL;\n\n-- CETAS: Bronze EIA Parquet -> Gold OilPrice Parquet (unique run folder, avoids ADLS empty-folder-marker conflicts)\nDECLARE @SQL NVARCHAR(MAX) = N'\nCREATE EXTERNAL TABLE dbo.fact_oilprice_' + @RunStamp + N'\nWITH (\n    LOCATION = ''/gold/fact_oilprice/' + @RunDate + N'/run_' + @RunStamp + N'/'',\n    DATA_SOURCE = aer_adls,\n    FILE_FORMAT = parquet_format\n) AS\nSELECT \n    TRY_CAST([period] AS DATE) AS PriceDate,\n    TRY_CAST([value] AS DECIMAL(10,2)) AS OilPrice_USD,\n    [series-description] AS SeriesDescription,\n    GETDATE() AS Loaded_At\nFROM OPENROWSET(\n    BULK ''/bronze/oilprice/' + @RunDate + N'/*.parquet'',\n    DATA_SOURCE = ''aer_adls'',\n    FORMAT = ''PARQUET''\n) AS b\nWHERE [period] IS NOT NULL \n  AND [value] IS NOT NULL\n  AND TRY_CAST([value] AS DECIMAL(10,2)) IS NOT NULL;';\nEXEC sp_executesql @SQL;"
 								}
 							],
 							"scriptBlockExecutionTimeout": "02:00:00"
@@ -856,6 +1051,7 @@
 				"lastPublishTime": "2026-04-20T01:01:50Z"
 			},
 			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/DS_ADLS_GoldOilPrice_Folder')]",
 				"[concat(variables('factoryId'), '/linkedServices/LS_Synapse_Serverless')]"
 			]
 		},
@@ -866,9 +1062,84 @@
 			"properties": {
 				"activities": [
 					{
+						"name": "Delete Silver Clean Folder",
+						"type": "Delete",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"dataset": {
+								"referenceName": "DS_ADLS_SilverClean_Folder",
+								"type": "DatasetReference",
+								"parameters": {
+									"RunDate": {
+										"value": "@formatDateTime(utcnow(),'yyyy-MM-dd')",
+										"type": "Expression"
+									}
+								}
+							},
+							"enableLogging": false,
+							"storeSettings": {
+								"type": "AzureBlobFSReadSettings",
+								"recursive": true,
+								"enablePartitionDiscovery": false
+							}
+						}
+					},
+					{
+						"name": "Delete Quarantine Folder",
+						"type": "Delete",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"dataset": {
+								"referenceName": "DS_ADLS_Quarantine_Folder",
+								"type": "DatasetReference",
+								"parameters": {
+									"RunDate": {
+										"value": "@formatDateTime(utcnow(),'yyyy-MM-dd')",
+										"type": "Expression"
+									}
+								}
+							},
+							"enableLogging": false,
+							"storeSettings": {
+								"type": "AzureBlobFSReadSettings",
+								"recursive": true,
+								"enablePartitionDiscovery": false
+							}
+						}
+					},
+					{
 						"name": "bronze to silver and quarantine",
 						"type": "Script",
-						"dependsOn": [],
+						"dependsOn": [
+							{
+								"activity": "Delete Silver Clean Folder",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "Delete Quarantine Folder",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
 						"policy": {
 							"timeout": "0.12:00:00",
 							"retry": 0,
@@ -899,6 +1170,8 @@
 				"lastPublishTime": "2026-04-20T00:14:41Z"
 			},
 			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/DS_ADLS_SilverClean_Folder')]",
+				"[concat(variables('factoryId'), '/datasets/DS_ADLS_Quarantine_Folder')]",
 				"[concat(variables('factoryId'), '/linkedServices/LS_Synapse_Serverless')]"
 			]
 		},
@@ -917,7 +1190,8 @@
 						"policy": {
 							"timeout": "0.00:01:00",
 							"retry": 2,
-							"retryIntervalInSeconds": 30
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false
 						},
 						"userProperties": [],
 						"typeProperties": {
@@ -1241,6 +1515,548 @@
 			"properties": {
 				"activities": [
 					{
+						"name": "Pipeline Start Script",
+						"type": "SqlServerStoredProcedure",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"storedProcedureName": "[[dbo].[usp_StartPipelineRun]",
+							"storedProcedureParameters": {
+								"PipelineName": {
+									"value": "PL_Master_Orchestrator",
+									"type": "String"
+								},
+								"BatchId": {
+									"value": {
+										"value": "@concat('BATCH_', formatDateTime(utcNow(),'yyyyMMdd'))",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"RunDate": {
+									"value": {
+										"value": "@formatDateTime(utcNow(),'yyyy-MM-dd')",
+										"type": "Expression"
+									},
+									"type": "String"
+								}
+							}
+						},
+						"linkedServiceName": {
+							"referenceName": "LS_AzureSQL",
+							"type": "LinkedServiceReference"
+						}
+					},
+					{
+						"name": "GetIdempotencyStatus",
+						"type": "Lookup",
+						"dependsOn": [
+							{
+								"activity": "Pipeline Start Script",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "AzureSqlSource",
+								"sqlReaderQuery": {
+									"value": "SELECT Status FROM dbo.PipelineControl WHERE PipelineName='PL_Master_Orchestrator' AND BatchId='@{concat('BATCH_', formatDateTime(utcnow(),'yyyyMMdd'))}'",
+									"type": "Expression"
+								},
+								"partitionOption": "None"
+							},
+							"dataset": {
+								"referenceName": "DS_AzureSQL_Generic",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						}
+					},
+					{
+						"name": "CheckIdempotency",
+						"type": "IfCondition",
+						"dependsOn": [
+							{
+								"activity": "GetIdempotencyStatus",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"expression": {
+								"value": "@equals(activity('GetIdempotencyStatus').output.firstRow.Status, 'RUNNING')",
+								"type": "Expression"
+							},
+							"ifFalseActivities": [
+								{
+									"name": "SkipRun_AlreadyProcessed",
+									"type": "SqlServerStoredProcedure",
+									"dependsOn": [],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"storedProcedureName": "[[dbo].[Log_ADF_Failure]",
+										"storedProcedureParameters": {
+											"ActivityName": {
+												"value": "master orchestrator run - skipped, already processed",
+												"type": "String"
+											},
+											"ErrorMessage": {
+												"value": "Batch already RUNNING or COMPLETED for this date - idempotency check prevented duplicate run",
+												"type": "String"
+											},
+											"PipelineName": {
+												"value": {
+													"value": "@pipeline().Pipeline",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"PipelineRunId": {
+												"value": {
+													"value": "@pipeline().RunId",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"Status": {
+												"value": "skipped",
+												"type": "String"
+											}
+										}
+									},
+									"linkedServiceName": {
+										"referenceName": "LS_AzureSQL",
+										"type": "LinkedServiceReference"
+									}
+								}
+							],
+							"ifTrueActivities": [
+								{
+									"name": "PLST37_to_Bronze",
+									"type": "ExecutePipeline",
+									"dependsOn": [],
+									"policy": {
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "PL_ST37_to_Bronze",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {}
+									}
+								},
+								{
+									"name": "PL_EIA_to_Bronze",
+									"type": "ExecutePipeline",
+									"dependsOn": [],
+									"policy": {
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "PL_EIA_to_Staging",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {}
+									}
+								},
+								{
+									"name": "PL_Bronze_to_Silver",
+									"type": "ExecutePipeline",
+									"dependsOn": [
+										{
+											"activity": "PLST37_to_Bronze",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "PL_Bronze_to_Silver_quarantine",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {}
+									}
+								},
+								{
+									"name": "Bronze oil price to gold",
+									"type": "ExecutePipeline",
+									"dependsOn": [
+										{
+											"activity": "PL_EIA_to_Bronze",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "PL_Bronze_OilPrice_to_Gold",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {}
+									}
+								},
+								{
+									"name": "silver to staging sql",
+									"type": "ExecutePipeline",
+									"dependsOn": [
+										{
+											"activity": "PL_Bronze_to_Silver",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										},
+										{
+											"activity": "Bronze oil price to gold",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "PL_Silver_to_Staging_SQL",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {}
+									}
+								},
+								{
+									"name": "SCD2 for gold",
+									"type": "ExecutePipeline",
+									"dependsOn": [
+										{
+											"activity": "silver to staging sql",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "PL_SCD2_MERGE",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {}
+									}
+								},
+								{
+									"name": "ADLS gold Archival Copy",
+									"type": "ExecutePipeline",
+									"dependsOn": [
+										{
+											"activity": "SCD2 for gold",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "PL_Archive_Gold_to_ADLS",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {}
+									}
+								},
+								{
+									"name": "GetSilverCounts",
+									"type": "Lookup",
+									"dependsOn": [
+										{
+											"activity": "ADLS gold Archival Copy",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"source": {
+											"type": "AzureSqlSource",
+											"sqlReaderQuery": "DECLARE @RunDateClean NVARCHAR(8) = REPLACE(CONVERT(NVARCHAR(10), GETDATE(), 120), '-', '');\nDECLARE @SQL NVARCHAR(MAX) = N'\nSELECT \n    (SELECT COUNT(*) FROM staging.Silver_Wells) AS SilverRowCount,\n    (SELECT COUNT(*) FROM staging.Silver_Wells) AS SourceRowCount,\n    (SELECT COUNT(*) FROM dbo.quarantine_' + @RunDateClean + N') AS QuarantineRowCount';\nEXEC sp_executesql @SQL;",
+											"partitionOption": "None"
+										},
+										"dataset": {
+											"referenceName": "DS_AzureSQL_Generic",
+											"type": "DatasetReference",
+											"parameters": {}
+										}
+									}
+								},
+								{
+									"name": "EndPipelineRun_Success",
+									"type": "SqlServerStoredProcedure",
+									"dependsOn": [
+										{
+											"activity": "GetSilverCounts",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"storedProcedureName": "[[dbo].[usp_EndPipelineRun]",
+										"storedProcedureParameters": {
+											"PipelineName": {
+												"value": "PL_Master_Orchestrator",
+												"type": "String"
+											},
+											"BatchId": {
+												"value": {
+													"value": "@concat('BATCH_', formatDateTime(utcnow(),'yyyyMMdd'))",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"SourceRowCount": {
+												"value": {
+													"value": "@activity('GetSilverCounts').output.firstRow.SourceRowCount",
+													"type": "Expression"
+												},
+												"type": "Int32"
+											},
+											"SilverRowCount": {
+												"value": {
+													"value": "@activity('GetSilverCounts').output.firstRow.SilverRowCount",
+													"type": "Expression"
+												},
+												"type": "Int32"
+											},
+											"QuarantineRowCount": {
+												"value": {
+													"value": "@activity('GetSilverCounts').output.firstRow.QuarantineRowCount",
+													"type": "Expression"
+												},
+												"type": "Int32"
+											}
+										}
+									},
+									"linkedServiceName": {
+										"referenceName": "LS_AzureSQL",
+										"type": "LinkedServiceReference"
+									}
+								}
+							]
+						}
+					},
+					{
+						"name": "handling pipeline failure",
+						"type": "SqlServerStoredProcedure",
+						"dependsOn": [
+							{
+								"activity": "CheckIdempotency",
+								"dependencyConditions": [
+									"Failed"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"storedProcedureName": "[[dbo].[Log_ADF_Failure]",
+							"storedProcedureParameters": {
+								"ActivityName": {
+									"value": "master orchestrator run",
+									"type": "String"
+								},
+								"ErrorMessage": {
+									"value": {
+										"value": "@activity('CheckIdempotency').error.message",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"PipelineName": {
+									"value": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"PipelineRunId": {
+									"value": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"Status": {
+									"value": "failed",
+									"type": "String"
+								}
+							}
+						},
+						"linkedServiceName": {
+							"referenceName": "LS_AzureSQL",
+							"type": "LinkedServiceReference"
+						}
+					},
+					{
+						"name": "EndPipelineRun_Failure",
+						"type": "SqlServerStoredProcedure",
+						"dependsOn": [
+							{
+								"activity": "handling pipeline failure",
+								"dependencyConditions": [
+									"Succeeded",
+									"Failed"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"storedProcedureName": "[[dbo].[usp_EndPipelineRun]",
+							"storedProcedureParameters": {
+								"PipelineName": {
+									"value": "PL_Master_Orchestrator",
+									"type": "String"
+								},
+								"BatchId": {
+									"value": {
+										"value": "@concat('BATCH_', formatDateTime(utcnow(),'yyyyMMdd'))",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"ErrorMessage": {
+									"value": {
+										"value": "@coalesce(activity('CheckIdempotency').error.message, 'Pipeline failed - see activity run details for the specific failed step')",
+										"type": "Expression"
+									},
+									"type": "String"
+								},
+								"SourceRowCount": {
+									"value": "0",
+									"type": "Int32"
+								},
+								"SilverRowCount": {
+									"value": "0",
+									"type": "Int32"
+								},
+								"QuarantineRowCount": {
+									"value": "0",
+									"type": "Int32"
+								}
+							}
+						},
+						"linkedServiceName": {
+							"referenceName": "LS_AzureSQL",
+							"type": "LinkedServiceReference"
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-04-20T02:12:31Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_AzureSQL')]",
+				"[concat(variables('factoryId'), '/datasets/DS_AzureSQL_Generic')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_ST37_to_Bronze')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_EIA_to_Staging')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_Bronze_to_Silver_quarantine')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_Bronze_OilPrice_to_Gold')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_Silver_to_Staging_SQL')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_SCD2_MERGE')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_Archive_Gold_to_ADLS')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PL_Master_Orchestrator_old')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
 						"name": "PLST37_to_Bronze",
 						"type": "ExecutePipeline",
 						"dependsOn": [],
@@ -1399,122 +2215,6 @@
 							"waitOnCompletion": true,
 							"parameters": {}
 						}
-					},
-					{
-						"name": "handling pipeline failure",
-						"type": "SqlServerStoredProcedure",
-						"dependsOn": [
-							{
-								"activity": "PL_Bronze_to_Silver",
-								"dependencyConditions": [
-									"Failed"
-								]
-							}
-						],
-						"policy": {
-							"timeout": "0.12:00:00",
-							"retry": 0,
-							"retryIntervalInSeconds": 30,
-							"secureOutput": false,
-							"secureInput": false
-						},
-						"userProperties": [],
-						"typeProperties": {
-							"storedProcedureName": "[[dbo].[Log_ADF_Failure]",
-							"storedProcedureParameters": {
-								"ActivityName": {
-									"value": "copy well data bronze to silver",
-									"type": "String"
-								},
-								"ErrorMessage": {
-									"value": {
-										"value": "@activity('PL_Bronze_to_Silver').error.message",
-										"type": "Expression"
-									},
-									"type": "String"
-								},
-								"PipelineName": {
-									"value": {
-										"value": "@pipeline().Pipeline",
-										"type": "Expression"
-									},
-									"type": "String"
-								},
-								"PipelineRunId": {
-									"value": {
-										"value": "@pipeline().RunId",
-										"type": "Expression"
-									},
-									"type": "String"
-								},
-								"Status": {
-									"value": "failed",
-									"type": "String"
-								}
-							}
-						},
-						"linkedServiceName": {
-							"referenceName": "LS_AzureSQL",
-							"type": "LinkedServiceReference"
-						}
-					},
-					{
-						"name": "Pipeline failure_Bronze oil price to gold",
-						"type": "SqlServerStoredProcedure",
-						"dependsOn": [
-							{
-								"activity": "Bronze oil price to gold",
-								"dependencyConditions": [
-									"Failed"
-								]
-							}
-						],
-						"policy": {
-							"timeout": "0.12:00:00",
-							"retry": 0,
-							"retryIntervalInSeconds": 30,
-							"secureOutput": false,
-							"secureInput": false
-						},
-						"userProperties": [],
-						"typeProperties": {
-							"storedProcedureName": "[[dbo].[Log_ADF_Failure]",
-							"storedProcedureParameters": {
-								"ActivityName": {
-									"value": "oil prize bronze to gold",
-									"type": "String"
-								},
-								"ErrorMessage": {
-									"value": {
-										"value": "@activity('Bronze oil price to gold').error.message",
-										"type": "Expression"
-									},
-									"type": "String"
-								},
-								"PipelineName": {
-									"value": {
-										"value": "@pipeline().Pipeline",
-										"type": "Expression"
-									},
-									"type": "String"
-								},
-								"PipelineRunId": {
-									"value": {
-										"value": "@pipeline().RunId",
-										"type": "Expression"
-									},
-									"type": "String"
-								},
-								"Status": {
-									"value": "failed",
-									"type": "String"
-								}
-							}
-						},
-						"linkedServiceName": {
-							"referenceName": "LS_AzureSQL",
-							"type": "LinkedServiceReference"
-						}
 					}
 				],
 				"policy": {
@@ -1530,8 +2230,7 @@
 				"[concat(variables('factoryId'), '/pipelines/PL_Bronze_OilPrice_to_Gold')]",
 				"[concat(variables('factoryId'), '/pipelines/PL_Silver_to_Staging_SQL')]",
 				"[concat(variables('factoryId'), '/pipelines/PL_SCD2_MERGE')]",
-				"[concat(variables('factoryId'), '/pipelines/PL_Archive_Gold_to_ADLS')]",
-				"[concat(variables('factoryId'), '/linkedServices/LS_AzureSQL')]"
+				"[concat(variables('factoryId'), '/pipelines/PL_Archive_Gold_to_ADLS')]"
 			]
 		},
 		{
@@ -2122,6 +2821,112 @@
 			]
 		},
 		{
+			"name": "[concat(parameters('factoryName'), '/Send notification to a channel in Microsoft Teams1')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"description": "Use this pipeline template to send notification on a teams channel. \n\nhttps://adf.azure.com/en-us/monitoring/pipelineruns/f90465ff-b8ea-4f0f-9110-178164bc8ee4?factory=/subscriptions/7b68d2b5-dfbe-46e1-938f-98ed143b7953/resourceGroups/demo101-rg/providers/Microsoft.DataFactory/factories/demofactory101",
+				"activities": [
+					{
+						"name": "Set Facts",
+						"description": "Details on Fact schema for teams messages: https://adaptivecards.io/explorer/Fact.html",
+						"type": "SetVariable",
+						"dependsOn": [],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "messageCardString",
+							"value": {
+								"value": "{\n    \"@type\": \"MessageCard\",\n    \"@context\": \"http://schema.org/extensions\",\n    \"themeColor\": \"0076D7\",\n    \"summary\": \"Pipeline status alert message​​​​\",\n    \"sections\": [\n        {\n            \"activityTitle\": \"Pipeline alert​​​​\",\n            \"facts\": [\n                {\n                    \"name\": \"Pipeline RunId:\",\n                    \"value\": \"@{pipeline().parameters.pipelineRunId}\"\n                },\n                {\n                    \"name\": \"Activity name:\",\n                    \"value\": \"@{pipeline().parameters.activityName}\"\n                },\n                {\n                    \"name\": \"Activity status:\",\n                    \"value\": \"@{pipeline().parameters.activityStatus}\"\n                },\n                {\n                    \"name\": \"Execution duration (s):\",\n                    \"value\": \"@{pipeline().parameters.activityDuration}\"\n                },\n                {\n                    \"name\": \"Message\",\n                    \"value\": \"@{pipeline().parameters.activityMessage}\"\n                },\n                {\n                    \"name\": \"Notification time (UTC):\",\n                    \"value\": \"@{utcNow()}\"\n                },\n                {\n                    \"name\": \"Data Factory name:\",\n                    \"value\": \"@{pipeline().DataFactory}\"\n                }\n            ],\n            \"markdown\": true\n        }\n    ],\n    \"potentialAction\": [\n        {\n            \"@type\": \"OpenUri\",\n            \"name\": \"View pipeline run\",\n            \"targets\": [\n                {\n                    \"os\": \"default\",\n                    \"uri\": \"@{concat('https://adf.azure.com/monitoring/pipelineruns/',pipeline().parameters.pipelineRunId,'?factory=/subscriptions/',pipeline().parameters.dataFactorySubscription,'/resourceGroups/',pipeline().parameters.dataFactoryResourceGroup,'/providers/Microsoft.DataFactory/factories/',pipeline().DataFactory)}\"\n                }\n            ]\n        }\n    ]\n}",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "Call Teams Webhook",
+						"description": "Invokes teams channel's webbook.",
+						"type": "WebActivity",
+						"dependsOn": [
+							{
+								"activity": "Set Facts",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"method": "POST",
+							"headers": {},
+							"url": {
+								"value": "@pipeline().parameters.teamsWebhookUrl",
+								"type": "Expression"
+							},
+							"body": {
+								"value": "@json(variables('messageCardString'))",
+								"type": "Expression"
+							}
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"parameters": {
+					"dataFactorySubscription": {
+						"type": "string",
+						"defaultValue": "Azure subscription 1"
+					},
+					"dataFactoryResourceGroup": {
+						"type": "string",
+						"defaultValue": "aer-oilgas-rg"
+					},
+					"pipelineRunId": {
+						"type": "string",
+						"defaultValue": "Overwrite the value from the calling activity "
+					},
+					"teamsWebhookUrl": {
+						"type": "string",
+						"defaultValue": "<Update value>"
+					},
+					"activityName": {
+						"type": "string",
+						"defaultValue": "Overwrite the value from the calling activity "
+					},
+					"activityMessage": {
+						"type": "string",
+						"defaultValue": "Overwrite the value from the calling activity "
+					},
+					"activityDuration": {
+						"type": "string",
+						"defaultValue": "Overwrite the value from the calling activity "
+					},
+					"activityStatus": {
+						"type": "string",
+						"defaultValue": "Failed"
+					}
+				},
+				"variables": {
+					"messageCardString": {
+						"type": "String"
+					}
+				},
+				"annotations": [],
+				"lastPublishTime": "2021-06-01T09:19:35Z"
+			},
+			"dependsOn": []
+		},
+		{
 			"name": "[concat(parameters('factoryName'), '/DS_ADLS_Archive_Parquet')]",
 			"type": "Microsoft.DataFactory/factories/datasets",
 			"apiVersion": "2018-06-01",
@@ -2152,6 +2957,120 @@
 			},
 			"dependsOn": [
 				"[concat(variables('factoryId'), '/linkedServices/LS_ADLS_Gen2')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_ADLS_GoldOilPrice_Folder')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"RunDate": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "Binary",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": {
+							"value": "gold/fact_oilprice/@{dataset().RunDate}",
+							"type": "Expression"
+						},
+						"fileSystem": "aer-og-data"
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_ADLS_Gen2')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_ADLS_Quarantine_Folder')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"RunDate": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "Binary",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": {
+							"value": "quarantine/well_rejects/@{dataset().RunDate}",
+							"type": "Expression"
+						},
+						"fileSystem": "aer-og-data"
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_ADLS_Gen2')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_ADLS_SilverClean_Folder')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"RunDate": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "Binary",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": {
+							"value": "silver/clean/@{dataset().RunDate}",
+							"type": "Expression"
+						},
+						"fileSystem": "aer-og-data"
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_ADLS_Gen2')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_AzureSQL_Generic')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [],
+				"typeProperties": {
+					"schema": "dbo",
+					"table": "PipelineExecutionLog"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_AzureSQL')]"
 			]
 		},
 		{
@@ -2760,6 +3679,9 @@
 						"type": "string"
 					}
 				},
+				"folder": {
+					"name": "Metadata_driven_pipeline_dataset"
+				},
 				"annotations": [],
 				"type": "AzureSqlTable",
 				"schema": [],
@@ -2921,6 +3843,9 @@
 						"type": "string"
 					}
 				},
+				"folder": {
+					"name": "Metadata_driven_pipeline_dataset"
+				},
 				"annotations": [],
 				"type": "AzureSqlTable",
 				"schema": [],
@@ -2947,6 +3872,9 @@
 				"linkedServiceName": {
 					"referenceName": "LS_AzureSQL",
 					"type": "LinkedServiceReference"
+				},
+				"folder": {
+					"name": "Metadata_driven_pipeline_dataset"
 				},
 				"annotations": [],
 				"type": "AzureSqlTable",
@@ -3001,103 +3929,98 @@
 			]
 		},
 		{
-			"name": "[concat(parameters('factoryName'), '/MetadataDrivenCopyTask_xjb_ControlDS')]",
+			"name": "[concat(parameters('factoryName'), '/DataDestination')]",
 			"type": "Microsoft.DataFactory/factories/datasets",
 			"apiVersion": "2018-06-01",
 			"properties": {
+				"description": "Connection to your data destination store.",
 				"linkedServiceName": {
-					"referenceName": "ls_metadatadriven_watermark",
+					"referenceName": "LS_ADLS_Gen2",
 					"type": "LinkedServiceReference"
 				},
-				"folder": {
-					"name": "MetadataDrivenCopyTask_xjb_20260707"
+				"parameters": {
+					"Data_Destination_Container": {
+						"type": "String"
+					},
+					"Data_Destination_Directory": {
+						"type": "String"
+					}
 				},
 				"annotations": [],
-				"type": "AzureSqlTable",
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": {
+							"value": "@{dataset().Data_Destination_Directory}",
+							"type": "Expression"
+						},
+						"fileSystem": {
+							"value": "@{dataset().Data_Destination_Container}",
+							"type": "Expression"
+						}
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_ADLS_Gen2')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/SqlServerDataSource')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"description": "Connection to your data source store.",
+				"linkedServiceName": {
+					"referenceName": "LS_OnPrem_SQL",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "SqlServerTable",
 				"schema": [],
 				"typeProperties": {
 					"schema": "dbo",
-					"table": "MainControlTable_xjb"
+					"table": ""
 				}
 			},
 			"dependsOn": [
-				"[concat(variables('factoryId'), '/linkedServices/ls_metadatadriven_watermark')]"
+				"[concat(variables('factoryId'), '/linkedServices/LS_OnPrem_SQL')]"
 			]
 		},
 		{
-			"name": "[concat(parameters('factoryName'), '/MetadataDrivenCopyTask_xjb_DestinationDS')]",
+			"name": "[concat(parameters('factoryName'), '/SqlServerExternal_ControlTable')]",
 			"type": "Microsoft.DataFactory/factories/datasets",
 			"apiVersion": "2018-06-01",
 			"properties": {
+				"description": "The external control table is used to store the partition list of data source tables.",
 				"linkedServiceName": {
-					"referenceName": "LS_TargetSQL",
+					"referenceName": "LS_OnPrem_SQL",
 					"type": "LinkedServiceReference"
 				},
 				"parameters": {
-					"cw_schema": {
-						"type": "String"
-					},
-					"cw_table": {
+					"TableName": {
 						"type": "String"
 					}
 				},
-				"folder": {
-					"name": "MetadataDrivenCopyTask_xjb_20260707"
-				},
 				"annotations": [],
-				"type": "AzureSqlTable",
+				"type": "SqlServerTable",
 				"schema": [],
 				"typeProperties": {
-					"schema": {
-						"value": "@dataset().cw_schema",
-						"type": "Expression"
-					},
+					"schema": "dbo",
 					"table": {
-						"value": "@dataset().cw_table",
+						"value": "@dataset().TableName",
 						"type": "Expression"
 					}
 				}
 			},
 			"dependsOn": [
-				"[concat(variables('factoryId'), '/linkedServices/LS_TargetSQL')]"
-			]
-		},
-		{
-			"name": "[concat(parameters('factoryName'), '/MetadataDrivenCopyTask_xjb_SourceDS')]",
-			"type": "Microsoft.DataFactory/factories/datasets",
-			"apiVersion": "2018-06-01",
-			"properties": {
-				"linkedServiceName": {
-					"referenceName": "LS_SourceSQL",
-					"type": "LinkedServiceReference"
-				},
-				"parameters": {
-					"cw_schema": {
-						"type": "String"
-					},
-					"cw_table": {
-						"type": "String"
-					}
-				},
-				"folder": {
-					"name": "MetadataDrivenCopyTask_xjb_20260707"
-				},
-				"annotations": [],
-				"type": "AzureSqlTable",
-				"schema": [],
-				"typeProperties": {
-					"schema": {
-						"value": "@dataset().cw_schema",
-						"type": "Expression"
-					},
-					"table": {
-						"value": "@dataset().cw_table",
-						"type": "Expression"
-					}
-				}
-			},
-			"dependsOn": [
-				"[concat(variables('factoryId'), '/linkedServices/LS_SourceSQL')]"
+				"[concat(variables('factoryId'), '/linkedServices/LS_OnPrem_SQL')]"
 			]
 		},
 		{
@@ -3328,16 +4251,8 @@
 			"apiVersion": "2018-06-01",
 			"properties": {
 				"annotations": [],
-				"runtimeState": "Started",
-				"pipelines": [
-					{
-						"pipelineReference": {
-							"referenceName": "PL_Master_Orchestrator",
-							"type": "PipelineReference"
-						},
-						"parameters": {}
-					}
-				],
+				"runtimeState": "Stopped",
+				"pipelines": [],
 				"type": "ScheduleTrigger",
 				"typeProperties": {
 					"recurrence": {
@@ -3349,9 +4264,7 @@
 					}
 				}
 			},
-			"dependsOn": [
-				"[concat(variables('factoryId'), '/pipelines/PL_Master_Orchestrator')]"
-			]
+			"dependsOn": []
 		},
 		{
 			"name": "[concat(parameters('factoryName'), '/aer-shir')]",
@@ -3364,6 +4277,133 @@
 				}
 			},
 			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PII detection and masking')]",
+			"type": "Microsoft.DataFactory/factories/dataflows",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"description": "This dataflow will create the request body needed for Azure Cognitive Services and then use the external call transformation to detect and mask PII data with the Cognitive Services PII API. ",
+				"type": "MappingDataFlow",
+				"typeProperties": {
+					"sources": [
+						{
+							"linkedService": {
+								"referenceName": "LS_ADLS_Gen2",
+								"type": "LinkedServiceReference"
+							},
+							"name": "dataSource",
+							"description": "Import data from data source"
+						}
+					],
+					"sinks": [
+						{
+							"name": "sink"
+						}
+					],
+					"transformations": [
+						{
+							"name": "externalCallCogServices",
+							"linkedService": {
+								"referenceName": "LS_EIA_REST",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "createRequestBody",
+							"description": "Creating the columns 'kind, parameters, analysisInput, text'"
+						},
+						{
+							"name": "flattenResults"
+						}
+					],
+					"scriptLines": [
+						"parameters{",
+						"     sourceFileSystem as string ('sourceFileSystem'),",
+						"     sourceFilePath as string ('sourceFilePath'),",
+						"     sourceFileName as string ('sourceFileName')",
+						"}",
+						"source(output(",
+						"          case_month as string,",
+						"          res_state as string,",
+						"          state_fips_code as short,",
+						"          res_county as string,",
+						"          county_fips_code as string,",
+						"          age_group as string,",
+						"          sex as string,",
+						"          race as string,",
+						"          ethnicity as string,",
+						"          case_positive_specimen_interval as short,",
+						"          case_onset_interval as short,",
+						"          process as string,",
+						"          exposure_yn as string,",
+						"          current_status as string,",
+						"          symptom_status as string,",
+						"          hosp_yn as string,",
+						"          icu_yn as string,",
+						"          death_yn as string,",
+						"          underlying_conditions_yn as string,",
+						"          name as string,",
+						"          email as string,",
+						"          phone_number as string",
+						"     ),",
+						"     useSchema: false,",
+						"     allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     ignoreNoFilesFound: false,",
+						"     format: 'delimited',",
+						"     fileSystem: ($sourceFileSystem),",
+						"     folderPath: ($sourceFilePath),",
+						"     fileName: ($sourceFileName),",
+						"     columnDelimiter: ',',",
+						"     escapeChar: '\\\\',",
+						"     quoteChar: '\\\"',",
+						"     columnNamesAsHeader: true) ~> dataSource",
+						"createRequestBody call(mapColumn(",
+						"          kind,",
+						"          parameters,",
+						"          analysisInput",
+						"     ),",
+						"     skipDuplicateMapInputs: true,",
+						"     skipDuplicateMapOutputs: true,",
+						"     output(",
+						"          body as (kind as string, results as (documents as (redactedText as string, id as string, entities as (text as string, category as string, offset as integer, length as integer, confidenceScore as double)[])[]))",
+						"     ),",
+						"     allowSchemaDrift: true,",
+						"     format: 'rest',",
+						"     store: 'restservice',",
+						"     timeout: 30,",
+						"     requestInterval: 0,",
+						"     httpMethod: 'POST',",
+						"     entity: 'language/:analyze-text?api-version=2022-05-01',",
+						"     bodyColumnName: 'body',",
+						"     requestFormat: ['type' -> 'json'],",
+						"     responseFormat: ['type' -> 'json', 'documentForm' -> 'documentPerLine']) ~> externalCallCogServices",
+						"dataSource derive(kind = 'PiiEntityRecognition',",
+						"          parameters = @(modelVersion='latest'),",
+						"          analysisInput = @(documents=array(@(id=\"1\", language=\"en\", text=concatWS(', ', name,email,phone_number,case_month,res_state,res_county,age_group,sex,race,ethnicity,process,exposure_yn,current_status,symptom_status,hosp_yn,icu_yn,icu_yn,death_yn,underlying_conditions_yn)))),",
+						"          text = concatWS(', ', name,email,phone_number,case_month,res_state,res_county,age_group,sex,race,ethnicity,process,exposure_yn,current_status,symptom_status,hosp_yn,icu_yn,icu_yn,death_yn,underlying_conditions_yn)) ~> createRequestBody",
+						"externalCallCogServices foldDown(unroll(body.results.documents),",
+						"     mapColumn(",
+						"          redactedText = body.results.documents.redactedText,",
+						"          text",
+						"     ),",
+						"     skipDuplicateMapInputs: false,",
+						"     skipDuplicateMapOutputs: false) ~> flattenResults",
+						"flattenResults sink(validateSchema: false,",
+						"     skipDuplicateMapInputs: true,",
+						"     skipDuplicateMapOutputs: true,",
+						"     store: 'cache',",
+						"     format: 'inline',",
+						"     output: false,",
+						"     saveOrder: 1) ~> sink"
+					]
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_ADLS_Gen2')]",
+				"[concat(variables('factoryId'), '/linkedServices/LS_EIA_REST')]"
+			]
 		}
 	]
 }
