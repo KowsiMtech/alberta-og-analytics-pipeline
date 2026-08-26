@@ -1,6 +1,10 @@
 {
 	"name": "DS_ADLS_Quarantine_Folder",
 	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_ADLS_Gen2",
+			"type": "LinkedServiceReference"
+		},
 		"parameters": {
 			"RunDate": {
 				"type": "string"

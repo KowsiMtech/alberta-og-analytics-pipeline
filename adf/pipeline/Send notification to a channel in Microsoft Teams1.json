@@ -57,11 +57,11 @@
 		"parameters": {
 			"dataFactorySubscription": {
 				"type": "string",
-				"defaultValue": "<Update value>"
+				"defaultValue": "Azure subscription 1"
 			},
 			"dataFactoryResourceGroup": {
 				"type": "string",
-				"defaultValue": "<Update value>"
+				"defaultValue": "aer-oilgas-rg"
 			},
 			"pipelineRunId": {
 				"type": "string",
