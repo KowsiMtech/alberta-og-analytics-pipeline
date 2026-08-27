@@ -1,0 +1,257 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"type": "string",
+			"metadata": "Data Factory name",
+			"defaultValue": "aer-oilgas-adf"
+		},
+		"LS_SourceSQL_password": {
+			"type": "secureString",
+			"metadata": "Secure string for 'password' of 'LS_SourceSQL'"
+		},
+		"LS_TargetSQL_password": {
+			"type": "secureString",
+			"metadata": "Secure string for 'password' of 'LS_TargetSQL'"
+		},
+		"ls_metadatadriven_watermark_password": {
+			"type": "secureString",
+			"metadata": "Secure string for 'password' of 'ls_metadatadriven_watermark'"
+		},
+		"LS_ADLS_Gen2_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://aeroilgasstorage.dfs.core.windows.net"
+		},
+		"LS_AzureSQL_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "aer-server.database.windows.net"
+		},
+		"LS_AzureSQL_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "aer-oilgas-gold-db"
+		},
+		"LS_AzureSQL_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "sqladminuser"
+		},
+		"LS_EIA_REST_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://api.eia.gov/"
+		},
+		"LS_KeyVault_properties_typeProperties_baseUrl": {
+			"type": "string",
+			"defaultValue": "https://aer-oilgas-kv.vault.azure.net/"
+		},
+		"LS_OnPrem_SQL_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "."
+		},
+		"LS_OnPrem_SQL_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "AER_OilGas_OnPrem"
+		},
+		"LS_OnPrem_SQL_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "adf_user"
+		},
+		"LS_Sftp_properties_typeProperties_host": {
+			"type": "string",
+			"defaultValue": "storageadfmaster.blob.core.windows.net"
+		},
+		"LS_Sftp_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "storageadfmaster.sftpadmin"
+		},
+		"LS_SourceSQL_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "aer-server.database.windows.net"
+		},
+		"LS_SourceSQL_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "aer-oilgas-gold-db"
+		},
+		"LS_SourceSQL_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "sqladminuser"
+		},
+		"LS_Synapse_Serverless_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "aer-synapse-ws-ondemand.sql.azuresynapse.net"
+		},
+		"LS_Synapse_Serverless_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "aer_synapse_db"
+		},
+		"LS_TargetSQL_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "aer-server.database.windows.net"
+		},
+		"LS_TargetSQL_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "aer-oilgas-gold-db"
+		},
+		"LS_TargetSQL_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "sqladminuser"
+		},
+		"ls_metadatadriven_watermark_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "aer-server.database.windows.net"
+		},
+		"ls_metadatadriven_watermark_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "aer-oilgas-gold-db"
+		},
+		"ls_metadatadriven_watermark_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "sqladminuser"
+		},
+		"containerUri": {
+			"type": "string",
+			"metadata": "URI to storage account containing linked ARM templates"
+		},
+		"containerSasToken": {
+			"type": "string",
+			"metadata": "Sas token to storage account containing linked ARM templates"
+		}
+	},
+	"variables": {
+		"factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+	},
+	"resources": [
+		{
+			"name": "aer-oilgas-adf_ArmTemplate_0",
+			"type": "Microsoft.Resources/deployments",
+			"apiVersion": "2024-03-01",
+			"properties": {
+				"mode": "incremental",
+				"templateLink": {
+					"uri": "[concat(parameters('containerUri'), '/ArmTemplate_0.json', parameters('containerSasToken'))]",
+					"contentVersion": "1.0.0.0"
+				},
+				"parameters": {
+					"factoryName": {
+						"value": "[parameters('factoryName')]"
+					},
+					"LS_SourceSQL_password": {
+						"value": "[parameters('LS_SourceSQL_password')]"
+					},
+					"LS_TargetSQL_password": {
+						"value": "[parameters('LS_TargetSQL_password')]"
+					},
+					"ls_metadatadriven_watermark_password": {
+						"value": "[parameters('ls_metadatadriven_watermark_password')]"
+					},
+					"LS_EIA_REST_properties_typeProperties_url": {
+						"value": "[parameters('LS_EIA_REST_properties_typeProperties_url')]"
+					},
+					"LS_KeyVault_properties_typeProperties_baseUrl": {
+						"value": "[parameters('LS_KeyVault_properties_typeProperties_baseUrl')]"
+					},
+					"LS_SourceSQL_properties_typeProperties_server": {
+						"value": "[parameters('LS_SourceSQL_properties_typeProperties_server')]"
+					},
+					"LS_SourceSQL_properties_typeProperties_database": {
+						"value": "[parameters('LS_SourceSQL_properties_typeProperties_database')]"
+					},
+					"LS_SourceSQL_properties_typeProperties_userName": {
+						"value": "[parameters('LS_SourceSQL_properties_typeProperties_userName')]"
+					},
+					"LS_Synapse_Serverless_properties_typeProperties_server": {
+						"value": "[parameters('LS_Synapse_Serverless_properties_typeProperties_server')]"
+					},
+					"LS_Synapse_Serverless_properties_typeProperties_database": {
+						"value": "[parameters('LS_Synapse_Serverless_properties_typeProperties_database')]"
+					},
+					"LS_TargetSQL_properties_typeProperties_server": {
+						"value": "[parameters('LS_TargetSQL_properties_typeProperties_server')]"
+					},
+					"LS_TargetSQL_properties_typeProperties_database": {
+						"value": "[parameters('LS_TargetSQL_properties_typeProperties_database')]"
+					},
+					"LS_TargetSQL_properties_typeProperties_userName": {
+						"value": "[parameters('LS_TargetSQL_properties_typeProperties_userName')]"
+					},
+					"ls_metadatadriven_watermark_properties_typeProperties_server": {
+						"value": "[parameters('ls_metadatadriven_watermark_properties_typeProperties_server')]"
+					},
+					"ls_metadatadriven_watermark_properties_typeProperties_database": {
+						"value": "[parameters('ls_metadatadriven_watermark_properties_typeProperties_database')]"
+					},
+					"ls_metadatadriven_watermark_properties_typeProperties_userName": {
+						"value": "[parameters('ls_metadatadriven_watermark_properties_typeProperties_userName')]"
+					},
+					"LS_ADLS_Gen2_properties_typeProperties_url": {
+						"value": "[parameters('LS_ADLS_Gen2_properties_typeProperties_url')]"
+					},
+					"LS_AzureSQL_properties_typeProperties_server": {
+						"value": "[parameters('LS_AzureSQL_properties_typeProperties_server')]"
+					},
+					"LS_AzureSQL_properties_typeProperties_database": {
+						"value": "[parameters('LS_AzureSQL_properties_typeProperties_database')]"
+					},
+					"LS_AzureSQL_properties_typeProperties_userName": {
+						"value": "[parameters('LS_AzureSQL_properties_typeProperties_userName')]"
+					},
+					"LS_OnPrem_SQL_properties_typeProperties_server": {
+						"value": "[parameters('LS_OnPrem_SQL_properties_typeProperties_server')]"
+					},
+					"LS_OnPrem_SQL_properties_typeProperties_database": {
+						"value": "[parameters('LS_OnPrem_SQL_properties_typeProperties_database')]"
+					},
+					"LS_OnPrem_SQL_properties_typeProperties_userName": {
+						"value": "[parameters('LS_OnPrem_SQL_properties_typeProperties_userName')]"
+					},
+					"LS_Sftp_properties_typeProperties_host": {
+						"value": "[parameters('LS_Sftp_properties_typeProperties_host')]"
+					},
+					"LS_Sftp_properties_typeProperties_userName": {
+						"value": "[parameters('LS_Sftp_properties_typeProperties_userName')]"
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "aer-oilgas-adf_ArmTemplate_1",
+			"type": "Microsoft.Resources/deployments",
+			"apiVersion": "2024-03-01",
+			"properties": {
+				"mode": "incremental",
+				"templateLink": {
+					"uri": "[concat(parameters('containerUri'), '/ArmTemplate_1.json', parameters('containerSasToken'))]",
+					"contentVersion": "1.0.0.0"
+				},
+				"parameters": {
+					"factoryName": {
+						"value": "[parameters('factoryName')]"
+					}
+				}
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Resources/deployments', 'aer-oilgas-adf_ArmTemplate_0')]"
+			]
+		},
+		{
+			"name": "aer-oilgas-adf_ArmTemplate_2",
+			"type": "Microsoft.Resources/deployments",
+			"apiVersion": "2024-03-01",
+			"properties": {
+				"mode": "incremental",
+				"templateLink": {
+					"uri": "[concat(parameters('containerUri'), '/ArmTemplate_2.json', parameters('containerSasToken'))]",
+					"contentVersion": "1.0.0.0"
+				},
+				"parameters": {
+					"factoryName": {
+						"value": "[parameters('factoryName')]"
+					}
+				}
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Resources/deployments', 'aer-oilgas-adf_ArmTemplate_1')]"
+			]
+		}
+	]
+}

@@ -1,0 +1,1062 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"type": "string",
+			"metadata": "Data Factory name",
+			"defaultValue": "aer-oilgas-adf"
+		}
+	},
+	"variables": {
+		"factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+	},
+	"resources": [
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_ADLS_GoldOilPrice_Folder')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"RunDate": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "Binary",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": {
+							"value": "gold/fact_oilprice/@{dataset().RunDate}",
+							"type": "Expression"
+						},
+						"fileSystem": "aer-og-data"
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_ADLS_Quarantine_Folder')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"RunDate": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "Binary",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": {
+							"value": "quarantine/well_rejects/@{dataset().RunDate}",
+							"type": "Expression"
+						},
+						"fileSystem": "aer-og-data"
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_ADLS_SilverClean_Folder')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"RunDate": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "Binary",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": {
+							"value": "silver/clean/@{dataset().RunDate}",
+							"type": "Expression"
+						},
+						"fileSystem": "aer-og-data"
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_AzureSQL_Generic')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [],
+				"typeProperties": {
+					"schema": "dbo",
+					"table": "PipelineControl"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_AzureSQL_Gold')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [],
+				"typeProperties": {
+					"schema": "gold",
+					"table": "Dim_Operator"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_AzureSQL_OilPrice_Sink')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [
+					{
+						"name": "PriceDate",
+						"type": "date"
+					},
+					{
+						"name": "OilPrice_USD",
+						"type": "decimal",
+						"precision": 10,
+						"scale": 2
+					},
+					{
+						"name": "SeriesDescription",
+						"type": "nvarchar"
+					},
+					{
+						"name": "ProductName",
+						"type": "nvarchar"
+					},
+					{
+						"name": "Units",
+						"type": "nvarchar"
+					}
+				],
+				"typeProperties": {
+					"schema": "staging",
+					"table": "OilPrice"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_Bronze_OilPrice')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"FolderPath": {
+						"type": "string",
+						"defaultValue": "bronze/oilprice"
+					},
+					"FileName": {
+						"type": "string",
+						"defaultValue": "OilPrice.parquet"
+					}
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": {
+							"value": "@dataset().FileName",
+							"type": "Expression"
+						},
+						"folderPath": {
+							"value": "@dataset().FolderPath",
+							"type": "Expression"
+						},
+						"fileSystem": "aer-og-data"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": []
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_Bronze_Well')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"FolderPath": {
+						"type": "string"
+					},
+					"FileName": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": {
+							"value": "@dataset().FileName",
+							"type": "Expression"
+						},
+						"folderPath": {
+							"value": "@dataset().FolderPath",
+							"type": "Expression"
+						},
+						"fileSystem": "aer-og-data"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": []
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_Gold_OilPrice_Parquet')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": "gold/fact_oilprice",
+						"fileSystem": "aer-og-data"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": [
+					{
+						"name": "PriceDate",
+						"type": "DATE"
+					},
+					{
+						"name": "OilPrice_USD",
+						"type": "DECIMAL",
+						"precision": 10,
+						"scale": 2
+					},
+					{
+						"name": "SeriesDescription",
+						"type": "UTF8"
+					},
+					{
+						"name": "Loaded_At",
+						"type": "TIMESTAMP_MICROS"
+					}
+				]
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_OnPrem_WellList')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_OnPrem_SQL",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "SqlServerTable",
+				"schema": [
+					{
+						"name": "UWI_DISPLAY_FORMAT",
+						"type": "nvarchar"
+					},
+					{
+						"name": "KEY_LIST_OF_WELLS",
+						"type": "nvarchar"
+					},
+					{
+						"name": "UPDATE_FLAG",
+						"type": "nvarchar"
+					},
+					{
+						"name": "WELL_NAME",
+						"type": "nvarchar"
+					},
+					{
+						"name": "FIELD_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "POOL_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "OS_AREA_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "OS_DEP_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "LICENSE_NO",
+						"type": "nvarchar"
+					},
+					{
+						"name": "LICENCE_STATUS",
+						"type": "nvarchar"
+					},
+					{
+						"name": "LICENSE_ISSUE_DATE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "LICENSEE_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "AGENT_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "OPERATOR_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "FIN_DRL_DATE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "WELL_TOTAL_DEPTH",
+						"type": "nvarchar"
+					},
+					{
+						"name": "WELL_STAT_CODE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "WELL_STAT_DATE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "FLUID_SHORT_DESC",
+						"type": "nvarchar"
+					},
+					{
+						"name": "MODE_SHORT_DESC",
+						"type": "nvarchar"
+					},
+					{
+						"name": "TYPE_SHORT_DESC",
+						"type": "nvarchar"
+					},
+					{
+						"name": "STRUCTURE_SHORT_DESC",
+						"type": "nvarchar"
+					},
+					{
+						"name": "SCHEME_TYPE",
+						"type": "nvarchar"
+					},
+					{
+						"name": "SCHEME_SUB_TYPE",
+						"type": "nvarchar"
+					}
+				],
+				"typeProperties": {
+					"schema": "dbo",
+					"table": "WellList"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_SFTP')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_Sftp",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "SftpLocation",
+						"fileName": "samplesuperstore_csv.csv.filepart"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": [
+					{
+						"name": "Row ID",
+						"type": "String"
+					},
+					{
+						"name": "Order ID",
+						"type": "String"
+					},
+					{
+						"name": "Order Date",
+						"type": "String"
+					},
+					{
+						"name": "Ship Date",
+						"type": "String"
+					},
+					{
+						"name": "Ship Mode",
+						"type": "String"
+					},
+					{
+						"name": "Customer ID",
+						"type": "String"
+					},
+					{
+						"name": "Customer Name",
+						"type": "String"
+					},
+					{
+						"name": "Segment",
+						"type": "String"
+					},
+					{
+						"name": "Country",
+						"type": "String"
+					},
+					{
+						"name": "City",
+						"type": "String"
+					},
+					{
+						"name": "State",
+						"type": "String"
+					},
+					{
+						"name": "Postal Code",
+						"type": "String"
+					},
+					{
+						"name": "Region",
+						"type": "String"
+					},
+					{
+						"name": "Product ID",
+						"type": "String"
+					},
+					{
+						"name": "Category",
+						"type": "String"
+					},
+					{
+						"name": "Sub-Category",
+						"type": "String"
+					},
+					{
+						"name": "Product Name",
+						"type": "String"
+					},
+					{
+						"name": "Sales",
+						"type": "String"
+					},
+					{
+						"name": "Quantity",
+						"type": "String"
+					},
+					{
+						"name": "Discount",
+						"type": "String"
+					},
+					{
+						"name": "Profit",
+						"type": "String"
+					}
+				]
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_SFTP_RawCSV')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": "sftp-landing",
+						"fileSystem": "aer-og-data"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": []
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_Silver_Parquet')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": "silver/clean",
+						"fileSystem": "aer-og-data"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": [
+					{
+						"name": "WellID",
+						"type": "UTF8"
+					},
+					{
+						"name": "WellKeyID",
+						"type": "UTF8"
+					},
+					{
+						"name": "WellName",
+						"type": "UTF8"
+					},
+					{
+						"name": "FieldCode",
+						"type": "UTF8"
+					},
+					{
+						"name": "PoolCode",
+						"type": "UTF8"
+					},
+					{
+						"name": "LicenceNumber",
+						"type": "UTF8"
+					},
+					{
+						"name": "LicenceStatus",
+						"type": "UTF8"
+					},
+					{
+						"name": "LicenceIssueDate",
+						"type": "DATE"
+					},
+					{
+						"name": "LicenseeCode",
+						"type": "UTF8"
+					},
+					{
+						"name": "OperatorCode",
+						"type": "UTF8"
+					},
+					{
+						"name": "FinDrlDate",
+						"type": "DATE"
+					},
+					{
+						"name": "WellTotalDepth",
+						"type": "DECIMAL",
+						"precision": 10,
+						"scale": 2
+					},
+					{
+						"name": "WellStatCode",
+						"type": "UTF8"
+					},
+					{
+						"name": "WellStatDate",
+						"type": "DATE"
+					},
+					{
+						"name": "FluidDesc",
+						"type": "UTF8"
+					},
+					{
+						"name": "ModeDesc",
+						"type": "UTF8"
+					},
+					{
+						"name": "TypeDesc",
+						"type": "UTF8"
+					},
+					{
+						"name": "StructureDesc",
+						"type": "UTF8"
+					},
+					{
+						"name": "BatchID",
+						"type": "UTF8"
+					},
+					{
+						"name": "IngestionDate",
+						"type": "TIMESTAMP_MICROS"
+					},
+					{
+						"name": "SourceFile",
+						"type": "UTF8"
+					}
+				]
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_Staging_OilPrice_SQL')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [],
+				"typeProperties": {
+					"schema": "staging",
+					"table": "OilPrice"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_Staging_Silver_SQL')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [
+					{
+						"name": "WellID",
+						"type": "nvarchar"
+					},
+					{
+						"name": "WellKeyID",
+						"type": "nvarchar"
+					},
+					{
+						"name": "WellName",
+						"type": "nvarchar"
+					},
+					{
+						"name": "FieldCode",
+						"type": "nvarchar"
+					},
+					{
+						"name": "PoolCode",
+						"type": "nvarchar"
+					},
+					{
+						"name": "LicenceNumber",
+						"type": "nvarchar"
+					},
+					{
+						"name": "LicenceStatus",
+						"type": "nvarchar"
+					},
+					{
+						"name": "LicenceIssueDate",
+						"type": "date"
+					},
+					{
+						"name": "LicenseeCode",
+						"type": "nvarchar"
+					},
+					{
+						"name": "OperatorCode",
+						"type": "nvarchar"
+					},
+					{
+						"name": "FinDrlDate",
+						"type": "date"
+					},
+					{
+						"name": "WellTotalDepth",
+						"type": "decimal",
+						"precision": 10,
+						"scale": 2
+					},
+					{
+						"name": "WellStatCode",
+						"type": "nvarchar"
+					},
+					{
+						"name": "WellStatDate",
+						"type": "date"
+					},
+					{
+						"name": "FluidDesc",
+						"type": "nvarchar"
+					},
+					{
+						"name": "ModeDesc",
+						"type": "nvarchar"
+					},
+					{
+						"name": "TypeDesc",
+						"type": "nvarchar"
+					},
+					{
+						"name": "StructureDesc",
+						"type": "nvarchar"
+					},
+					{
+						"name": "BatchID",
+						"type": "nvarchar"
+					},
+					{
+						"name": "IngestionDate",
+						"type": "datetime2",
+						"scale": 7
+					}
+				],
+				"typeProperties": {
+					"schema": "staging",
+					"table": "Silver_Wells"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_metadata_table')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				},
+				"folder": {
+					"name": "Metadata_driven_pipeline_dataset"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [
+					{
+						"name": "MetadataID",
+						"type": "int",
+						"precision": 10
+					},
+					{
+						"name": "SourceSchema",
+						"type": "varchar"
+					},
+					{
+						"name": "SourceTable",
+						"type": "varchar"
+					},
+					{
+						"name": "TargetSchema",
+						"type": "varchar"
+					},
+					{
+						"name": "TargetTable",
+						"type": "varchar"
+					},
+					{
+						"name": "WatermarkColumn",
+						"type": "varchar"
+					},
+					{
+						"name": "LastWatermarkValue",
+						"type": "datetime",
+						"precision": 23,
+						"scale": 3
+					},
+					{
+						"name": "LoadType",
+						"type": "varchar"
+					},
+					{
+						"name": "IsActive",
+						"type": "bit"
+					}
+				],
+				"typeProperties": {
+					"schema": "dbo",
+					"table": "PipelineMetadata"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DataDestination')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"description": "Connection to your data destination store.",
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"Data_Destination_Container": {
+						"type": "String"
+					},
+					"Data_Destination_Directory": {
+						"type": "String"
+					}
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": {
+							"value": "@{dataset().Data_Destination_Directory}",
+							"type": "Expression"
+						},
+						"fileSystem": {
+							"value": "@{dataset().Data_Destination_Container}",
+							"type": "Expression"
+						}
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": []
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/SqlServerDataSource')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"description": "Connection to your data source store.",
+				"linkedServiceName": {
+					"referenceName": "LS_OnPrem_SQL",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "SqlServerTable",
+				"schema": [],
+				"typeProperties": {
+					"schema": "dbo",
+					"table": ""
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/SqlServerExternal_ControlTable')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"description": "The external control table is used to store the partition list of data source tables.",
+				"linkedServiceName": {
+					"referenceName": "LS_OnPrem_SQL",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"TableName": {
+						"type": "String"
+					}
+				},
+				"annotations": [],
+				"type": "SqlServerTable",
+				"schema": [],
+				"typeProperties": {
+					"schema": "dbo",
+					"table": {
+						"value": "@dataset().TableName",
+						"type": "Expression"
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PII detection and masking')]",
+			"type": "Microsoft.DataFactory/factories/dataflows",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"description": "This dataflow will create the request body needed for Azure Cognitive Services and then use the external call transformation to detect and mask PII data with the Cognitive Services PII API. ",
+				"type": "MappingDataFlow",
+				"typeProperties": {
+					"sources": [
+						{
+							"linkedService": {
+								"referenceName": "LS_ADLS_Gen2",
+								"type": "LinkedServiceReference"
+							},
+							"name": "dataSource",
+							"description": "Import data from data source"
+						}
+					],
+					"sinks": [
+						{
+							"name": "sink"
+						}
+					],
+					"transformations": [
+						{
+							"name": "externalCallCogServices",
+							"linkedService": {
+								"referenceName": "LS_EIA_REST",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "createRequestBody",
+							"description": "Creating the columns 'kind, parameters, analysisInput, text'"
+						},
+						{
+							"name": "flattenResults"
+						}
+					],
+					"scriptLines": [
+						"parameters{",
+						"     sourceFileSystem as string ('sourceFileSystem'),",
+						"     sourceFilePath as string ('sourceFilePath'),",
+						"     sourceFileName as string ('sourceFileName')",
+						"}",
+						"source(output(",
+						"          case_month as string,",
+						"          res_state as string,",
+						"          state_fips_code as short,",
+						"          res_county as string,",
+						"          county_fips_code as string,",
+						"          age_group as string,",
+						"          sex as string,",
+						"          race as string,",
+						"          ethnicity as string,",
+						"          case_positive_specimen_interval as short,",
+						"          case_onset_interval as short,",
+						"          process as string,",
+						"          exposure_yn as string,",
+						"          current_status as string,",
+						"          symptom_status as string,",
+						"          hosp_yn as string,",
+						"          icu_yn as string,",
+						"          death_yn as string,",
+						"          underlying_conditions_yn as string,",
+						"          name as string,",
+						"          email as string,",
+						"          phone_number as string",
+						"     ),",
+						"     useSchema: false,",
+						"     allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     ignoreNoFilesFound: false,",
+						"     format: 'delimited',",
+						"     fileSystem: ($sourceFileSystem),",
+						"     folderPath: ($sourceFilePath),",
+						"     fileName: ($sourceFileName),",
+						"     columnDelimiter: ',',",
+						"     escapeChar: '\\\\',",
+						"     quoteChar: '\\\"',",
+						"     columnNamesAsHeader: true) ~> dataSource",
+						"createRequestBody call(mapColumn(",
+						"          kind,",
+						"          parameters,",
+						"          analysisInput",
+						"     ),",
+						"     skipDuplicateMapInputs: true,",
+						"     skipDuplicateMapOutputs: true,",
+						"     output(",
+						"          body as (kind as string, results as (documents as (redactedText as string, id as string, entities as (text as string, category as string, offset as integer, length as integer, confidenceScore as double)[])[]))",
+						"     ),",
+						"     allowSchemaDrift: true,",
+						"     format: 'rest',",
+						"     store: 'restservice',",
+						"     timeout: 30,",
+						"     requestInterval: 0,",
+						"     httpMethod: 'POST',",
+						"     entity: 'language/:analyze-text?api-version=2022-05-01',",
+						"     bodyColumnName: 'body',",
+						"     requestFormat: ['type' -> 'json'],",
+						"     responseFormat: ['type' -> 'json', 'documentForm' -> 'documentPerLine']) ~> externalCallCogServices",
+						"dataSource derive(kind = 'PiiEntityRecognition',",
+						"          parameters = @(modelVersion='latest'),",
+						"          analysisInput = @(documents=array(@(id=\"1\", language=\"en\", text=concatWS(', ', name,email,phone_number,case_month,res_state,res_county,age_group,sex,race,ethnicity,process,exposure_yn,current_status,symptom_status,hosp_yn,icu_yn,icu_yn,death_yn,underlying_conditions_yn)))),",
+						"          text = concatWS(', ', name,email,phone_number,case_month,res_state,res_county,age_group,sex,race,ethnicity,process,exposure_yn,current_status,symptom_status,hosp_yn,icu_yn,icu_yn,death_yn,underlying_conditions_yn)) ~> createRequestBody",
+						"externalCallCogServices foldDown(unroll(body.results.documents),",
+						"     mapColumn(",
+						"          redactedText = body.results.documents.redactedText,",
+						"          text",
+						"     ),",
+						"     skipDuplicateMapInputs: false,",
+						"     skipDuplicateMapOutputs: false) ~> flattenResults",
+						"flattenResults sink(validateSchema: false,",
+						"     skipDuplicateMapInputs: true,",
+						"     skipDuplicateMapOutputs: true,",
+						"     store: 'cache',",
+						"     format: 'inline',",
+						"     output: false,",
+						"     saveOrder: 1) ~> sink"
+					]
+				}
+			},
+			"dependsOn": []
+		}
+	]
+}

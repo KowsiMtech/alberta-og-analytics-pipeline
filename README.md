@@ -1,18 +1,13 @@
 # Alberta Oil & Gas Analytics Pipeline
 
-This project provides hands-on experience implementing an enterprise-grade Alberta energy data pipeline using Azure data services. The project ingests real Alberta Energy Regulator (AER) ST37 well registry data and U.S. Energy Information Administration (EIA) WTI crude oil prices, transforms data through a complete medallion architecture, and delivers Power BI dashboards for the Calgary energy sector.
+End-to-end Azure data pipeline ingesting real Alberta Energy Regulator (AER) ST37 well registry data (660K+ rows) and EIA WTI crude oil prices, transformed through a medallion architecture (Bronze → Silver → Gold), and delivered as Power BI dashboards for the Calgary energy sector.
 
 ## Architecture
 
 
-![Architecture Diagram](architecture/aer_architecture.png)
+![Architecture Diagram](architecture/aer_architecture.png?v=2)
 - **Pattern**: Batch Medallion Architecture (Bronze → Silver → Gold) with TRUE SCD Type 2 via Azure SQL DB MERGE.
 
-
-
-## Role
-
-Assumed the role of a Data Engineer responsible for implementing an end-to-end data pipeline in Azure for the Calgary energy sector, targeting employers like Cenovus, Suncor, CNRL, and Husky.
 
 ## Source Systems
 
@@ -85,11 +80,43 @@ Assumed the role of a Data Engineer responsible for implementing an end-to-end d
 
 ### Dashboard Pages
 
-1. **Executive Summary**: Total Wells (661K), Active Wells (661K), Total Operators (2,469), Latest WTI ($100.72) + Wells by Fluid donut + Top 10 Operators bar
-2. **Oil Price Trends**: WTI daily price line chart + Latest/Highest/30-Day Avg cards + date slicer
-3. **Well Activity**: Wells by Status bar + Wells by Fluid pie + Well Details table
-4. **Operator Analysis**: SCD2 history table + Top 20 Operators bar + Operator slicer
-5. **Data Quality**: Bronze/Silver/Quarantine row counts + Multi-Licensee Operators (252 = 10.21% — SCD2 proof)
+**Page 1 — Executive Summary**
+
+![Executive Summary](powerbi/screenshots/page1_executive_summary.png)
+
+> Alberta has 661K registered wells operated by 2,469 unique operators. Top operator (0HE90 = Cenovus) holds the largest portfolio with 65K+ wells. 45% of wells are in 'Blank' fluid status indicating exploration or abandoned wells. GAS (27%) and CR-OIL (15%) are the dominant production fluids in Alberta's energy sector.
+
+---
+
+**Page 2 — Oil Price Trends**
+
+![Oil Price Trends](powerbi/screenshots/page2_oil_price_trends.png)
+
+> WTI crude oil peaked at $100 in 2008 before crashing during the global financial crisis, collapsed again to $40 during the 2020 COVID demand shock, and recovered strongly to $93 in 2022 driven by post-pandemic supply constraints and Russia-Ukraine war tensions. The current 30-day average of $72.01 reflects ongoing market softening as OPEC+ adjusts production targets. Alberta operators respond directly to these price signals — the scatter plot shows that at current WTI levels, the largest operator maintains over 400,000 active wells while smaller operators scale back significantly, demonstrating price-sensitive drilling behavior across Calgary's energy sector.
+
+---
+
+**Page 3 — Well Activity**
+
+![Well Activity](powerbi/screenshots/page3_well_activity.png)
+
+> Status code 0002000000 (Producing/Flowing) dominates well registrations indicating Alberta's mature production base. Average well depth is 1,347m — typical for conventional Alberta plays. Top wells include CNRL CONRAD, Husky CHINCO, and Renaissance Wrentham reflecting major operators in central Alberta's Western Sedimentary Basin.
+
+---
+
+**Page 4 — Operator Analysis (SCD2 Proof)**
+
+![Operator Analysis](powerbi/screenshots/page4_operator_analysis.png)
+
+> SCD Type 2 successfully tracks operator-licensee relationships. Operator '00260' shows 30+ licensee codes demonstrating real-world M&A activity in Alberta's energy sector. Each row preserves point-in-time ownership history with Effective_From/Effective_To dates — enabling historical analysis of corporate restructuring, asset transfers, and licensee transitions.
+
+---
+
+**Page 5 — Data Quality**
+
+![Data Quality](powerbi/screenshots/page5_data_quality.png)
+
+> Pipeline ingested 660,507 wells from on-prem AER ST37 file with very few data quality issues. SCD Type 2 tracked 252 operators (10.21%) with multiple licensee codes — proving real Alberta M&A activity captured in dimensional history. Bronze→Silver→Gold medallion architecture validated end-to-end.
 
 ## Data Validations
 
@@ -132,8 +159,6 @@ Assumed the role of a Data Engineer responsible for implementing an end-to-end d
 | 7 | `PL_Master_Orchestrator` | Chains all 6 pipelines with dependencies |
 
 ## Project Deliverables
-
-All relevant details uploaded to GitHub, including:
 
 - **SQL Scripts**: 
   - DDL (schema creation): `staging.Silver_Wells`, `staging.OilPrice`, `gold.Dim_Operator`, `gold.Dim_Well`, `gold.Dim_LicenceStatus`, `gold.Dim_WellType`, `gold.Fact_OilPrice`, `gold.Fact_WellSnapshot`, `gold.vw_WellMarketTrend`
@@ -189,8 +214,6 @@ Secrets are retrieved at runtime via:
 1. **Synapse Serverless cannot perform SCD Type 2** — Parquet files are immutable, no row-level UPDATE possible. Required architectural pivot to Azure SQL DB for MERGE operations.
 2. **Composite key design** — Real Alberta data has operators with multiple licensees (Cenovus has 9+), requiring `OperatorCode + LicenseeCode` composite key in NOT EXISTS clause.
 3. **Cost-conscious architecture** — Azure SQL DB Basic ($7/mo) chosen over Synapse Dedicated Pool ($1,000+/mo) for SCD MERGE workload.
-4. **Real data > tutorial data** — AER public data revealed business patterns (M&A activity tracked via SCD2) not visible in synthetic datasets.
-
 ---
 
 **Author**: Kowsalya Gopinathan  
