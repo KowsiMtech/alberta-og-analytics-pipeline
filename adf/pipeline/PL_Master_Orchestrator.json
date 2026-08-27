@@ -298,7 +298,7 @@
 							}
 						},
 						{
-							"name": "GetSilverCounts",
+							"name": "Reconciliation",
 							"type": "Lookup",
 							"dependsOn": [
 								{
@@ -333,7 +333,7 @@
 							"type": "SqlServerStoredProcedure",
 							"dependsOn": [
 								{
-									"activity": "GetSilverCounts",
+									"activity": "Reconciliation",
 									"dependencyConditions": [
 										"Succeeded"
 									]
