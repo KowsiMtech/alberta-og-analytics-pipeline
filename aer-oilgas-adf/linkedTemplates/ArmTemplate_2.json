@@ -925,7 +925,7 @@
 							"scripts": [
 								{
 									"type": "NonQuery",
-									"text": "USE aer_synapse_db;\n\nDECLARE @RunDate NVARCHAR(10) = CONVERT(NVARCHAR(10), GETDATE(), 120);\nDECLARE @RunDateClean NVARCHAR(8) = REPLACE(@RunDate, '-', '');\nDECLARE @RunStamp NVARCHAR(25) = @RunDateClean + '_' + REPLACE(CONVERT(NVARCHAR(8), GETDATE(), 108), ':', '');\n\n-- Drop if re-running (metadata only; location is unique per run so no physical conflict)\nDECLARE @DropSQL NVARCHAR(MAX) = N'\n    IF OBJECT_ID(''dbo.fact_oilprice_' + @RunStamp + N''') IS NOT NULL\n        DROP EXTERNAL TABLE dbo.fact_oilprice_' + @RunStamp + N';';\nEXEC sp_executesql @DropSQL;\n\n-- CETAS: Bronze EIA Parquet -> Gold OilPrice Parquet (unique run folder, avoids ADLS empty-folder-marker conflicts)\nDECLARE @SQL NVARCHAR(MAX) = N'\nCREATE EXTERNAL TABLE dbo.fact_oilprice_' + @RunStamp + N'\nWITH (\n    LOCATION = ''/gold/fact_oilprice/' + @RunDate + N'/run_' + @RunStamp + N'/'',\n    DATA_SOURCE = aer_adls,\n    FILE_FORMAT = parquet_format\n) AS\nSELECT \n    TRY_CAST([period] AS DATE) AS PriceDate,\n    TRY_CAST([value] AS DECIMAL(10,2)) AS OilPrice_USD,\n    [series-description] AS SeriesDescription,\n    GETDATE() AS Loaded_At\nFROM OPENROWSET(\n    BULK ''/bronze/oilprice/' + @RunDate + N'/*.parquet'',\n    DATA_SOURCE = ''aer_adls'',\n    FORMAT = ''PARQUET''\n) AS b\nWHERE [period] IS NOT NULL \n  AND [value] IS NOT NULL\n  AND TRY_CAST([value] AS DECIMAL(10,2)) IS NOT NULL;';\nEXEC sp_executesql @SQL;"
+									"text": "USE aer_synapse_db;\n\n------------------------------------------------------------\n-- 1. RUN DATE / RUN STAMP VARIABLES\n------------------------------------------------------------\n\nDECLARE @RunDate NVARCHAR(10) =\n    CONVERT(NVARCHAR(10), GETDATE(), 120);\n\nDECLARE @RunDateClean NVARCHAR(8) =\n    REPLACE(@RunDate, '-', '');\n\nDECLARE @RunStamp NVARCHAR(25) =\n    @RunDateClean\n    + '_'\n    + REPLACE(\n        CONVERT(NVARCHAR(8), GETDATE(), 108),\n        ':',\n        ''\n      );\n\n\n------------------------------------------------------------\n-- 2. DROP EXISTING EXTERNAL TABLE METADATA IF RE-RUNNING\n-- The ADLS location is unique per run, so this mainly\n-- removes the external-table metadata if it already exists.\n------------------------------------------------------------\n\nDECLARE @DropSQL NVARCHAR(MAX) = N'\n    IF OBJECT_ID(''dbo.fact_oilprice_' + @RunStamp + N''') IS NOT NULL\n        DROP EXTERNAL TABLE dbo.fact_oilprice_' + @RunStamp + N';\n';\n\nEXEC sp_executesql @DropSQL;\n\n\n------------------------------------------------------------\n-- 3. CETAS\n-- Bronze EIA Parquet -> Gold OilPrice Parquet\n--\n-- Each run gets a unique folder:\n-- /gold/fact_oilprice/YYYY-MM-DD/run_YYYYMMDD_HHMMSS/\n------------------------------------------------------------\n\nDECLARE @SQL NVARCHAR(MAX) = N'\nCREATE EXTERNAL TABLE dbo.fact_oilprice_' + @RunStamp + N'\nWITH\n(\n    LOCATION = ''/gold/fact_oilprice/'\n               + @RunDate\n               + N'/run_'\n               + @RunStamp\n               + N'/'',\n\n    DATA_SOURCE = aer_adls,\n    FILE_FORMAT = parquet_format\n)\nAS\nSELECT\n    TRY_CAST([period] AS DATE) AS PriceDate,\n\n    TRY_CAST(\n        [value] AS DECIMAL(10, 2)\n    ) AS OilPrice_USD,\n\n    [series-description] AS SeriesDescription,\n\n    GETDATE() AS Loaded_At\n\nFROM OPENROWSET\n(\n    BULK ''/bronze/oilprice/'\n         + @RunDate\n         + N'/*.parquet'',\n\n    DATA_SOURCE = ''aer_adls'',\n    FORMAT = ''PARQUET''\n) AS b\n\nWHERE [period] IS NOT NULL\n  AND [value] IS NOT NULL\n  AND TRY_CAST([value] AS DECIMAL(10, 2)) IS NOT NULL;\n';\n\nEXEC sp_executesql @SQL;"
 								}
 							],
 							"scriptBlockExecutionTimeout": "02:00:00"
@@ -1041,7 +1041,7 @@
 							"scripts": [
 								{
 									"type": "NonQuery",
-									"text": "USE aer_synapse_db;\nDECLARE @RunDate NVARCHAR(10) = CONVERT(NVARCHAR(10), GETDATE(), 120);\nDECLARE @RunDateClean NVARCHAR(8) = REPLACE(@RunDate, '-', '');\n\nDECLARE @DropSQL NVARCHAR(MAX) = N'\n    IF OBJECT_ID(''dbo.quarantine_' + @RunDateClean + N''') IS NOT NULL\n        DROP EXTERNAL TABLE dbo.quarantine_' + @RunDateClean + N';\n    IF OBJECT_ID(''dbo.silver_clean_' + @RunDateClean + N''') IS NOT NULL\n        DROP EXTERNAL TABLE dbo.silver_clean_' + @RunDateClean + N';';\nEXEC sp_executesql @DropSQL;\n\nDECLARE @QuarantineSQL NVARCHAR(MAX) = N'\nCREATE EXTERNAL TABLE dbo.quarantine_' + @RunDateClean + N'\nWITH (LOCATION=''/quarantine/well_rejects/' + @RunDate + N'/'',\n      DATA_SOURCE=aer_adls, FILE_FORMAT=parquet_format) AS\nSELECT UWI_DISPLAY_FORMAT AS WellID, WELL_NAME AS WellName,\n       LICENSE_NO AS LicenceNumber, LICENCE_STATUS AS LicenceStatus,\n       LICENSE_ISSUE_DATE AS LicenceIssueDate,\n       OPERATOR_CODE AS OperatorCode, WELL_TOTAL_DEPTH AS WellTotalDepth,\n       CASE\n           WHEN UWI_DISPLAY_FORMAT IS NULL OR UWI_DISPLAY_FORMAT='''' THEN ''NULL_UWI''\n           WHEN LEN(LICENSE_ISSUE_DATE)<>8 THEN ''INVALID_DATE''\n           WHEN TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2))<0 THEN ''NEGATIVE_DEPTH''\n           ELSE ''OTHER''\n       END AS RejectReason,\n       GETDATE() AS QuarantineDate\nFROM OPENROWSET(BULK ''/bronze/well/' + @RunDate + N'/*.parquet'',\n     DATA_SOURCE=''aer_adls'', FORMAT=''PARQUET'') AS b\nWHERE UWI_DISPLAY_FORMAT IS NULL OR UWI_DISPLAY_FORMAT=''''\n   OR LEN(LICENSE_ISSUE_DATE)<>8\n   OR TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2))<0;';\nEXEC sp_executesql @QuarantineSQL;\n\nDECLARE @SilverSQL NVARCHAR(MAX) = N'\nCREATE EXTERNAL TABLE dbo.silver_clean_' + @RunDateClean + N'\nWITH (LOCATION=''/silver/clean/' + @RunDate + N'/'',\n      DATA_SOURCE=aer_adls, FILE_FORMAT=parquet_format) AS\nSELECT UWI_DISPLAY_FORMAT AS WellID,\n       KEY_LIST_OF_WELLS AS WellKeyID,\n       LTRIM(RTRIM(WELL_NAME)) AS WellName,\n       FIELD_CODE AS FieldCode, POOL_CODE AS PoolCode,\n       LICENSE_NO AS LicenceNumber, LICENCE_STATUS AS LicenceStatus,\n       TRY_CONVERT(DATE, LICENSE_ISSUE_DATE, 112) AS LicenceIssueDate,\n       LICENSEE_CODE AS LicenseeCode, OPERATOR_CODE AS OperatorCode,\n       TRY_CONVERT(DATE, FIN_DRL_DATE, 112) AS FinDrlDate,\n       TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2)) AS WellTotalDepth,\n       WELL_STAT_CODE AS WellStatCode,\n       TRY_CONVERT(DATE, WELL_STAT_DATE, 112) AS WellStatDate,\n       CASE WHEN FLUID_SHORT_DESC=''N/A'' THEN NULL\n            ELSE LTRIM(RTRIM(FLUID_SHORT_DESC)) END AS FluidDesc,\n       CASE WHEN MODE_SHORT_DESC=''N/A'' THEN NULL\n            ELSE LTRIM(RTRIM(MODE_SHORT_DESC)) END AS ModeDesc,\n       CASE WHEN TYPE_SHORT_DESC=''N/A'' THEN NULL\n            ELSE LTRIM(RTRIM(TYPE_SHORT_DESC)) END AS TypeDesc,\n       CASE WHEN STRUCTURE_SHORT_DESC=''N/A'' THEN NULL\n            ELSE LTRIM(RTRIM(STRUCTURE_SHORT_DESC)) END AS StructureDesc,\n       ''BATCH_' + @RunDate + N''' AS BatchID,\n       GETDATE() AS IngestionDate, ''WellList.txt'' AS SourceFile\nFROM OPENROWSET(BULK ''/bronze/well/' + @RunDate + N'/*.parquet'',\n     DATA_SOURCE=''aer_adls'', FORMAT=''PARQUET'') AS b\nWHERE UWI_DISPLAY_FORMAT IS NOT NULL AND UWI_DISPLAY_FORMAT<>''''\n  AND LEN(LICENSE_ISSUE_DATE)=8\n  AND TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2))>=0;';\nEXEC sp_executesql @SilverSQL;"
+									"text": "USE aer_synapse_db;\n\n------------------------------------------------------------\n-- 1. RUN DATE VARIABLES\n------------------------------------------------------------\n\nDECLARE @RunDate NVARCHAR(10) =\n    CONVERT(NVARCHAR(10), GETDATE(), 120);\n\nDECLARE @RunDateClean NVARCHAR(8) =\n    REPLACE(@RunDate, '-', '');\n\n\n------------------------------------------------------------\n-- 2. DROP EXISTING DAILY EXTERNAL TABLES\n------------------------------------------------------------\n\nDECLARE @DropSQL NVARCHAR(MAX) = N'\n    IF OBJECT_ID(''dbo.quarantine_' + @RunDateClean + N''') IS NOT NULL\n        DROP EXTERNAL TABLE dbo.quarantine_' + @RunDateClean + N';\n\n    IF OBJECT_ID(''dbo.silver_clean_' + @RunDateClean + N''') IS NOT NULL\n        DROP EXTERNAL TABLE dbo.silver_clean_' + @RunDateClean + N';\n';\n\nEXEC sp_executesql @DropSQL;\n\n\n------------------------------------------------------------\n-- 3. CREATE QUARANTINE EXTERNAL TABLE\n------------------------------------------------------------\n\nDECLARE @QuarantineSQL NVARCHAR(MAX) = N'\nCREATE EXTERNAL TABLE dbo.quarantine_' + @RunDateClean + N'\nWITH\n(\n    LOCATION = ''/quarantine/well_rejects/' + @RunDate + N'/'',\n    DATA_SOURCE = aer_adls,\n    FILE_FORMAT = parquet_format\n)\nAS\nSELECT\n    UWI_DISPLAY_FORMAT AS WellID,\n    WELL_NAME AS WellName,\n    LICENSE_NO AS LicenceNumber,\n    LICENCE_STATUS AS LicenceStatus,\n    LICENSE_ISSUE_DATE AS LicenceIssueDate,\n    OPERATOR_CODE AS OperatorCode,\n    WELL_TOTAL_DEPTH AS WellTotalDepth,\n\n    CASE\n        WHEN UWI_DISPLAY_FORMAT IS NULL\n             OR UWI_DISPLAY_FORMAT = ''''\n            THEN ''NULL_UWI''\n\n        WHEN LEN(LICENSE_ISSUE_DATE) <> 8\n            THEN ''INVALID_DATE''\n\n        WHEN TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10, 2)) < 0\n            THEN ''NEGATIVE_DEPTH''\n\n        ELSE ''OTHER''\n    END AS RejectReason,\n\n    GETDATE() AS QuarantineDate\n\nFROM OPENROWSET\n(\n    BULK ''/bronze/well/' + @RunDate + N'/*.parquet'',\n    DATA_SOURCE = ''aer_adls'',\n    FORMAT = ''PARQUET''\n) AS b\n\nWHERE UWI_DISPLAY_FORMAT IS NULL\n   OR UWI_DISPLAY_FORMAT = ''''\n   OR LEN(LICENSE_ISSUE_DATE) <> 8\n   OR TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10, 2)) < 0;\n';\n\nEXEC sp_executesql @QuarantineSQL;\n\n\n------------------------------------------------------------\n-- 4. CREATE CLEAN SILVER EXTERNAL TABLE\n------------------------------------------------------------\n\nDECLARE @SilverSQL NVARCHAR(MAX) = N'\nCREATE EXTERNAL TABLE dbo.silver_clean_' + @RunDateClean + N'\nWITH\n(\n    LOCATION = ''/silver/clean/' + @RunDate + N'/'',\n    DATA_SOURCE = aer_adls,\n    FILE_FORMAT = parquet_format\n)\nAS\nSELECT\n    UWI_DISPLAY_FORMAT AS WellID,\n    KEY_LIST_OF_WELLS AS WellKeyID,\n\n    LTRIM(RTRIM(WELL_NAME)) AS WellName,\n\n    FIELD_CODE AS FieldCode,\n    POOL_CODE AS PoolCode,\n\n    LICENSE_NO AS LicenceNumber,\n    LICENCE_STATUS AS LicenceStatus,\n\n    TRY_CONVERT(DATE, LICENSE_ISSUE_DATE, 112) AS LicenceIssueDate,\n\n    LICENSEE_CODE AS LicenseeCode,\n    OPERATOR_CODE AS OperatorCode,\n\n    TRY_CONVERT(DATE, FIN_DRL_DATE, 112) AS FinDrlDate,\n\n    TRY_CAST(\n        WELL_TOTAL_DEPTH AS DECIMAL(10, 2)\n    ) AS WellTotalDepth,\n\n    WELL_STAT_CODE AS WellStatCode,\n\n    TRY_CONVERT(\n        DATE,\n        WELL_STAT_DATE,\n        112\n    ) AS WellStatDate,\n\n    CASE\n        WHEN FLUID_SHORT_DESC = ''N/A''\n            THEN NULL\n        ELSE LTRIM(RTRIM(FLUID_SHORT_DESC))\n    END AS FluidDesc,\n\n    CASE\n        WHEN MODE_SHORT_DESC = ''N/A''\n            THEN NULL\n        ELSE LTRIM(RTRIM(MODE_SHORT_DESC))\n    END AS ModeDesc,\n\n    CASE\n        WHEN TYPE_SHORT_DESC = ''N/A''\n            THEN NULL\n        ELSE LTRIM(RTRIM(TYPE_SHORT_DESC))\n    END AS TypeDesc,\n\n    CASE\n        WHEN STRUCTURE_SHORT_DESC = ''N/A''\n            THEN NULL\n        ELSE LTRIM(RTRIM(STRUCTURE_SHORT_DESC))\n    END AS StructureDesc,\n\n    ''BATCH_' + @RunDate + N''' AS BatchID,\n\n    GETDATE() AS IngestionDate,\n\n    ''WellList.txt'' AS SourceFile\n\nFROM OPENROWSET\n(\n    BULK ''/bronze/well/' + @RunDate + N'/*.parquet'',\n    DATA_SOURCE = ''aer_adls'',\n    FORMAT = ''PARQUET''\n) AS b\n\nWHERE UWI_DISPLAY_FORMAT IS NOT NULL\n  AND UWI_DISPLAY_FORMAT <> ''''\n  AND LEN(LICENSE_ISSUE_DATE) = 8\n  AND TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10, 2)) >= 0;\n';\n\nEXEC sp_executesql @SilverSQL;"
 								}
 							],
 							"scriptBlockExecutionTimeout": "02:00:00"
@@ -1181,9 +1181,18 @@
 											"name": "units",
 											"type": "String"
 										}
+									},
+									{
+										"source": {
+											"path": "$['IngestionDate']"
+										},
+										"sink": {
+											"name": "IngestionDate"
+										}
 									}
 								],
-								"collectionReference": "$['response']['data']"
+								"collectionReference": "$['response']['data']",
+								"mapComplexValuesToString": false
 							}
 						},
 						"inputs": [
@@ -1297,6 +1306,15 @@
 										"sink": {
 											"name": "units",
 											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"path": "$['response']['IngestionDate']"
+										},
+										"sink": {
+											"name": "IngestionDate",
+											"type": "DateTime"
 										}
 									}
 								],
@@ -2167,7 +2185,7 @@
 									"typeProperties": {
 										"source": {
 											"type": "AzureSqlSource",
-											"sqlReaderQuery": "DECLARE @RunDateClean NVARCHAR(8) = REPLACE(CONVERT(NVARCHAR(10), GETDATE(), 120), '-', '');\nDECLARE @SQL NVARCHAR(MAX) = N'\nSELECT \n    (SELECT COUNT(*) FROM staging.Silver_Wells) AS SilverRowCount,\n    (SELECT COUNT(*) FROM staging.Silver_Wells) AS SourceRowCount,\n    (SELECT COUNT(*) FROM dbo.quarantine_' + @RunDateClean + N') AS QuarantineRowCount';\nEXEC sp_executesql @SQL;",
+											"sqlReaderQuery": "DECLARE @RunDateClean NVARCHAR(8) = REPLACE(CONVERT(NVARCHAR(10), GETDATE(), 120), '-', '');\nDECLARE @SQL NVARCHAR(MAX) = N'\nSELECT \n    (SELECT COUNT(*) FROM staging.Silver_Wells) AS SilverRowCount,\n    (SELECT COUNT(*) FROM staging.Silver_Wells) AS SourceRowCount,\n    (SELECT COUNT(*) FROM dbo.quarantine_' + @RunDateClean + N') AS QuarantineRowCount';\nEXEC sp_executesql @SQL;\n",
 											"partitionOption": "None"
 										},
 										"dataset": {
@@ -2357,6 +2375,188 @@
 						"linkedServiceName": {
 							"referenceName": "LS_AzureSQL",
 							"type": "LinkedServiceReference"
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-04-20T02:12:31Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/pipelines/PL_ST37_to_Bronze')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_EIA_to_Staging')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_Bronze_to_Silver_quarantine')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_Bronze_OilPrice_to_Gold')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_Silver_to_Staging_SQL')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_Archive_Gold_to_ADLS')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PL_Master_Orchestrator_merge')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "PLST37_to_Bronze",
+						"type": "ExecutePipeline",
+						"dependsOn": [],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_ST37_to_Bronze",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					},
+					{
+						"name": "PL_EIA_to_Bronze",
+						"type": "ExecutePipeline",
+						"dependsOn": [],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_EIA_to_Staging",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					},
+					{
+						"name": "PL_Bronze_to_Silver",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "PLST37_to_Bronze",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_Bronze_to_Silver_quarantine",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					},
+					{
+						"name": "Bronze oil price to gold",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "PL_EIA_to_Bronze",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_Bronze_OilPrice_to_Gold",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					},
+					{
+						"name": "silver to staging sql",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "PL_Bronze_to_Silver",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "Bronze oil price to gold",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_Silver_to_Staging_SQL",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					},
+					{
+						"name": "SCD2 for gold",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "silver to staging sql",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_SCD2_MERGE",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					},
+					{
+						"name": "ADLS gold Archival Copy",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "SCD2 for gold",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "PL_Archive_Gold_to_ADLS",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
 						}
 					}
 				],

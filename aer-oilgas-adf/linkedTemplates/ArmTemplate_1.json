@@ -113,7 +113,7 @@
 				"schema": [],
 				"typeProperties": {
 					"schema": "dbo",
-					"table": "PipelineExecutionLog"
+					"table": "PipelineControl"
 				}
 			},
 			"dependsOn": []
