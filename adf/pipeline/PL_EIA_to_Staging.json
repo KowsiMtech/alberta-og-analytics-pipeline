@@ -120,9 +120,18 @@
 									"name": "units",
 									"type": "String"
 								}
+							},
+							{
+								"source": {
+									"path": "$['IngestionDate']"
+								},
+								"sink": {
+									"name": "IngestionDate"
+								}
 							}
 						],
-						"collectionReference": "$['response']['data']"
+						"collectionReference": "$['response']['data']",
+						"mapComplexValuesToString": false
 					}
 				},
 				"inputs": [
@@ -235,6 +244,15 @@
 								"sink": {
 									"name": "units",
 									"type": "String"
+								}
+							},
+							{
+								"source": {
+									"path": "$['response']['IngestionDate']"
+								},
+								"sink": {
+									"name": "IngestionDate",
+									"type": "DateTime"
 								}
 							}
 						],
