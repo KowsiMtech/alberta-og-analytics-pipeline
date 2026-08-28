@@ -298,42 +298,11 @@
 							}
 						},
 						{
-							"name": "GetSilverCounts",
-							"type": "Lookup",
-							"dependsOn": [
-								{
-									"activity": "ADLS gold Archival Copy",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"policy": {
-								"timeout": "0.12:00:00",
-								"retry": 0,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"source": {
-									"type": "AzureSqlSource",
-									"sqlReaderQuery": "SELECT (SELECT COUNT(*) FROM staging.Silver_Wells) AS SilverRowCount, (SELECT COUNT(*) FROM staging.Silver_Wells) AS SourceRowCount, 0 AS QuarantineRowCount",
-									"partitionOption": "None"
-								},
-								"dataset": {
-									"referenceName": "DS_AzureSQL_Generic",
-									"type": "DatasetReference"
-								}
-							}
-						},
-						{
 							"name": "EndPipelineRun_Success",
 							"type": "SqlServerStoredProcedure",
 							"dependsOn": [
 								{
-									"activity": "GetSilverCounts",
+									"activity": "Reconciliation",
 									"dependencyConditions": [
 										"Succeeded"
 									]
@@ -363,21 +332,21 @@
 									},
 									"SourceRowCount": {
 										"value": {
-											"value": "@activity('GetSilverCounts').output.firstRow.SourceRowCount",
+											"value": "@activity('Reconciliation').output.firstRow.SourceRowCount",
 											"type": "Expression"
 										},
 										"type": "Int32"
 									},
 									"SilverRowCount": {
 										"value": {
-											"value": "@activity('GetSilverCounts').output.firstRow.SilverRowCount",
+											"value": "@activity('Reconciliation').output.firstRow.SilverRowCount",
 											"type": "Expression"
 										},
 										"type": "Int32"
 									},
 									"QuarantineRowCount": {
 										"value": {
-											"value": "@activity('GetSilverCounts').output.firstRow.QuarantineRowCount",
+											"value": "@activity('Reconciliation').output.firstRow.QuarantineRowCount",
 											"type": "Expression"
 										},
 										"type": "Int32"
@@ -387,6 +356,29 @@
 							"linkedServiceName": {
 								"referenceName": "LS_AzureSQL",
 								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "Reconciliation",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "ADLS gold Archival Copy",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_ADLS_Reconciliation",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true
 							}
 						}
 					]
