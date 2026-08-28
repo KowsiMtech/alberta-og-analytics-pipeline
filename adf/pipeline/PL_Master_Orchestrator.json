@@ -332,21 +332,21 @@
 									},
 									"SourceRowCount": {
 										"value": {
-											"value": "@activity('Reconciliation').output.firstRow.SourceRowCount",
+											"value": "@activity('Reconciliation').output.resultSets[0].rows[0].BronzeCount",
 											"type": "Expression"
 										},
 										"type": "Int32"
 									},
 									"SilverRowCount": {
 										"value": {
-											"value": "@activity('Reconciliation').output.firstRow.SilverRowCount",
+											"value": "@activity('Reconciliation').output.resultSets[0].rows[0].SilverCount",
 											"type": "Expression"
 										},
 										"type": "Int32"
 									},
 									"QuarantineRowCount": {
 										"value": {
-											"value": "@activity('Reconciliation').output.firstRow.QuarantineRowCount",
+											"value": "@activity('Reconciliation').output.pipelineReturnValue.QuarantineRowCount",
 											"type": "Expression"
 										},
 										"type": "Int32"

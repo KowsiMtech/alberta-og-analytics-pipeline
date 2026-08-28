@@ -3,42 +3,6 @@
 	"properties": {
 		"activities": [
 			{
-				"name": "GetRowCount_Bronze",
-				"type": "GetMetadata",
-				"dependsOn": [],
-				"policy": {
-					"timeout": "0.12:00:00",
-					"retry": 0,
-					"retryIntervalInSeconds": 30,
-					"secureOutput": false,
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"dataset": {
-						"referenceName": "DS_ADLS_Folder_RowCount",
-						"type": "DatasetReference",
-						"parameters": {
-							"FolderPath": {
-								"value": "@concat('bronze/well/', formatDateTime(utcnow(),'yyyy-MM-dd'))",
-								"type": "Expression"
-							}
-						}
-					},
-					"fieldList": [
-						"exists",
-						"itemName"
-					],
-					"storeSettings": {
-						"type": "AzureBlobFSReadSettings",
-						"enablePartitionDiscovery": false
-					},
-					"formatSettings": {
-						"type": "ParquetReadSettings"
-					}
-				}
-			},
-			{
 				"name": "GetRowCount_Silver",
 				"type": "Script",
 				"dependsOn": [],
@@ -85,6 +49,32 @@
 						{
 							"type": "Query",
 							"text": "SELECT COUNT(*) AS QuarantineCount\nFROM OPENROWSET(\n    BULK '/bronze/well/2026-08-27/*.parquet',\n    DATA_SOURCE = 'aer_adls',\n    FORMAT = 'PARQUET'\n) AS b\nWHERE UWI_DISPLAY_FORMAT IS NULL\n   OR UWI_DISPLAY_FORMAT = ''\n   OR TRY_CONVERT(DATE, LICENSE_ISSUE_DATE, 112) IS NULL\n   OR TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2)) < 0\n   OR (\n        WELL_TOTAL_DEPTH IS NOT NULL\n        AND TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2)) IS NULL\n      );"
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			},
+			{
+				"name": "GetRowCount_Bronze",
+				"type": "Script",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "LS_Synapse_Serverless",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": "DECLARE @RunDate NVARCHAR(10) =\n    CONVERT(NVARCHAR(10), GETDATE(), 120);\n\nDECLARE @SQL NVARCHAR(MAX);\n\nSET @SQL = N'\nSELECT COUNT(*) AS BronzeCount\nFROM OPENROWSET(\n    BULK ''/bronze/well/' + @RunDate + N'/*.parquet'',\n    DATA_SOURCE = ''aer_adls'',\n    FORMAT = ''PARQUET''\n) AS b;\n';\n\nEXEC sp_executesql @SQL;"
 						}
 					],
 					"scriptBlockExecutionTimeout": "02:00:00"
