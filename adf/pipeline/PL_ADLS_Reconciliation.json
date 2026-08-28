@@ -1,10 +1,10 @@
 {
-	"name": "pipeline1",
+	"name": "PL_ADLS_Reconciliation",
 	"properties": {
 		"activities": [
 			{
-				"name": "GetSilverCounts",
-				"type": "Lookup",
+				"name": "GetRowCount_Bronze",
+				"type": "GetMetadata",
 				"dependsOn": [],
 				"policy": {
 					"timeout": "0.12:00:00",
@@ -15,15 +15,79 @@
 				},
 				"userProperties": [],
 				"typeProperties": {
-					"source": {
-						"type": "AzureSqlSource",
-						"sqlReaderQuery": "SELECT (SELECT COUNT(*) FROM staging.Silver_Wells) AS SilverRowCount, (SELECT COUNT(*) FROM staging.Silver_Wells) AS SourceRowCount, 0 AS QuarantineRowCount",
-						"partitionOption": "None"
-					},
 					"dataset": {
-						"referenceName": "DS_AzureSQL_Generic",
-						"type": "DatasetReference"
+						"referenceName": "DS_ADLS_Folder_RowCount",
+						"type": "DatasetReference",
+						"parameters": {
+							"FolderPath": {
+								"value": "@concat('bronze/well/', formatDateTime(utcnow(),'yyyy-MM-dd'))",
+								"type": "Expression"
+							}
+						}
+					},
+					"fieldList": [
+						"exists",
+						"itemName"
+					],
+					"storeSettings": {
+						"type": "AzureBlobFSReadSettings",
+						"enablePartitionDiscovery": false
+					},
+					"formatSettings": {
+						"type": "ParquetReadSettings"
 					}
+				}
+			},
+			{
+				"name": "GetRowCount_Silver",
+				"type": "Script",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "LS_Synapse_Serverless",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": "USE aer_synapse_db;\n\nSELECT COUNT(*) AS SilverRowCount\nFROM OPENROWSET(\n    BULK '/silver/clean/2026-08-27/*.parquet',\n    DATA_SOURCE = 'aer_adls',\n    FORMAT = 'PARQUET'\n) AS s;"
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			},
+			{
+				"name": "GetRowCount_Quarantine",
+				"type": "Script",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "LS_Synapse_Serverless",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": "SELECT COUNT(*) AS QuarantineRowCount\nFROM OPENROWSET(\n    BULK '/quarantine/well_rejects/2026-08-27/*.parquet',\n    DATA_SOURCE = 'aer_adls',\n    FORMAT = 'PARQUET'\n) AS q;"
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
 				}
 			}
 		],
