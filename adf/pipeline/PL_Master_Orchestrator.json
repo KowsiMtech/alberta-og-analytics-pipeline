@@ -332,14 +332,14 @@
 									},
 									"SourceRowCount": {
 										"value": {
-											"value": "@activity('Reconciliation').output.resultSets[0].rows[0].BronzeCount",
+											"value": "@activity('Reconciliation').output.pipelineReturnValue.SourceRowCount",
 											"type": "Expression"
 										},
 										"type": "Int32"
 									},
 									"SilverRowCount": {
 										"value": {
-											"value": "@activity('Reconciliation').output.resultSets[0].rows[0].SilverCount",
+											"value": "@activity('Reconciliation').output.pipelineReturnValue.SilverRowCount",
 											"type": "Expression"
 										},
 										"type": "Int32"

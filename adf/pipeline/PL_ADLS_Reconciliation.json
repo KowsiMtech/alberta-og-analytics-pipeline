@@ -79,6 +79,62 @@
 					],
 					"scriptBlockExecutionTimeout": "02:00:00"
 				}
+			},
+			{
+				"name": "Set_Reconciliation_ReturnValues",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "GetRowCount_Bronze",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "GetRowCount_Silver",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "GetRowCount_Quarantine",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "pipelineReturnValue",
+					"value": [
+						{
+							"key": "SourceRowCount",
+							"value": {
+								"type": "Expression",
+								"content": "@activity('GetRowCount_Bronze').output.resultSets[0].rows[0].BronzeCount"
+							}
+						},
+						{
+							"key": "SilverRowCount",
+							"value": {
+								"type": "Expression",
+								"content": "@activity('GetRowCount_Silver').output.resultSets[0].rows[0].SilverCount"
+							}
+						},
+						{
+							"key": "QuarantineRowCount",
+							"value": {
+								"type": "Expression",
+								"content": "@activity('GetRowCount_Quarantine').output.resultSets[0].rows[0].QuarantineCount"
+							}
+						}
+					],
+					"setSystemVariable": true
+				}
 			}
 		],
 		"annotations": []
