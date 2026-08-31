@@ -170,7 +170,7 @@
 							"userProperties": [],
 							"typeProperties": {
 								"pipeline": {
-									"referenceName": "PL_EIA_to_Staging",
+									"referenceName": "PL_EIA_to_ADLS_then_SQL_Staging",
 									"type": "PipelineReference"
 								},
 								"waitOnCompletion": true
