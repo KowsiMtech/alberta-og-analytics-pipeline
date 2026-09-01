@@ -1,7 +1,7 @@
 {
 	"name": "PL_EIA_IncrementalIngestion",
 	"properties": {
-		"description": "Fetches WTI oil prices from EIA REST API since the last successful load (watermark-driven date range), with proper manual offset pagination and capped exponential backoff per page. Lands to ADLS Bronze, loads staging.OilPrice from Bronze, then advances the watermark.",
+		"description": "Fetches WTI oil prices from the EIA REST API using a watermark-driven incremental date range with first-run fallback, manual offset pagination, and capped exponential backoff per page. Lands to ADLS Bronze using a deterministic extraction-window path, loads staging.OilPrice from all Parquet page files, then advances the watermark only after the SQL load succeeds.",
 		"activities": [
 			{
 				"name": "Lookup_Watermark",
@@ -107,7 +107,7 @@
 			},
 			{
 				"name": "Set_StartDate",
-				"description": "Start from the day after LastSuccessfulLoadDate in control.PipelineWatermark.",
+				"description": "Start from the day after LastSuccessfulLoadDate in control.PipelineWatermark. Assumes the watermark table is pre-seeded with a row for this pipeline — no fallback.",
 				"type": "SetVariable",
 				"dependsOn": [
 					{
@@ -685,7 +685,7 @@
 			},
 			{
 				"name": "Copy_Bronze_To_SQL",
-				"description": "Reads the ENTIRE day's Bronze folder (all page files, recursive) — does NOT call EIA again.",
+				"description": "Reads the ENTIRE day's Bronze folder (all page files, recursive, via wildcard) — does NOT call EIA again. No FileName parameter passed, so it never looks for one exact filename.",
 				"type": "Copy",
 				"dependsOn": [
 					{
@@ -796,8 +796,7 @@
 							"FolderPath": {
 								"value": "@variables('v_BronzeFolderPath')",
 								"type": "Expression"
-							},
-							"FileName": "OilPrice.parquet"
+							}
 						}
 					}
 				],
