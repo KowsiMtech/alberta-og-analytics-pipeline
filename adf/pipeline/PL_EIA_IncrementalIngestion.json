@@ -1,11 +1,11 @@
 {
-	"name": "PL_EIA_to_ADLS_then_SQL_Staging",
+	"name": "PL_EIA_IncrementalIngestion",
 	"properties": {
 		"description": "Fetches WTI oil prices from EIA REST API since the last successful load (watermark-driven date range), with proper manual offset pagination and capped exponential backoff per page. Lands to ADLS Bronze, loads staging.OilPrice from Bronze, then advances the watermark.",
 		"activities": [
 			{
 				"name": "Lookup_Watermark",
-				"description": "Read last successful load date for this pipeline from control.PipelineWatermark.",
+				"description": "Read the last successfully processed source date for the current pipeline from control.PipelineWatermark.",
 				"type": "Lookup",
 				"dependsOn": [],
 				"policy": {
@@ -19,7 +19,10 @@
 				"typeProperties": {
 					"source": {
 						"type": "AzureSqlSource",
-						"sqlReaderQuery": "SELECT LastSuccessfulLoadDate FROM control.PipelineWatermark WHERE PipelineName = 'PL_EIA_to_ADLS_then_SQL_Staging'",
+						"sqlReaderQuery": {
+							"value": "@concat('SELECT LastSuccessfulLoadDate FROM control.PipelineWatermark WHERE PipelineName = ''', pipeline().Pipeline, '''')",
+							"type": "Expression"
+						},
 						"partitionOption": "None"
 					},
 					"dataset": {
@@ -73,9 +76,22 @@
 			},
 			{
 				"name": "Set_BronzeFolderPath",
-				"description": "Pinned to pipeline().TriggerTime — fixed for the whole run, no utcnow() drift risk across activities.",
+				"description": "Deterministic Bronze path based on the extraction window so rerunning the same watermark window targets the same logical Bronze location.",
 				"type": "SetVariable",
-				"dependsOn": [],
+				"dependsOn": [
+					{
+						"activity": "Set_StartDate",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set_EndDate",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"policy": {
 					"secureOutput": false,
 					"secureInput": false
@@ -84,14 +100,14 @@
 				"typeProperties": {
 					"variableName": "v_BronzeFolderPath",
 					"value": {
-						"value": "@concat('bronze/oilprice/', formatDateTime(pipeline().TriggerTime,'yyyy-MM-dd'))",
+						"value": "@concat('bronze/oilprice/start_date=', variables('v_StartDate'), '/end_date=', variables('v_EndDate'))",
 						"type": "Expression"
 					}
 				}
 			},
 			{
 				"name": "Set_StartDate",
-				"description": "Day after last successful load. Falls back to EIA_DefaultLookbackDays only if no watermark row exists yet (first-ever run).",
+				"description": "Start from the day after LastSuccessfulLoadDate in control.PipelineWatermark.",
 				"type": "SetVariable",
 				"dependsOn": [
 					{
@@ -109,7 +125,7 @@
 				"typeProperties": {
 					"variableName": "v_StartDate",
 					"value": {
-						"value": "@if(equals(length(activity('Lookup_Watermark').output.value), 0), formatDateTime(addDays(pipeline().TriggerTime, mul(pipeline().parameters.EIA_DefaultLookbackDays, -1)),'yyyy-MM-dd'), formatDateTime(addDays(activity('Lookup_Watermark').output.value[0].LastSuccessfulLoadDate, 1),'yyyy-MM-dd'))",
+						"value": "@formatDateTime(addDays(activity('Lookup_Watermark').output.value[0].LastSuccessfulLoadDate, 1),'yyyy-MM-dd')",
 						"type": "Expression"
 					}
 				}
@@ -132,7 +148,7 @@
 				}
 			},
 			{
-				"name": "GetEIAKey",
+				"name": "Get_EIAKey",
 				"description": "Fetch EIA API key from Key Vault. Built-in retry only.",
 				"type": "WebActivity",
 				"dependsOn": [
@@ -159,25 +175,13 @@
 						"dependencyConditions": [
 							"Succeeded"
 						]
-					},
-					{
-						"activity": "Set_StartDate",
-						"dependencyConditions": [
-							"Succeeded"
-						]
-					},
-					{
-						"activity": "Set_EndDate",
-						"dependencyConditions": [
-							"Succeeded"
-						]
 					}
 				],
 				"policy": {
 					"timeout": "0.00:01:00",
 					"retry": 2,
 					"retryIntervalInSeconds": 30,
-					"secureOutput": false
+					"secureOutput": true
 				},
 				"userProperties": [],
 				"typeProperties": {
@@ -193,12 +197,12 @@
 				}
 			},
 			{
-				"name": "GetEIATotal",
+				"name": "Get_EIATotal",
 				"description": "Cheap probe call (length=1) purely to read response.total for this date range. WebActivity captures the JSON body, which Copy activity cannot.",
 				"type": "WebActivity",
 				"dependsOn": [
 					{
-						"activity": "GetEIAKey",
+						"activity": "Get_EIAKey",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -213,7 +217,10 @@
 				"userProperties": [],
 				"typeProperties": {
 					"method": "GET",
-					"url": "@concat('https://api.eia.gov/v2/petroleum/pri/spt/data/?api_key=', activity('GetEIAKey').output.value, '&frequency=daily&data[0]=value&facets[series][]=RWTC&start=', variables('v_StartDate'), '&end=', variables('v_EndDate'), '&offset=0&length=1')"
+					"url": {
+						"value": "@concat('https://api.eia.gov/v2/petroleum/pri/spt/data/?api_key=', activity('Get_EIAKey').output.value, '&frequency=daily&data[0]=value&facets[series][]=RWTC&start=', variables('v_StartDate'), '&end=', variables('v_EndDate'), '&offset=0&length=1')",
+						"type": "Expression"
+					}
 				}
 			},
 			{
@@ -221,7 +228,7 @@
 				"type": "SetVariable",
 				"dependsOn": [
 					{
-						"activity": "GetEIATotal",
+						"activity": "Get_EIATotal",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -235,13 +242,13 @@
 				"typeProperties": {
 					"variableName": "v_ResponseTotal",
 					"value": {
-						"value": "@int(activity('GetEIATotal').output.response.total)",
+						"value": "@int(activity('Get_EIATotal').output.response.total)",
 						"type": "Expression"
 					}
 				}
 			},
 			{
-				"name": "Until_AllPages_Fetched",
+				"name": "Until_AllPagesFetched",
 				"description": "Manual offset pagination. Loops until v_PageOffset covers v_ResponseTotal, or retries are exhausted.",
 				"type": "Until",
 				"dependsOn": [
@@ -260,7 +267,8 @@
 					},
 					"activities": [
 						{
-							"name": "Copy EIA Page to Adls",
+							"name": "Copy_EIAPage_To_Bronze",
+							"description": "Copies one EIA page to a deterministic page file in the extraction-window Bronze folder; the offset advances only after success.",
 							"type": "Copy",
 							"dependsOn": [],
 							"policy": {
@@ -278,7 +286,28 @@
 										{
 											"name": "IngestionDate",
 											"value": {
-												"value": "@utcnow()",
+												"value": "@pipeline().TriggerTime",
+												"type": "Expression"
+											}
+										},
+										{
+											"name": "PipelineRunId",
+											"value": {
+												"value": "@pipeline().RunId",
+												"type": "Expression"
+											}
+										},
+										{
+											"name": "SourceStartDate",
+											"value": {
+												"value": "@variables('v_StartDate')",
+												"type": "Expression"
+											}
+										},
+										{
+											"name": "SourceEndDate",
+											"value": {
+												"value": "@variables('v_EndDate')",
 												"type": "Expression"
 											}
 										}
@@ -347,11 +376,38 @@
 										},
 										{
 											"source": {
-												"path": "$['response']['IngestionDate']"
+												"path": "$['IngestionDate']"
 											},
 											"sink": {
 												"name": "IngestionDate",
 												"type": "DateTime"
+											}
+										},
+										{
+											"source": {
+												"path": "$['PipelineRunId']"
+											},
+											"sink": {
+												"name": "PipelineRunId",
+												"type": "String"
+											}
+										},
+										{
+											"source": {
+												"path": "$['SourceStartDate']"
+											},
+											"sink": {
+												"name": "SourceStartDate",
+												"type": "String"
+											}
+										},
+										{
+											"source": {
+												"path": "$['SourceEndDate']"
+											},
+											"sink": {
+												"name": "SourceEndDate",
+												"type": "String"
 											}
 										}
 									],
@@ -363,7 +419,7 @@
 									"referenceName": "DS_EIA_REST_Source",
 									"type": "DatasetReference",
 									"parameters": {
-										"relativeUrl": "@concat('v2/petroleum/pri/spt/data/?api_key=', activity('GetEIAKey').output.value, '&frequency=daily&data[0]=value&facets[series][]=RWTC&sort[0][column]=period&sort[0][direction]=desc&start=', variables('v_StartDate'), '&end=', variables('v_EndDate'), '&offset=', string(variables('v_PageOffset')), '&length=', string(pipeline().parameters.EIA_PageSize))"
+										"relativeUrl": "@concat('v2/petroleum/pri/spt/data/?api_key=', activity('Get_EIAKey').output.value, '&frequency=daily&data[0]=value&facets[series][]=RWTC&sort[0][column]=period&sort[0][direction]=desc&start=', variables('v_StartDate'), '&end=', variables('v_EndDate'), '&offset=', string(variables('v_PageOffset')), '&length=', string(pipeline().parameters.EIA_PageSize))"
 									}
 								}
 							],
@@ -389,7 +445,7 @@
 							"type": "SetVariable",
 							"dependsOn": [
 								{
-									"activity": "Copy EIA Page to Adls",
+									"activity": "Copy_EIAPage_To_Bronze",
 									"dependencyConditions": [
 										"Succeeded"
 									]
@@ -481,7 +537,7 @@
 							"type": "Wait",
 							"dependsOn": [
 								{
-									"activity": "Copy EIA Page to Adls",
+									"activity": "Copy_EIAPage_To_Bronze",
 									"dependencyConditions": [
 										"Failed"
 									]
@@ -596,12 +652,12 @@
 				}
 			},
 			{
-				"name": "Check_Pagination_Result",
+				"name": "Check_PaginationResult",
 				"description": "If the loop exited because retries were exhausted (not because pagination completed), fail explicitly rather than loading a partial Bronze folder.",
 				"type": "IfCondition",
 				"dependsOn": [
 					{
-						"activity": "Until_AllPages_Fetched",
+						"activity": "Until_AllPagesFetched",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -628,12 +684,12 @@
 				}
 			},
 			{
-				"name": "Copy Bronze to SQL",
+				"name": "Copy_Bronze_To_SQL",
 				"description": "Reads the ENTIRE day's Bronze folder (all page files, recursive) — does NOT call EIA again.",
 				"type": "Copy",
 				"dependsOn": [
 					{
-						"activity": "Check_Pagination_Result",
+						"activity": "Check_PaginationResult",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -654,6 +710,9 @@
 							"type": "AzureBlobFSReadSettings",
 							"recursive": true,
 							"wildcardFileName": "*.parquet"
+						},
+						"formatSettings": {
+							"type": "ParquetReadSettings"
 						}
 					},
 					"sink": {
@@ -737,7 +796,8 @@
 							"FolderPath": {
 								"value": "@variables('v_BronzeFolderPath')",
 								"type": "Expression"
-							}
+							},
+							"FileName": "OilPrice.parquet"
 						}
 					}
 				],
@@ -754,7 +814,7 @@
 				"type": "Script",
 				"dependsOn": [
 					{
-						"activity": "Copy Bronze to SQL",
+						"activity": "Copy_Bronze_To_SQL",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -777,7 +837,7 @@
 						{
 							"type": "Query",
 							"text": {
-								"value": "@concat('MERGE control.PipelineWatermark AS target USING (SELECT ''PL_EIA_to_ADLS_then_SQL_Staging'' AS PipelineName) AS src ON target.PipelineName = src.PipelineName WHEN MATCHED THEN UPDATE SET LastSuccessfulLoadDate = ''', variables('v_EndDate'), ''' WHEN NOT MATCHED THEN INSERT (PipelineName, LastSuccessfulLoadDate) VALUES (''PL_EIA_to_ADLS_then_SQL_Staging'', ''', variables('v_EndDate'), ''');')",
+								"value": "@concat(\n'MERGE control.PipelineWatermark AS target\nUSING (SELECT ''',\npipeline().Pipeline,\n''' AS PipelineName) AS src\nON target.PipelineName = src.PipelineName\n\nWHEN MATCHED THEN\nUPDATE SET\n    LastSuccessfulLoadDate = ''',\nvariables('v_EndDate'),\n''',\n    LastSuccessfulRunTime = SYSUTCDATETIME(),\n    LastSuccessfulRunId = ''',\npipeline().RunId,\n''',\n    LastUpdatedTime = SYSUTCDATETIME()\n\nWHEN NOT MATCHED THEN\nINSERT (\n    PipelineName,\n    LastSuccessfulLoadDate,\n    LastSuccessfulRunTime,\n    LastSuccessfulRunId,\n    LastUpdatedTime\n)\nVALUES (\n    ''',\npipeline().Pipeline,\n''',\n    ''',\nvariables('v_EndDate'),\n''',\n    SYSUTCDATETIME(),\n    ''',\npipeline().RunId,\n''',\n    SYSUTCDATETIME()\n);'\n)",
 								"type": "Expression"
 							}
 						}
@@ -790,10 +850,6 @@
 			"EIA_PageSize": {
 				"type": "int",
 				"defaultValue": 5000
-			},
-			"EIA_DefaultLookbackDays": {
-				"type": "int",
-				"defaultValue": 7
 			}
 		},
 		"variables": {
@@ -847,7 +903,10 @@
 			"KeyVault",
 			"ManualPagination",
 			"ExponentialBackoff",
-			"Watermark"
+			"Watermark",
+			"IdempotentRerun",
+			"DeterministicBronzePath",
+			"Replayable"
 		],
 		"lastPublishTime": "2026-04-19T21:18:16Z"
 	},
