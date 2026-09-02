@@ -1,11 +1,11 @@
 {
 	"name": "PL_EIA_IncrementalIngestion",
 	"properties": {
-		"description": "Fetches WTI oil prices from EIA REST API since the last successful load (watermark-driven date range), with proper manual offset pagination, capped exponential backoff per page, and late-arriving-data handling (watermark only advances when rows were actually returned). Lands to ADLS Bronze, loads staging.OilPrice from Bronze, then conditionally advances the watermark. Exposes the extraction window as a pipeline return value for downstream Gold processing.",
+		"description": "Fetches WTI oil prices from EIA REST API using watermark-driven incremental loading, first-run lookback, manual pagination, retry/backoff, late-arriving-data handling, and pipeline return values for downstream Gold processing.",
 		"activities": [
 			{
 				"name": "Lookup_Watermark",
-				"description": "Read the last successfully processed source date for the current pipeline from control.PipelineWatermark.",
+				"description": "Read last successful source date from control.PipelineWatermark.",
 				"type": "Lookup",
 				"dependsOn": [],
 				"policy": {
@@ -30,6 +30,79 @@
 						"type": "DatasetReference"
 					},
 					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "Set_StartDate",
+				"description": "Use watermark + 1 day when watermark exists; otherwise use EIA_DefaultLookbackDays.",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Lookup_Watermark",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_StartDate",
+					"value": {
+						"value": "@if(equals(length(activity('Lookup_Watermark').output.value), 0), formatDateTime(addDays(pipeline().TriggerTime, mul(pipeline().parameters.EIA_DefaultLookbackDays, -1)), 'yyyy-MM-dd'), formatDateTime(addDays(activity('Lookup_Watermark').output.value[0].LastSuccessfulLoadDate, 1), 'yyyy-MM-dd'))",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_EndDate",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_EndDate",
+					"value": {
+						"value": "@formatDateTime(pipeline().TriggerTime,'yyyy-MM-dd')",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_BronzeFolderPath",
+				"description": "Create deterministic Bronze folder using extraction start/end dates.",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set_StartDate",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set_EndDate",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_BronzeFolderPath",
+					"value": {
+						"value": "@concat('bronze/oilprice/start_date=', variables('v_StartDate'), '/end_date=', variables('v_EndDate'))",
+						"type": "Expression"
+					}
 				}
 			},
 			{
@@ -75,81 +148,8 @@
 				}
 			},
 			{
-				"name": "Set_BronzeFolderPath",
-				"description": "Deterministic Bronze path based on the extraction window so rerunning the same watermark window targets the same logical Bronze location.",
-				"type": "SetVariable",
-				"dependsOn": [
-					{
-						"activity": "Set_StartDate",
-						"dependencyConditions": [
-							"Succeeded"
-						]
-					},
-					{
-						"activity": "Set_EndDate",
-						"dependencyConditions": [
-							"Succeeded"
-						]
-					}
-				],
-				"policy": {
-					"secureOutput": false,
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"variableName": "v_BronzeFolderPath",
-					"value": {
-						"value": "@concat('bronze/oilprice/start_date=', variables('v_StartDate'), '/end_date=', variables('v_EndDate'))",
-						"type": "Expression"
-					}
-				}
-			},
-			{
-				"name": "Set_StartDate",
-				"description": "Start from the day after LastSuccessfulLoadDate. Falls back to EIA_DefaultLookbackDays if the watermark row is missing (first-ever run, or table was reset) — self-healing rather than crashing.",
-				"type": "SetVariable",
-				"dependsOn": [
-					{
-						"activity": "Lookup_Watermark",
-						"dependencyConditions": [
-							"Succeeded"
-						]
-					}
-				],
-				"policy": {
-					"secureOutput": false,
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"variableName": "v_StartDate",
-					"value": {
-						"value": "@if(equals(length(activity('Lookup_Watermark').output.value), 0), formatDateTime(addDays(pipeline().TriggerTime, mul(pipeline().parameters.EIA_DefaultLookbackDays, -1)),'yyyy-MM-dd'), formatDateTime(addDays(activity('Lookup_Watermark').output.value[0].LastSuccessfulLoadDate, 1),'yyyy-MM-dd'))",
-						"type": "Expression"
-					}
-				}
-			},
-			{
-				"name": "Set_EndDate",
-				"type": "SetVariable",
-				"dependsOn": [],
-				"policy": {
-					"secureOutput": false,
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"variableName": "v_EndDate",
-					"value": {
-						"value": "@formatDateTime(pipeline().TriggerTime,'yyyy-MM-dd')",
-						"type": "Expression"
-					}
-				}
-			},
-			{
 				"name": "Get_EIAKey",
-				"description": "Fetch EIA API key from Key Vault. Built-in retry only.",
+				"description": "Fetch EIA API key from Key Vault.",
 				"type": "WebActivity",
 				"dependsOn": [
 					{
@@ -198,7 +198,7 @@
 			},
 			{
 				"name": "Get_EIATotal",
-				"description": "Cheap probe call (length=1) purely to read response.total for this date range. WebActivity captures the JSON body, which Copy activity cannot.",
+				"description": "Probe EIA API to obtain total rows for extraction window.",
 				"type": "WebActivity",
 				"dependsOn": [
 					{
@@ -249,7 +249,7 @@
 			},
 			{
 				"name": "Until_AllPagesFetched",
-				"description": "Manual offset pagination. Loops until v_PageOffset covers v_ResponseTotal, or retries are exhausted. If v_ResponseTotal is 0 (no data yet for this window — late arrival), the loop exits immediately with success and zero pages copied.",
+				"description": "Manual offset pagination with retry handling.",
 				"type": "Until",
 				"dependsOn": [
 					{
@@ -268,7 +268,6 @@
 					"activities": [
 						{
 							"name": "Copy_EIAPage_To_Bronze",
-							"description": "Copies one EIA page to a deterministic page file in the extraction-window Bronze folder; the offset advances only after success.",
 							"type": "Copy",
 							"dependsOn": [],
 							"policy": {
@@ -490,7 +489,6 @@
 						},
 						{
 							"name": "Reset_RetryCount",
-							"description": "Backoff resets per page — a slow page shouldn't inflate the delay for the next page's first attempt.",
 							"type": "SetVariable",
 							"dependsOn": [
 								{
@@ -533,7 +531,6 @@
 						},
 						{
 							"name": "Wait_CurrentDelay",
-							"description": "Same page retried after capped exponential wait.",
 							"type": "Wait",
 							"dependsOn": [
 								{
@@ -653,7 +650,6 @@
 			},
 			{
 				"name": "Check_PaginationResult",
-				"description": "If the loop exited because retries were exhausted (not because pagination completed), fail explicitly rather than loading a partial Bronze folder.",
 				"type": "IfCondition",
 				"dependsOn": [
 					{
@@ -685,7 +681,6 @@
 			},
 			{
 				"name": "Copy_Bronze_To_SQL",
-				"description": "Reads the ENTIRE day's Bronze folder (all page files, recursive, via wildcard) — does NOT call EIA again. Runs even if zero rows exist (writes/truncates an empty result), which is fine since the watermark won't advance in that case.",
 				"type": "Copy",
 				"dependsOn": [
 					{
@@ -809,7 +804,7 @@
 			},
 			{
 				"name": "Check_DataAvailability",
-				"description": "Only advance the watermark if EIA actually returned rows for this window (v_ResponseTotal > 0). If total was 0 — source data not yet published for this date range — the watermark is left untouched, so the next scheduled run retries the exact same window automatically. This is how late-arriving source data is handled: no fixed lookback buffer, no manual backfill required.",
+				"description": "Update watermark only if EIA actually returned rows.",
 				"type": "IfCondition",
 				"dependsOn": [
 					{
@@ -828,7 +823,7 @@
 					"ifTrueActivities": [
 						{
 							"name": "Update_Watermark",
-							"description": "Advance watermark ONLY after SQL load succeeds AND rows were actually present. A failed run, or a run with zero rows for a late-arriving date, never advances it.",
+							"description": "Advance watermark only when data was returned and loaded successfully.",
 							"type": "Script",
 							"dependsOn": [],
 							"policy": {
@@ -848,7 +843,7 @@
 									{
 										"type": "Query",
 										"text": {
-											"value": "@concat(\n'MERGE control.PipelineWatermark AS target\nUSING (SELECT ''',\npipeline().Pipeline,\n''' AS PipelineName) AS src\nON target.PipelineName = src.PipelineName\n\nWHEN MATCHED THEN\nUPDATE SET\n    LastSuccessfulLoadDate = ''',\nvariables('v_EndDate'),\n''',\n    LastSuccessfulRunTime = SYSUTCDATETIME(),\n    LastSuccessfulRunId = ''',\npipeline().RunId,\n''',\n    LastUpdatedTime = SYSUTCDATETIME()\n\nWHEN NOT MATCHED THEN\nINSERT (\n    PipelineName,\n    LastSuccessfulLoadDate,\n    LastSuccessfulRunTime,\n    LastSuccessfulRunId,\n    LastUpdatedTime\n)\nVALUES (\n    ''',\npipeline().Pipeline,\n''',\n    ''',\nvariables('v_EndDate'),\n''',\n    SYSUTCDATETIME(),\n    ''',\npipeline().RunId,\n''',\n    SYSUTCDATETIME()\n);'\n)",
+											"value": "@concat('MERGE control.PipelineWatermark AS target USING (SELECT ''', pipeline().Pipeline, ''' AS PipelineName) AS src ON target.PipelineName = src.PipelineName WHEN MATCHED THEN UPDATE SET LastSuccessfulLoadDate = ''', variables('v_EndDate'), ''', LastSuccessfulRunTime = SYSUTCDATETIME(), LastSuccessfulRunId = ''', pipeline().RunId, ''', LastUpdatedTime = SYSUTCDATETIME() WHEN NOT MATCHED THEN INSERT (PipelineName, LastSuccessfulLoadDate, LastSuccessfulRunTime, LastSuccessfulRunId, LastUpdatedTime) VALUES (''', pipeline().Pipeline, ''', ''', variables('v_EndDate'), ''', SYSUTCDATETIME(), ''', pipeline().RunId, ''', SYSUTCDATETIME());')",
 											"type": "Expression"
 										}
 									}
@@ -861,7 +856,7 @@
 			},
 			{
 				"name": "Set_PipelineReturnValue",
-				"description": "Exposes v_StartDate/v_EndDate as pipeline return value so the master orchestrator can pass the same watermark window to PL_Bronze_OilPrice_to_Gold. Runs regardless of which Check_DataAvailability branch executed, so downstream consumers always know the extraction window — even if it was a late-arriving-data no-op.",
+				"description": "Return the exact EIA extraction window to the master orchestrator.",
 				"type": "SetVariable",
 				"dependsOn": [
 					{
@@ -882,13 +877,15 @@
 						{
 							"key": "StartDate",
 							"value": {
-								"type": "String"
+								"type": "Expression",
+								"content": "@variables('v_StartDate')"
 							}
 						},
 						{
 							"key": "EndDate",
 							"value": {
-								"type": "String"
+								"type": "Expression",
+								"content": "@variables('v_EndDate')"
 							}
 						}
 					],
@@ -964,8 +961,7 @@
 			"LateArrivingData",
 			"SelfHealingWatermark",
 			"PipelineReturnValue"
-		],
-		"lastPublishTime": "2026-04-19T21:18:16Z"
+		]
 	},
 	"type": "Microsoft.DataFactory/factories/pipelines"
 }
