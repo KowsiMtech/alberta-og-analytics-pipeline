@@ -34,7 +34,7 @@
 			},
 			{
 				"name": "Set_StartDate",
-				"description": "Use watermark + 1 day when watermark exists; otherwise use EIA_DefaultLookbackDays.",
+				"description": "Use watermark + 1 day when available, first-run lookback otherwise, and clamp StartDate to TriggerDate to avoid StartDate > EndDate on same-day reruns.",
 				"type": "SetVariable",
 				"dependsOn": [
 					{
@@ -52,7 +52,7 @@
 				"typeProperties": {
 					"variableName": "v_StartDate",
 					"value": {
-						"value": "@if(equals(length(activity('Lookup_Watermark').output.value), 0), formatDateTime(addDays(pipeline().TriggerTime, mul(pipeline().parameters.EIA_DefaultLookbackDays, -1)), 'yyyy-MM-dd'), formatDateTime(addDays(activity('Lookup_Watermark').output.value[0].LastSuccessfulLoadDate, 1), 'yyyy-MM-dd'))",
+						"value": "@if(equals(length(activity('Lookup_Watermark').output.value), 0), formatDateTime(addDays(pipeline().TriggerTime, mul(pipeline().parameters.EIA_DefaultLookbackDays, -1)), 'yyyy-MM-dd'), if(greater(formatDateTime(addDays(activity('Lookup_Watermark').output.value[0].LastSuccessfulLoadDate, 1), 'yyyy-MM-dd'), formatDateTime(pipeline().TriggerTime, 'yyyy-MM-dd')), formatDateTime(pipeline().TriggerTime, 'yyyy-MM-dd'), formatDateTime(addDays(activity('Lookup_Watermark').output.value[0].LastSuccessfulLoadDate, 1), 'yyyy-MM-dd')))",
 						"type": "Expression"
 					}
 				}
