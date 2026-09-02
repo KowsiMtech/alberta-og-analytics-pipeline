@@ -23,14 +23,14 @@
 						},
 						"BatchId": {
 							"value": {
-								"value": "@concat('BATCH_', formatDateTime(utcNow(),'yyyyMMdd'))",
+								"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd'))",
 								"type": "Expression"
 							},
 							"type": "String"
 						},
 						"RunDate": {
 							"value": {
-								"value": "@formatDateTime(utcNow(),'yyyy-MM-dd')",
+								"value": "@formatDateTime(pipeline().TriggerTime,'yyyy-MM-dd')",
 								"type": "Expression"
 							},
 							"type": "String"
@@ -65,7 +65,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "SELECT Status FROM dbo.PipelineControl WHERE PipelineName='PL_Master_Orchestrator' AND BatchId='@{concat('BATCH_', formatDateTime(utcnow(),'yyyyMMdd'))}'",
+							"value": "SELECT Status FROM dbo.PipelineControl WHERE PipelineName='PL_Master_Orchestrator' AND BatchId='@{concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd'))}'",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
@@ -73,7 +73,8 @@
 					"dataset": {
 						"referenceName": "DS_AzureSQL_Generic",
 						"type": "DatasetReference"
-					}
+					},
+					"firstRowOnly": true
 				}
 			},
 			{
@@ -170,7 +171,7 @@
 							"userProperties": [],
 							"typeProperties": {
 								"pipeline": {
-									"referenceName": "PL_EIA_to_ADLS_then_SQL_Staging",
+									"referenceName": "PL_EIA_IncrementalIngestion",
 									"type": "PipelineReference"
 								},
 								"waitOnCompletion": true
@@ -219,7 +220,17 @@
 									"referenceName": "PL_Bronze_OilPrice_to_Gold",
 									"type": "PipelineReference"
 								},
-								"waitOnCompletion": true
+								"waitOnCompletion": true,
+								"parameters": {
+									"StartDate": {
+										"value": "@activity('PL_EIA_to_Bronze').output.pipelineReturnValue.StartDate",
+										"type": "Expression"
+									},
+									"EndDate": {
+										"value": "@activity('PL_EIA_to_Bronze').output.pipelineReturnValue.EndDate",
+										"type": "Expression"
+									}
+								}
 							}
 						},
 						{
@@ -325,7 +336,7 @@
 									},
 									"BatchId": {
 										"value": {
-											"value": "@concat('BATCH_', formatDateTime(utcnow(),'yyyyMMdd'))",
+											"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd'))",
 											"type": "Expression"
 										},
 										"type": "String"
@@ -471,7 +482,7 @@
 						},
 						"BatchId": {
 							"value": {
-								"value": "@concat('BATCH_', formatDateTime(utcnow(),'yyyyMMdd'))",
+								"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd'))",
 								"type": "Expression"
 							},
 							"type": "String"

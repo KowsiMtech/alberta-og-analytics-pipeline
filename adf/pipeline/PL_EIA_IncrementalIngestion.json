@@ -1,7 +1,7 @@
 {
 	"name": "PL_EIA_IncrementalIngestion",
 	"properties": {
-		"description": "Fetches WTI oil prices from the EIA REST API using a watermark-driven incremental date range with first-run fallback, manual offset pagination, and capped exponential backoff per page. Lands to ADLS Bronze using a deterministic extraction-window path, loads staging.OilPrice from all Parquet page files, then advances the watermark only after the SQL load succeeds.",
+		"description": "Fetches WTI oil prices from EIA REST API since the last successful load (watermark-driven date range), with proper manual offset pagination, capped exponential backoff per page, and late-arriving-data handling (watermark only advances when rows were actually returned). Lands to ADLS Bronze, loads staging.OilPrice from Bronze, then conditionally advances the watermark. Exposes the extraction window as a pipeline return value for downstream Gold processing.",
 		"activities": [
 			{
 				"name": "Lookup_Watermark",
@@ -107,7 +107,7 @@
 			},
 			{
 				"name": "Set_StartDate",
-				"description": "Start from the day after LastSuccessfulLoadDate in control.PipelineWatermark. Assumes the watermark table is pre-seeded with a row for this pipeline — no fallback.",
+				"description": "Start from the day after LastSuccessfulLoadDate. Falls back to EIA_DefaultLookbackDays if the watermark row is missing (first-ever run, or table was reset) — self-healing rather than crashing.",
 				"type": "SetVariable",
 				"dependsOn": [
 					{
@@ -125,7 +125,7 @@
 				"typeProperties": {
 					"variableName": "v_StartDate",
 					"value": {
-						"value": "@formatDateTime(addDays(activity('Lookup_Watermark').output.value[0].LastSuccessfulLoadDate, 1),'yyyy-MM-dd')",
+						"value": "@if(equals(length(activity('Lookup_Watermark').output.value), 0), formatDateTime(addDays(pipeline().TriggerTime, mul(pipeline().parameters.EIA_DefaultLookbackDays, -1)),'yyyy-MM-dd'), formatDateTime(addDays(activity('Lookup_Watermark').output.value[0].LastSuccessfulLoadDate, 1),'yyyy-MM-dd'))",
 						"type": "Expression"
 					}
 				}
@@ -249,7 +249,7 @@
 			},
 			{
 				"name": "Until_AllPagesFetched",
-				"description": "Manual offset pagination. Loops until v_PageOffset covers v_ResponseTotal, or retries are exhausted.",
+				"description": "Manual offset pagination. Loops until v_PageOffset covers v_ResponseTotal, or retries are exhausted. If v_ResponseTotal is 0 (no data yet for this window — late arrival), the loop exits immediately with success and zero pages copied.",
 				"type": "Until",
 				"dependsOn": [
 					{
@@ -685,7 +685,7 @@
 			},
 			{
 				"name": "Copy_Bronze_To_SQL",
-				"description": "Reads the ENTIRE day's Bronze folder (all page files, recursive, via wildcard) — does NOT call EIA again. No FileName parameter passed, so it never looks for one exact filename.",
+				"description": "Reads the ENTIRE day's Bronze folder (all page files, recursive, via wildcard) — does NOT call EIA again. Runs even if zero rows exist (writes/truncates an empty result), which is fine since the watermark won't advance in that case.",
 				"type": "Copy",
 				"dependsOn": [
 					{
@@ -808,9 +808,9 @@
 				]
 			},
 			{
-				"name": "Update_Watermark",
-				"description": "Advance watermark ONLY after SQL load succeeds — a failed run never advances it, so the next run retries the same gap.",
-				"type": "Script",
+				"name": "Check_DataAvailability",
+				"description": "Only advance the watermark if EIA actually returned rows for this window (v_ResponseTotal > 0). If total was 0 — source data not yet published for this date range — the watermark is left untouched, so the next scheduled run retries the exact same window automatically. This is how late-arriving source data is handled: no fixed lookback buffer, no manual backfill required.",
+				"type": "IfCondition",
 				"dependsOn": [
 					{
 						"activity": "Copy_Bronze_To_SQL",
@@ -819,29 +819,80 @@
 						]
 					}
 				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@greater(variables('v_ResponseTotal'), 0)",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Update_Watermark",
+							"description": "Advance watermark ONLY after SQL load succeeds AND rows were actually present. A failed run, or a run with zero rows for a late-arriving date, never advances it.",
+							"type": "Script",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.00:05:00",
+								"retry": 2,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							},
+							"typeProperties": {
+								"scripts": [
+									{
+										"type": "Query",
+										"text": {
+											"value": "@concat(\n'MERGE control.PipelineWatermark AS target\nUSING (SELECT ''',\npipeline().Pipeline,\n''' AS PipelineName) AS src\nON target.PipelineName = src.PipelineName\n\nWHEN MATCHED THEN\nUPDATE SET\n    LastSuccessfulLoadDate = ''',\nvariables('v_EndDate'),\n''',\n    LastSuccessfulRunTime = SYSUTCDATETIME(),\n    LastSuccessfulRunId = ''',\npipeline().RunId,\n''',\n    LastUpdatedTime = SYSUTCDATETIME()\n\nWHEN NOT MATCHED THEN\nINSERT (\n    PipelineName,\n    LastSuccessfulLoadDate,\n    LastSuccessfulRunTime,\n    LastSuccessfulRunId,\n    LastUpdatedTime\n)\nVALUES (\n    ''',\npipeline().Pipeline,\n''',\n    ''',\nvariables('v_EndDate'),\n''',\n    SYSUTCDATETIME(),\n    ''',\npipeline().RunId,\n''',\n    SYSUTCDATETIME()\n);'\n)",
+											"type": "Expression"
+										}
+									}
+								],
+								"scriptBlockExecutionTimeout": "02:00:00"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Set_PipelineReturnValue",
+				"description": "Exposes v_StartDate/v_EndDate as pipeline return value so the master orchestrator can pass the same watermark window to PL_Bronze_OilPrice_to_Gold. Runs regardless of which Check_DataAvailability branch executed, so downstream consumers always know the extraction window — even if it was a late-arriving-data no-op.",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Check_DataAvailability",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"policy": {
-					"timeout": "0.00:05:00",
-					"retry": 2,
-					"retryIntervalInSeconds": 30,
 					"secureOutput": false,
 					"secureInput": false
 				},
 				"userProperties": [],
-				"linkedServiceName": {
-					"referenceName": "LS_AzureSQL",
-					"type": "LinkedServiceReference"
-				},
 				"typeProperties": {
-					"scripts": [
+					"variableName": "pipelineReturnValue",
+					"value": [
 						{
-							"type": "Query",
-							"text": {
-								"value": "@concat(\n'MERGE control.PipelineWatermark AS target\nUSING (SELECT ''',\npipeline().Pipeline,\n''' AS PipelineName) AS src\nON target.PipelineName = src.PipelineName\n\nWHEN MATCHED THEN\nUPDATE SET\n    LastSuccessfulLoadDate = ''',\nvariables('v_EndDate'),\n''',\n    LastSuccessfulRunTime = SYSUTCDATETIME(),\n    LastSuccessfulRunId = ''',\npipeline().RunId,\n''',\n    LastUpdatedTime = SYSUTCDATETIME()\n\nWHEN NOT MATCHED THEN\nINSERT (\n    PipelineName,\n    LastSuccessfulLoadDate,\n    LastSuccessfulRunTime,\n    LastSuccessfulRunId,\n    LastUpdatedTime\n)\nVALUES (\n    ''',\npipeline().Pipeline,\n''',\n    ''',\nvariables('v_EndDate'),\n''',\n    SYSUTCDATETIME(),\n    ''',\npipeline().RunId,\n''',\n    SYSUTCDATETIME()\n);'\n)",
-								"type": "Expression"
+							"key": "StartDate",
+							"value": {
+								"type": "String"
+							}
+						},
+						{
+							"key": "EndDate",
+							"value": {
+								"type": "String"
 							}
 						}
 					],
-					"scriptBlockExecutionTimeout": "02:00:00"
+					"setSystemVariable": true
 				}
 			}
 		],
@@ -849,6 +900,10 @@
 			"EIA_PageSize": {
 				"type": "int",
 				"defaultValue": 5000
+			},
+			"EIA_DefaultLookbackDays": {
+				"type": "int",
+				"defaultValue": 7
 			}
 		},
 		"variables": {
@@ -905,7 +960,10 @@
 			"Watermark",
 			"IdempotentRerun",
 			"DeterministicBronzePath",
-			"Replayable"
+			"Replayable",
+			"LateArrivingData",
+			"SelfHealingWatermark",
+			"PipelineReturnValue"
 		],
 		"lastPublishTime": "2026-04-19T21:18:16Z"
 	},
