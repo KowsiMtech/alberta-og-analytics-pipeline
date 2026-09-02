@@ -13,6 +13,158 @@
 	},
 	"resources": [
 		{
+			"name": "[concat(parameters('factoryName'), '/SqlServerExternal_ControlTable')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"description": "The external control table is used to store the partition list of data source tables.",
+				"linkedServiceName": {
+					"referenceName": "LS_OnPrem_SQL",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"TableName": {
+						"type": "String"
+					}
+				},
+				"annotations": [],
+				"type": "SqlServerTable",
+				"schema": [],
+				"typeProperties": {
+					"schema": "dbo",
+					"table": {
+						"value": "@dataset().TableName",
+						"type": "Expression"
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PII detection and masking')]",
+			"type": "Microsoft.DataFactory/factories/dataflows",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"description": "This dataflow will create the request body needed for Azure Cognitive Services and then use the external call transformation to detect and mask PII data with the Cognitive Services PII API. ",
+				"type": "MappingDataFlow",
+				"typeProperties": {
+					"sources": [
+						{
+							"linkedService": {
+								"referenceName": "LS_ADLS_Gen2",
+								"type": "LinkedServiceReference"
+							},
+							"name": "dataSource",
+							"description": "Import data from data source"
+						}
+					],
+					"sinks": [
+						{
+							"name": "sink"
+						}
+					],
+					"transformations": [
+						{
+							"name": "externalCallCogServices",
+							"linkedService": {
+								"referenceName": "LS_EIA_REST",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "createRequestBody",
+							"description": "Creating the columns 'kind, parameters, analysisInput, text'"
+						},
+						{
+							"name": "flattenResults"
+						}
+					],
+					"scriptLines": [
+						"parameters{",
+						"     sourceFileSystem as string ('sourceFileSystem'),",
+						"     sourceFilePath as string ('sourceFilePath'),",
+						"     sourceFileName as string ('sourceFileName')",
+						"}",
+						"source(output(",
+						"          case_month as string,",
+						"          res_state as string,",
+						"          state_fips_code as short,",
+						"          res_county as string,",
+						"          county_fips_code as string,",
+						"          age_group as string,",
+						"          sex as string,",
+						"          race as string,",
+						"          ethnicity as string,",
+						"          case_positive_specimen_interval as short,",
+						"          case_onset_interval as short,",
+						"          process as string,",
+						"          exposure_yn as string,",
+						"          current_status as string,",
+						"          symptom_status as string,",
+						"          hosp_yn as string,",
+						"          icu_yn as string,",
+						"          death_yn as string,",
+						"          underlying_conditions_yn as string,",
+						"          name as string,",
+						"          email as string,",
+						"          phone_number as string",
+						"     ),",
+						"     useSchema: false,",
+						"     allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     ignoreNoFilesFound: false,",
+						"     format: 'delimited',",
+						"     fileSystem: ($sourceFileSystem),",
+						"     folderPath: ($sourceFilePath),",
+						"     fileName: ($sourceFileName),",
+						"     columnDelimiter: ',',",
+						"     escapeChar: '\\\\',",
+						"     quoteChar: '\\\"',",
+						"     columnNamesAsHeader: true) ~> dataSource",
+						"createRequestBody call(mapColumn(",
+						"          kind,",
+						"          parameters,",
+						"          analysisInput",
+						"     ),",
+						"     skipDuplicateMapInputs: true,",
+						"     skipDuplicateMapOutputs: true,",
+						"     output(",
+						"          body as (kind as string, results as (documents as (redactedText as string, id as string, entities as (text as string, category as string, offset as integer, length as integer, confidenceScore as double)[])[]))",
+						"     ),",
+						"     allowSchemaDrift: true,",
+						"     format: 'rest',",
+						"     store: 'restservice',",
+						"     timeout: 30,",
+						"     requestInterval: 0,",
+						"     httpMethod: 'POST',",
+						"     entity: 'language/:analyze-text?api-version=2022-05-01',",
+						"     bodyColumnName: 'body',",
+						"     requestFormat: ['type' -> 'json'],",
+						"     responseFormat: ['type' -> 'json', 'documentForm' -> 'documentPerLine']) ~> externalCallCogServices",
+						"dataSource derive(kind = 'PiiEntityRecognition',",
+						"          parameters = @(modelVersion='latest'),",
+						"          analysisInput = @(documents=array(@(id=\"1\", language=\"en\", text=concatWS(', ', name,email,phone_number,case_month,res_state,res_county,age_group,sex,race,ethnicity,process,exposure_yn,current_status,symptom_status,hosp_yn,icu_yn,icu_yn,death_yn,underlying_conditions_yn)))),",
+						"          text = concatWS(', ', name,email,phone_number,case_month,res_state,res_county,age_group,sex,race,ethnicity,process,exposure_yn,current_status,symptom_status,hosp_yn,icu_yn,icu_yn,death_yn,underlying_conditions_yn)) ~> createRequestBody",
+						"externalCallCogServices foldDown(unroll(body.results.documents),",
+						"     mapColumn(",
+						"          redactedText = body.results.documents.redactedText,",
+						"          text",
+						"     ),",
+						"     skipDuplicateMapInputs: false,",
+						"     skipDuplicateMapOutputs: false) ~> flattenResults",
+						"flattenResults sink(validateSchema: false,",
+						"     skipDuplicateMapInputs: true,",
+						"     skipDuplicateMapOutputs: true,",
+						"     store: 'cache',",
+						"     format: 'inline',",
+						"     output: false,",
+						"     saveOrder: 1) ~> sink"
+					]
+				}
+			},
+			"dependsOn": []
+		},
+		{
 			"name": "[concat(parameters('factoryName'), '/BulkCopyfromDB_with_ControlTable')]",
 			"type": "Microsoft.DataFactory/factories/pipelines",
 			"apiVersion": "2018-06-01",
@@ -163,7 +315,9 @@
 				},
 				"annotations": []
 			},
-			"dependsOn": []
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/SqlServerExternal_ControlTable')]"
+			]
 		},
 		{
 			"name": "[concat(parameters('factoryName'), '/Metadata_driven_pipeline')]",
@@ -885,7 +1039,7 @@
 								"type": "DatasetReference",
 								"parameters": {
 									"RunDate": {
-										"value": "@formatDateTime(utcnow(),'yyyy-MM-dd')",
+										"value": "@concat(pipeline().parameters.StartDate, '_', pipeline().parameters.EndDate)",
 										"type": "Expression"
 									}
 								}
@@ -925,7 +1079,10 @@
 							"scripts": [
 								{
 									"type": "NonQuery",
-									"text": "USE aer_synapse_db;\n\n------------------------------------------------------------\n-- 1. RUN DATE / RUN STAMP VARIABLES\n------------------------------------------------------------\n\nDECLARE @RunDate NVARCHAR(10) =\n    CONVERT(NVARCHAR(10), GETDATE(), 120);\n\nDECLARE @RunDateClean NVARCHAR(8) =\n    REPLACE(@RunDate, '-', '');\n\nDECLARE @RunStamp NVARCHAR(25) =\n    @RunDateClean\n    + '_'\n    + REPLACE(\n        CONVERT(NVARCHAR(8), GETDATE(), 108),\n        ':',\n        ''\n      );\n\n\n------------------------------------------------------------\n-- 2. DROP EXISTING EXTERNAL TABLE METADATA IF RE-RUNNING\n-- The ADLS location is unique per run, so this mainly\n-- removes the external-table metadata if it already exists.\n------------------------------------------------------------\n\nDECLARE @DropSQL NVARCHAR(MAX) = N'\n    IF OBJECT_ID(''dbo.fact_oilprice_' + @RunStamp + N''') IS NOT NULL\n        DROP EXTERNAL TABLE dbo.fact_oilprice_' + @RunStamp + N';\n';\n\nEXEC sp_executesql @DropSQL;\n\n\n------------------------------------------------------------\n-- 3. CETAS\n-- Bronze EIA Parquet -> Gold OilPrice Parquet\n--\n-- Each run gets a unique folder:\n-- /gold/fact_oilprice/YYYY-MM-DD/run_YYYYMMDD_HHMMSS/\n------------------------------------------------------------\n\nDECLARE @SQL NVARCHAR(MAX) = N'\nCREATE EXTERNAL TABLE dbo.fact_oilprice_' + @RunStamp + N'\nWITH\n(\n    LOCATION = ''/gold/fact_oilprice/'\n               + @RunDate\n               + N'/run_'\n               + @RunStamp\n               + N'/'',\n\n    DATA_SOURCE = aer_adls,\n    FILE_FORMAT = parquet_format\n)\nAS\nSELECT\n    TRY_CAST([period] AS DATE) AS PriceDate,\n\n    TRY_CAST(\n        [value] AS DECIMAL(10, 2)\n    ) AS OilPrice_USD,\n\n    [series-description] AS SeriesDescription,\n\n    GETDATE() AS Loaded_At\n\nFROM OPENROWSET\n(\n    BULK ''/bronze/oilprice/'\n         + @RunDate\n         + N'/*.parquet'',\n\n    DATA_SOURCE = ''aer_adls'',\n    FORMAT = ''PARQUET''\n) AS b\n\nWHERE [period] IS NOT NULL\n  AND [value] IS NOT NULL\n  AND TRY_CAST([value] AS DECIMAL(10, 2)) IS NOT NULL;\n';\n\nEXEC sp_executesql @SQL;"
+									"text": {
+										"value": "USE aer_synapse_db;\n\n------------------------------------------------------------\n-- 1. RUN STAMP + SOURCE WINDOW\n-- @StartDate/@EndDate come from the pipeline (same watermark\n-- window as PL_EIA_IncrementalIngestion), NOT today's date --\n-- Bronze is partitioned by start_date=/end_date=, not by a\n-- flat run date.\n------------------------------------------------------------\n\nDECLARE @StartDate NVARCHAR(10) = '@{pipeline().parameters.StartDate}';\nDECLARE @EndDate   NVARCHAR(10) = '@{pipeline().parameters.EndDate}';\n\nDECLARE @RunStamp NVARCHAR(25) =\n    REPLACE(CONVERT(NVARCHAR(10), GETDATE(), 120), '-', '')\n    + '_'\n    + REPLACE(CONVERT(NVARCHAR(8), GETDATE(), 108), ':', '');\n\nDECLARE @TableName NVARCHAR(200) = 'dbo.fact_oilprice_' + @RunStamp;\nDECLARE @Location  NVARCHAR(400) =\n    '/gold/fact_oilprice/' + @StartDate + '_' + @EndDate + '/run_' + @RunStamp + '/';\nDECLARE @BronzePath NVARCHAR(400) =\n    '/bronze/oilprice/start_date=' + @StartDate + '/end_date=' + @EndDate + '/*.parquet';\n\n------------------------------------------------------------\n-- 2. DROP EXISTING EXTERNAL TABLE METADATA IF RE-RUNNING\n------------------------------------------------------------\n\nDECLARE @DropSQL NVARCHAR(MAX) =\n    N'IF OBJECT_ID(''' + @TableName + N''') IS NOT NULL DROP EXTERNAL TABLE ' + @TableName + N';';\nEXEC sp_executesql @DropSQL;\n\n------------------------------------------------------------\n-- 3. CETAS: Bronze EIA Parquet -> Gold OilPrice Parquet\n------------------------------------------------------------\n\nDECLARE @SQL NVARCHAR(MAX) =\n    N'CREATE EXTERNAL TABLE ' + @TableName + N'\nWITH\n(\n    LOCATION = ''' + @Location + N''',\n    DATA_SOURCE = aer_adls,\n    FILE_FORMAT = parquet_format\n)\nAS\nSELECT\n    TRY_CAST([period] AS DATE) AS PriceDate,\n    TRY_CAST([value] AS DECIMAL(10,2)) AS OilPrice_USD,\n    [series-description] AS SeriesDescription,\n    GETDATE() AS Loaded_At\nFROM OPENROWSET(\n    BULK ''' + @BronzePath + N''',\n    DATA_SOURCE = ''aer_adls'',\n    FORMAT = ''PARQUET''\n) AS b\nWHERE [period] IS NOT NULL\n  AND [value] IS NOT NULL\n  AND TRY_CAST([value] AS DECIMAL(10,2)) IS NOT NULL;';\n\nEXEC sp_executesql @SQL;",
+										"type": "Expression"
+									}
 								}
 							],
 							"scriptBlockExecutionTimeout": "02:00:00"
@@ -934,6 +1091,14 @@
 				],
 				"policy": {
 					"elapsedTimeMetric": {}
+				},
+				"parameters": {
+					"StartDate": {
+						"type": "string"
+					},
+					"EndDate": {
+						"type": "string"
+					}
 				},
 				"annotations": [],
 				"lastPublishTime": "2026-04-20T01:01:50Z"
@@ -1053,6 +1218,986 @@
 				},
 				"annotations": [],
 				"lastPublishTime": "2026-04-20T00:14:41Z"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PL_EIA_IncrementalIngestion')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"description": "Fetches WTI oil prices from EIA REST API since the last successful load (watermark-driven date range), with proper manual offset pagination, capped exponential backoff per page, and late-arriving-data handling (watermark only advances when rows were actually returned). Lands to ADLS Bronze, loads staging.OilPrice from Bronze, then conditionally advances the watermark. Exposes the extraction window as a pipeline return value for downstream Gold processing.",
+				"activities": [
+					{
+						"name": "Lookup_Watermark",
+						"description": "Read the last successfully processed source date for the current pipeline from control.PipelineWatermark.",
+						"type": "Lookup",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.00:05:00",
+							"retry": 2,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "AzureSqlSource",
+								"sqlReaderQuery": {
+									"value": "@concat('SELECT LastSuccessfulLoadDate FROM control.PipelineWatermark WHERE PipelineName = ''', pipeline().Pipeline, '''')",
+									"type": "Expression"
+								},
+								"partitionOption": "None"
+							},
+							"dataset": {
+								"referenceName": "DS_AzureSQL_Generic",
+								"type": "DatasetReference",
+								"parameters": {}
+							},
+							"firstRowOnly": false
+						}
+					},
+					{
+						"name": "Init_PageOffset",
+						"type": "SetVariable",
+						"dependsOn": [],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_PageOffset",
+							"value": 0
+						}
+					},
+					{
+						"name": "Init_RetryCount",
+						"type": "SetVariable",
+						"dependsOn": [],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_RetryCount",
+							"value": 0
+						}
+					},
+					{
+						"name": "Init_DelaySeconds",
+						"type": "SetVariable",
+						"dependsOn": [],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_DelaySeconds",
+							"value": 30
+						}
+					},
+					{
+						"name": "Set_BronzeFolderPath",
+						"description": "Deterministic Bronze path based on the extraction window so rerunning the same watermark window targets the same logical Bronze location.",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "Set_StartDate",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "Set_EndDate",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_BronzeFolderPath",
+							"value": {
+								"value": "@concat('bronze/oilprice/start_date=', variables('v_StartDate'), '/end_date=', variables('v_EndDate'))",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "Set_StartDate",
+						"description": "Start from the day after LastSuccessfulLoadDate. Falls back to EIA_DefaultLookbackDays if the watermark row is missing (first-ever run, or table was reset) — self-healing rather than crashing.",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "Lookup_Watermark",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_StartDate",
+							"value": {
+								"value": "@if(equals(length(activity('Lookup_Watermark').output.value), 0), formatDateTime(addDays(pipeline().TriggerTime, mul(pipeline().parameters.EIA_DefaultLookbackDays, -1)),'yyyy-MM-dd'), formatDateTime(addDays(activity('Lookup_Watermark').output.value[0].LastSuccessfulLoadDate, 1),'yyyy-MM-dd'))",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "Set_EndDate",
+						"type": "SetVariable",
+						"dependsOn": [],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_EndDate",
+							"value": {
+								"value": "@formatDateTime(pipeline().TriggerTime,'yyyy-MM-dd')",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "Get_EIAKey",
+						"description": "Fetch EIA API key from Key Vault. Built-in retry only.",
+						"type": "WebActivity",
+						"dependsOn": [
+							{
+								"activity": "Init_PageOffset",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "Init_RetryCount",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "Init_DelaySeconds",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "Set_BronzeFolderPath",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.00:01:00",
+							"retry": 2,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": true
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"method": "GET",
+							"headers": {},
+							"url": {
+								"value": "@concat('https://aer-oilgas-kv.vault.azure.net/secrets/eia-api-key?api-version=7.0')",
+								"type": "Expression"
+							},
+							"authentication": {
+								"type": "MSI",
+								"resource": "https://vault.azure.net"
+							}
+						}
+					},
+					{
+						"name": "Get_EIATotal",
+						"description": "Cheap probe call (length=1) purely to read response.total for this date range. WebActivity captures the JSON body, which Copy activity cannot.",
+						"type": "WebActivity",
+						"dependsOn": [
+							{
+								"activity": "Get_EIAKey",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.00:01:00",
+							"retry": 2,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"method": "GET",
+							"headers": {},
+							"url": {
+								"value": "@concat('https://api.eia.gov/v2/petroleum/pri/spt/data/?api_key=', activity('Get_EIAKey').output.value, '&frequency=daily&data[0]=value&facets[series][]=RWTC&start=', variables('v_StartDate'), '&end=', variables('v_EndDate'), '&offset=0&length=1')",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "Set_ResponseTotal",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "Get_EIATotal",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "v_ResponseTotal",
+							"value": {
+								"value": "@int(activity('Get_EIATotal').output.response.total)",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "Until_AllPagesFetched",
+						"description": "Manual offset pagination. Loops until v_PageOffset covers v_ResponseTotal, or retries are exhausted. If v_ResponseTotal is 0 (no data yet for this window — late arrival), the loop exits immediately with success and zero pages copied.",
+						"type": "Until",
+						"dependsOn": [
+							{
+								"activity": "Set_ResponseTotal",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"expression": {
+								"value": "@or(greaterOrEquals(variables('v_PageOffset'), variables('v_ResponseTotal')), greaterOrEquals(variables('v_RetryCount'), 5))",
+								"type": "Expression"
+							},
+							"activities": [
+								{
+									"name": "Copy_EIAPage_To_Bronze",
+									"description": "Copies one EIA page to a deterministic page file in the extraction-window Bronze folder; the offset advances only after success.",
+									"type": "Copy",
+									"dependsOn": [],
+									"policy": {
+										"timeout": "0.00:10:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"source": {
+											"type": "RestSource",
+											"additionalColumns": [
+												{
+													"name": "IngestionDate",
+													"value": {
+														"value": "@pipeline().TriggerTime",
+														"type": "Expression"
+													}
+												},
+												{
+													"name": "PipelineRunId",
+													"value": {
+														"value": "@pipeline().RunId",
+														"type": "Expression"
+													}
+												},
+												{
+													"name": "SourceStartDate",
+													"value": {
+														"value": "@variables('v_StartDate')",
+														"type": "Expression"
+													}
+												},
+												{
+													"name": "SourceEndDate",
+													"value": {
+														"value": "@variables('v_EndDate')",
+														"type": "Expression"
+													}
+												}
+											],
+											"httpRequestTimeout": "00:01:40",
+											"requestInterval": "00.00:00:00.010",
+											"requestMethod": "GET"
+										},
+										"sink": {
+											"type": "ParquetSink",
+											"storeSettings": {
+												"type": "AzureBlobFSWriteSettings"
+											},
+											"formatSettings": {
+												"type": "ParquetWriteSettings"
+											}
+										},
+										"enableStaging": false,
+										"translator": {
+											"type": "TabularTranslator",
+											"mappings": [
+												{
+													"source": {
+														"path": "[['period']"
+													},
+													"sink": {
+														"name": "period",
+														"type": "String"
+													}
+												},
+												{
+													"source": {
+														"path": "[['value']"
+													},
+													"sink": {
+														"name": "value",
+														"type": "String"
+													}
+												},
+												{
+													"source": {
+														"path": "[['series-description']"
+													},
+													"sink": {
+														"name": "series-description",
+														"type": "String"
+													}
+												},
+												{
+													"source": {
+														"path": "[['product-name']"
+													},
+													"sink": {
+														"name": "product-name",
+														"type": "String"
+													}
+												},
+												{
+													"source": {
+														"path": "[['units']"
+													},
+													"sink": {
+														"name": "units",
+														"type": "String"
+													}
+												},
+												{
+													"source": {
+														"path": "$['IngestionDate']"
+													},
+													"sink": {
+														"name": "IngestionDate",
+														"type": "DateTime"
+													}
+												},
+												{
+													"source": {
+														"path": "$['PipelineRunId']"
+													},
+													"sink": {
+														"name": "PipelineRunId",
+														"type": "String"
+													}
+												},
+												{
+													"source": {
+														"path": "$['SourceStartDate']"
+													},
+													"sink": {
+														"name": "SourceStartDate",
+														"type": "String"
+													}
+												},
+												{
+													"source": {
+														"path": "$['SourceEndDate']"
+													},
+													"sink": {
+														"name": "SourceEndDate",
+														"type": "String"
+													}
+												}
+											],
+											"collectionReference": "$['response']['data']"
+										}
+									},
+									"inputs": [
+										{
+											"referenceName": "DS_EIA_REST_Source",
+											"type": "DatasetReference",
+											"parameters": {
+												"relativeUrl": "@concat('v2/petroleum/pri/spt/data/?api_key=', activity('Get_EIAKey').output.value, '&frequency=daily&data[0]=value&facets[series][]=RWTC&sort[0][column]=period&sort[0][direction]=desc&start=', variables('v_StartDate'), '&end=', variables('v_EndDate'), '&offset=', string(variables('v_PageOffset')), '&length=', string(pipeline().parameters.EIA_PageSize))"
+											}
+										}
+									],
+									"outputs": [
+										{
+											"referenceName": "DS_Bronze_OilPrice",
+											"type": "DatasetReference",
+											"parameters": {
+												"FolderPath": {
+													"value": "@variables('v_BronzeFolderPath')",
+													"type": "Expression"
+												},
+												"FileName": {
+													"value": "@concat('OilPrice_p', string(variables('v_PageOffset')), '.parquet')",
+													"type": "Expression"
+												}
+											}
+										}
+									]
+								},
+								{
+									"name": "Compute_NextPageOffset",
+									"type": "SetVariable",
+									"dependsOn": [
+										{
+											"activity": "Copy_EIAPage_To_Bronze",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "v_NextPageOffset",
+										"value": {
+											"value": "@add(variables('v_PageOffset'), pipeline().parameters.EIA_PageSize)",
+											"type": "Expression"
+										}
+									}
+								},
+								{
+									"name": "Apply_NextPageOffset",
+									"type": "SetVariable",
+									"dependsOn": [
+										{
+											"activity": "Compute_NextPageOffset",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "v_PageOffset",
+										"value": {
+											"value": "@variables('v_NextPageOffset')",
+											"type": "Expression"
+										}
+									}
+								},
+								{
+									"name": "Reset_RetryCount",
+									"description": "Backoff resets per page — a slow page shouldn't inflate the delay for the next page's first attempt.",
+									"type": "SetVariable",
+									"dependsOn": [
+										{
+											"activity": "Apply_NextPageOffset",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "v_RetryCount",
+										"value": 0
+									}
+								},
+								{
+									"name": "Reset_DelaySeconds",
+									"type": "SetVariable",
+									"dependsOn": [
+										{
+											"activity": "Apply_NextPageOffset",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "v_DelaySeconds",
+										"value": 30
+									}
+								},
+								{
+									"name": "Wait_CurrentDelay",
+									"description": "Same page retried after capped exponential wait.",
+									"type": "Wait",
+									"dependsOn": [
+										{
+											"activity": "Copy_EIAPage_To_Bronze",
+											"dependencyConditions": [
+												"Failed"
+											]
+										}
+									],
+									"userProperties": [],
+									"typeProperties": {
+										"waitTimeInSeconds": {
+											"value": "@variables('v_DelaySeconds')",
+											"type": "Expression"
+										}
+									}
+								},
+								{
+									"name": "Compute_NextRetryCount",
+									"type": "SetVariable",
+									"dependsOn": [
+										{
+											"activity": "Wait_CurrentDelay",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "v_NextRetryCount",
+										"value": {
+											"value": "@add(variables('v_RetryCount'), 1)",
+											"type": "Expression"
+										}
+									}
+								},
+								{
+									"name": "Compute_NextDelaySeconds",
+									"type": "SetVariable",
+									"dependsOn": [
+										{
+											"activity": "Wait_CurrentDelay",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "v_NextDelaySeconds",
+										"value": {
+											"value": "@if(greater(mul(variables('v_DelaySeconds'),2), variables('v_MaxDelaySeconds')), variables('v_MaxDelaySeconds'), mul(variables('v_DelaySeconds'),2))",
+											"type": "Expression"
+										}
+									}
+								},
+								{
+									"name": "Apply_NextRetryCount",
+									"type": "SetVariable",
+									"dependsOn": [
+										{
+											"activity": "Compute_NextRetryCount",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "v_RetryCount",
+										"value": {
+											"value": "@variables('v_NextRetryCount')",
+											"type": "Expression"
+										}
+									}
+								},
+								{
+									"name": "Apply_NextDelaySeconds",
+									"type": "SetVariable",
+									"dependsOn": [
+										{
+											"activity": "Compute_NextDelaySeconds",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "v_DelaySeconds",
+										"value": {
+											"value": "@variables('v_NextDelaySeconds')",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"timeout": "0.02:00:00"
+						}
+					},
+					{
+						"name": "Check_PaginationResult",
+						"description": "If the loop exited because retries were exhausted (not because pagination completed), fail explicitly rather than loading a partial Bronze folder.",
+						"type": "IfCondition",
+						"dependsOn": [
+							{
+								"activity": "Until_AllPagesFetched",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"expression": {
+								"value": "@less(variables('v_PageOffset'), variables('v_ResponseTotal'))",
+								"type": "Expression"
+							},
+							"ifTrueActivities": [
+								{
+									"name": "Fail_PaginationIncomplete",
+									"type": "Fail",
+									"dependsOn": [],
+									"userProperties": [],
+									"typeProperties": {
+										"message": "EIA pagination did not complete after retries exhausted on one page.",
+										"errorCode": "EIA_PAGINATION_RETRY_EXHAUSTED"
+									}
+								}
+							]
+						}
+					},
+					{
+						"name": "Copy_Bronze_To_SQL",
+						"description": "Reads the ENTIRE day's Bronze folder (all page files, recursive, via wildcard) — does NOT call EIA again. Runs even if zero rows exist (writes/truncates an empty result), which is fine since the watermark won't advance in that case.",
+						"type": "Copy",
+						"dependsOn": [
+							{
+								"activity": "Check_PaginationResult",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.00:10:00",
+							"retry": 2,
+							"retryIntervalInSeconds": 60,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "ParquetSource",
+								"storeSettings": {
+									"type": "AzureBlobFSReadSettings",
+									"recursive": true,
+									"wildcardFileName": "*.parquet"
+								},
+								"formatSettings": {
+									"type": "ParquetReadSettings"
+								}
+							},
+							"sink": {
+								"type": "AzureSqlSink",
+								"preCopyScript": "TRUNCATE TABLE staging.OilPrice",
+								"writeBehavior": "insert",
+								"sqlWriterUseTableLock": false,
+								"disableMetricsCollection": false
+							},
+							"enableStaging": false,
+							"translator": {
+								"type": "TabularTranslator",
+								"mappings": [
+									{
+										"source": {
+											"name": "period",
+											"type": "String"
+										},
+										"sink": {
+											"name": "period",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"name": "value",
+											"type": "String"
+										},
+										"sink": {
+											"name": "value",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"name": "series-description",
+											"type": "String"
+										},
+										"sink": {
+											"name": "series-description",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"name": "product-name",
+											"type": "String"
+										},
+										"sink": {
+											"name": "product-name",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"name": "units",
+											"type": "String"
+										},
+										"sink": {
+											"name": "units",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"name": "IngestionDate",
+											"type": "DateTime"
+										},
+										"sink": {
+											"name": "IngestionDate"
+										}
+									}
+								]
+							}
+						},
+						"inputs": [
+							{
+								"referenceName": "DS_Bronze_OilPrice",
+								"type": "DatasetReference",
+								"parameters": {
+									"FolderPath": {
+										"value": "@variables('v_BronzeFolderPath')",
+										"type": "Expression"
+									}
+								}
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "DS_AzureSQL_OilPrice_Sink",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						]
+					},
+					{
+						"name": "Check_DataAvailability",
+						"description": "Only advance the watermark if EIA actually returned rows for this window (v_ResponseTotal > 0). If total was 0 — source data not yet published for this date range — the watermark is left untouched, so the next scheduled run retries the exact same window automatically. This is how late-arriving source data is handled: no fixed lookback buffer, no manual backfill required.",
+						"type": "IfCondition",
+						"dependsOn": [
+							{
+								"activity": "Copy_Bronze_To_SQL",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"expression": {
+								"value": "@greater(variables('v_ResponseTotal'), 0)",
+								"type": "Expression"
+							},
+							"ifTrueActivities": [
+								{
+									"name": "Update_Watermark",
+									"description": "Advance watermark ONLY after SQL load succeeds AND rows were actually present. A failed run, or a run with zero rows for a late-arriving date, never advances it.",
+									"type": "Script",
+									"dependsOn": [],
+									"policy": {
+										"timeout": "0.00:05:00",
+										"retry": 2,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"linkedServiceName": {
+										"referenceName": "LS_AzureSQL",
+										"type": "LinkedServiceReference"
+									},
+									"typeProperties": {
+										"scripts": [
+											{
+												"type": "Query",
+												"text": {
+													"value": "@concat(\n'MERGE control.PipelineWatermark AS target\nUSING (SELECT ''',\npipeline().Pipeline,\n''' AS PipelineName) AS src\nON target.PipelineName = src.PipelineName\n\nWHEN MATCHED THEN\nUPDATE SET\n    LastSuccessfulLoadDate = ''',\nvariables('v_EndDate'),\n''',\n    LastSuccessfulRunTime = SYSUTCDATETIME(),\n    LastSuccessfulRunId = ''',\npipeline().RunId,\n''',\n    LastUpdatedTime = SYSUTCDATETIME()\n\nWHEN NOT MATCHED THEN\nINSERT (\n    PipelineName,\n    LastSuccessfulLoadDate,\n    LastSuccessfulRunTime,\n    LastSuccessfulRunId,\n    LastUpdatedTime\n)\nVALUES (\n    ''',\npipeline().Pipeline,\n''',\n    ''',\nvariables('v_EndDate'),\n''',\n    SYSUTCDATETIME(),\n    ''',\npipeline().RunId,\n''',\n    SYSUTCDATETIME()\n);'\n)",
+													"type": "Expression"
+												}
+											}
+										],
+										"scriptBlockExecutionTimeout": "02:00:00"
+									}
+								}
+							]
+						}
+					},
+					{
+						"name": "Set_PipelineReturnValue",
+						"description": "Exposes v_StartDate/v_EndDate as pipeline return value so the master orchestrator can pass the same watermark window to PL_Bronze_OilPrice_to_Gold. Runs regardless of which Check_DataAvailability branch executed, so downstream consumers always know the extraction window — even if it was a late-arriving-data no-op.",
+						"type": "SetVariable",
+						"dependsOn": [
+							{
+								"activity": "Check_DataAvailability",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "pipelineReturnValue",
+							"value": [
+								{
+									"key": "StartDate",
+									"value": {
+										"type": "String"
+									}
+								},
+								{
+									"key": "EndDate",
+									"value": {
+										"type": "String"
+									}
+								}
+							],
+							"setSystemVariable": true
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"parameters": {
+					"EIA_PageSize": {
+						"type": "int",
+						"defaultValue": 5000
+					},
+					"EIA_DefaultLookbackDays": {
+						"type": "int",
+						"defaultValue": 7
+					}
+				},
+				"variables": {
+					"v_StartDate": {
+						"type": "String"
+					},
+					"v_EndDate": {
+						"type": "String"
+					},
+					"v_ResponseTotal": {
+						"type": "Integer",
+						"defaultValue": 0
+					},
+					"v_PageOffset": {
+						"type": "Integer",
+						"defaultValue": 0
+					},
+					"v_NextPageOffset": {
+						"type": "Integer",
+						"defaultValue": 0
+					},
+					"v_RetryCount": {
+						"type": "Integer",
+						"defaultValue": 0
+					},
+					"v_NextRetryCount": {
+						"type": "Integer",
+						"defaultValue": 0
+					},
+					"v_DelaySeconds": {
+						"type": "Integer",
+						"defaultValue": 30
+					},
+					"v_NextDelaySeconds": {
+						"type": "Integer",
+						"defaultValue": 30
+					},
+					"v_MaxDelaySeconds": {
+						"type": "Integer",
+						"defaultValue": 480
+					},
+					"v_BronzeFolderPath": {
+						"type": "String"
+					}
+				},
+				"annotations": [
+					"EIA",
+					"WTI",
+					"OilPrice",
+					"REST",
+					"KeyVault",
+					"ManualPagination",
+					"ExponentialBackoff",
+					"Watermark",
+					"IdempotentRerun",
+					"DeterministicBronzePath",
+					"Replayable",
+					"LateArrivingData",
+					"SelfHealingWatermark",
+					"PipelineReturnValue"
+				],
+				"lastPublishTime": "2026-04-19T21:18:16Z"
 			},
 			"dependsOn": []
 		},
@@ -1881,14 +3026,14 @@
 								},
 								"BatchId": {
 									"value": {
-										"value": "@concat('BATCH_', formatDateTime(utcNow(),'yyyyMMdd'))",
+										"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd'))",
 										"type": "Expression"
 									},
 									"type": "String"
 								},
 								"RunDate": {
 									"value": {
-										"value": "@formatDateTime(utcNow(),'yyyy-MM-dd')",
+										"value": "@formatDateTime(pipeline().TriggerTime,'yyyy-MM-dd')",
 										"type": "Expression"
 									},
 									"type": "String"
@@ -1923,7 +3068,7 @@
 							"source": {
 								"type": "AzureSqlSource",
 								"sqlReaderQuery": {
-									"value": "SELECT Status FROM dbo.PipelineControl WHERE PipelineName='PL_Master_Orchestrator' AND BatchId='@{concat('BATCH_', formatDateTime(utcnow(),'yyyyMMdd'))}'",
+									"value": "SELECT Status FROM dbo.PipelineControl WHERE PipelineName='PL_Master_Orchestrator' AND BatchId='@{concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd'))}'",
 									"type": "Expression"
 								},
 								"partitionOption": "None"
@@ -1932,7 +3077,8 @@
 								"referenceName": "DS_AzureSQL_Generic",
 								"type": "DatasetReference",
 								"parameters": {}
-							}
+							},
+							"firstRowOnly": true
 						}
 					},
 					{
@@ -2030,7 +3176,7 @@
 									"userProperties": [],
 									"typeProperties": {
 										"pipeline": {
-											"referenceName": "PL_EIA_to_Staging",
+											"referenceName": "PL_EIA_IncrementalIngestion",
 											"type": "PipelineReference"
 										},
 										"waitOnCompletion": true,
@@ -2082,7 +3228,16 @@
 											"type": "PipelineReference"
 										},
 										"waitOnCompletion": true,
-										"parameters": {}
+										"parameters": {
+											"StartDate": {
+												"value": "@activity('PL_EIA_to_Bronze').output.pipelineReturnValue.StartDate",
+												"type": "Expression"
+											},
+											"EndDate": {
+												"value": "@activity('PL_EIA_to_Bronze').output.pipelineReturnValue.EndDate",
+												"type": "Expression"
+											}
+										}
 									}
 								},
 								{
@@ -2164,43 +3319,11 @@
 									}
 								},
 								{
-									"name": "GetSilverCounts",
-									"type": "Lookup",
-									"dependsOn": [
-										{
-											"activity": "ADLS gold Archival Copy",
-											"dependencyConditions": [
-												"Succeeded"
-											]
-										}
-									],
-									"policy": {
-										"timeout": "0.12:00:00",
-										"retry": 0,
-										"retryIntervalInSeconds": 30,
-										"secureOutput": false,
-										"secureInput": false
-									},
-									"userProperties": [],
-									"typeProperties": {
-										"source": {
-											"type": "AzureSqlSource",
-											"sqlReaderQuery": "DECLARE @RunDateClean NVARCHAR(8) = REPLACE(CONVERT(NVARCHAR(10), GETDATE(), 120), '-', '');\nDECLARE @SQL NVARCHAR(MAX) = N'\nSELECT \n    (SELECT COUNT(*) FROM staging.Silver_Wells) AS SilverRowCount,\n    (SELECT COUNT(*) FROM staging.Silver_Wells) AS SourceRowCount,\n    (SELECT COUNT(*) FROM dbo.quarantine_' + @RunDateClean + N') AS QuarantineRowCount';\nEXEC sp_executesql @SQL;\n",
-											"partitionOption": "None"
-										},
-										"dataset": {
-											"referenceName": "DS_AzureSQL_Generic",
-											"type": "DatasetReference",
-											"parameters": {}
-										}
-									}
-								},
-								{
 									"name": "EndPipelineRun_Success",
 									"type": "SqlServerStoredProcedure",
 									"dependsOn": [
 										{
-											"activity": "GetSilverCounts",
+											"activity": "Reconciliation",
 											"dependencyConditions": [
 												"Succeeded"
 											]
@@ -2223,28 +3346,28 @@
 											},
 											"BatchId": {
 												"value": {
-													"value": "@concat('BATCH_', formatDateTime(utcnow(),'yyyyMMdd'))",
+													"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd'))",
 													"type": "Expression"
 												},
 												"type": "String"
 											},
 											"SourceRowCount": {
 												"value": {
-													"value": "@activity('GetSilverCounts').output.firstRow.SourceRowCount",
+													"value": "@activity('Reconciliation').output.pipelineReturnValue.SourceRowCount",
 													"type": "Expression"
 												},
 												"type": "Int32"
 											},
 											"SilverRowCount": {
 												"value": {
-													"value": "@activity('GetSilverCounts').output.firstRow.SilverRowCount",
+													"value": "@activity('Reconciliation').output.pipelineReturnValue.SilverRowCount",
 													"type": "Expression"
 												},
 												"type": "Int32"
 											},
 											"QuarantineRowCount": {
 												"value": {
-													"value": "@activity('GetSilverCounts').output.firstRow.QuarantineRowCount",
+													"value": "@activity('Reconciliation').output.pipelineReturnValue.QuarantineRowCount",
 													"type": "Expression"
 												},
 												"type": "Int32"
@@ -2254,6 +3377,30 @@
 									"linkedServiceName": {
 										"referenceName": "LS_AzureSQL",
 										"type": "LinkedServiceReference"
+									}
+								},
+								{
+									"name": "Reconciliation",
+									"type": "ExecutePipeline",
+									"dependsOn": [
+										{
+											"activity": "ADLS gold Archival Copy",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "PL_ADLS_Reconciliation",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {}
 									}
 								}
 							]
@@ -2346,7 +3493,7 @@
 								},
 								"BatchId": {
 									"value": {
-										"value": "@concat('BATCH_', formatDateTime(utcnow(),'yyyyMMdd'))",
+										"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd'))",
 										"type": "Expression"
 									},
 									"type": "String"
@@ -2386,7 +3533,7 @@
 			},
 			"dependsOn": [
 				"[concat(variables('factoryId'), '/pipelines/PL_ST37_to_Bronze')]",
-				"[concat(variables('factoryId'), '/pipelines/PL_EIA_to_Staging')]",
+				"[concat(variables('factoryId'), '/pipelines/PL_EIA_IncrementalIngestion')]",
 				"[concat(variables('factoryId'), '/pipelines/PL_Bronze_to_Silver_quarantine')]",
 				"[concat(variables('factoryId'), '/pipelines/PL_Bronze_OilPrice_to_Gold')]",
 				"[concat(variables('factoryId'), '/pipelines/PL_Silver_to_Staging_SQL')]",

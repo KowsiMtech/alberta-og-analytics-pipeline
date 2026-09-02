@@ -13,6 +13,68 @@
 	},
 	"resources": [
 		{
+			"name": "[concat(parameters('factoryName'), '/DS_ADLS_Archive_Parquet')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"FolderPath": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": {
+							"value": "@dataset().FolderPath",
+							"type": "Expression"
+						},
+						"fileSystem": "aer-og-data"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": []
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_ADLS_Folder_RowCount')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_ADLS_Gen2",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"FolderPath": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": {
+							"value": "@dataset().FolderPath",
+							"type": "Expression"
+						},
+						"fileSystem": "aer-og-data"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": []
+			},
+			"dependsOn": []
+		},
+		{
 			"name": "[concat(parameters('factoryName'), '/DS_ADLS_GoldOilPrice_Folder')]",
 			"type": "Microsoft.DataFactory/factories/datasets",
 			"apiVersion": "2018-06-01",
@@ -112,8 +174,8 @@
 				"type": "AzureSqlTable",
 				"schema": [],
 				"typeProperties": {
-					"schema": "dbo",
-					"table": "PipelineControl"
+					"schema": "staging",
+					"table": "Silver_Wells"
 				}
 			},
 			"dependsOn": []
@@ -902,158 +964,6 @@
 				"typeProperties": {
 					"schema": "dbo",
 					"table": ""
-				}
-			},
-			"dependsOn": []
-		},
-		{
-			"name": "[concat(parameters('factoryName'), '/SqlServerExternal_ControlTable')]",
-			"type": "Microsoft.DataFactory/factories/datasets",
-			"apiVersion": "2018-06-01",
-			"properties": {
-				"description": "The external control table is used to store the partition list of data source tables.",
-				"linkedServiceName": {
-					"referenceName": "LS_OnPrem_SQL",
-					"type": "LinkedServiceReference"
-				},
-				"parameters": {
-					"TableName": {
-						"type": "String"
-					}
-				},
-				"annotations": [],
-				"type": "SqlServerTable",
-				"schema": [],
-				"typeProperties": {
-					"schema": "dbo",
-					"table": {
-						"value": "@dataset().TableName",
-						"type": "Expression"
-					}
-				}
-			},
-			"dependsOn": []
-		},
-		{
-			"name": "[concat(parameters('factoryName'), '/PII detection and masking')]",
-			"type": "Microsoft.DataFactory/factories/dataflows",
-			"apiVersion": "2018-06-01",
-			"properties": {
-				"description": "This dataflow will create the request body needed for Azure Cognitive Services and then use the external call transformation to detect and mask PII data with the Cognitive Services PII API. ",
-				"type": "MappingDataFlow",
-				"typeProperties": {
-					"sources": [
-						{
-							"linkedService": {
-								"referenceName": "LS_ADLS_Gen2",
-								"type": "LinkedServiceReference"
-							},
-							"name": "dataSource",
-							"description": "Import data from data source"
-						}
-					],
-					"sinks": [
-						{
-							"name": "sink"
-						}
-					],
-					"transformations": [
-						{
-							"name": "externalCallCogServices",
-							"linkedService": {
-								"referenceName": "LS_EIA_REST",
-								"type": "LinkedServiceReference"
-							}
-						},
-						{
-							"name": "createRequestBody",
-							"description": "Creating the columns 'kind, parameters, analysisInput, text'"
-						},
-						{
-							"name": "flattenResults"
-						}
-					],
-					"scriptLines": [
-						"parameters{",
-						"     sourceFileSystem as string ('sourceFileSystem'),",
-						"     sourceFilePath as string ('sourceFilePath'),",
-						"     sourceFileName as string ('sourceFileName')",
-						"}",
-						"source(output(",
-						"          case_month as string,",
-						"          res_state as string,",
-						"          state_fips_code as short,",
-						"          res_county as string,",
-						"          county_fips_code as string,",
-						"          age_group as string,",
-						"          sex as string,",
-						"          race as string,",
-						"          ethnicity as string,",
-						"          case_positive_specimen_interval as short,",
-						"          case_onset_interval as short,",
-						"          process as string,",
-						"          exposure_yn as string,",
-						"          current_status as string,",
-						"          symptom_status as string,",
-						"          hosp_yn as string,",
-						"          icu_yn as string,",
-						"          death_yn as string,",
-						"          underlying_conditions_yn as string,",
-						"          name as string,",
-						"          email as string,",
-						"          phone_number as string",
-						"     ),",
-						"     useSchema: false,",
-						"     allowSchemaDrift: true,",
-						"     validateSchema: false,",
-						"     ignoreNoFilesFound: false,",
-						"     format: 'delimited',",
-						"     fileSystem: ($sourceFileSystem),",
-						"     folderPath: ($sourceFilePath),",
-						"     fileName: ($sourceFileName),",
-						"     columnDelimiter: ',',",
-						"     escapeChar: '\\\\',",
-						"     quoteChar: '\\\"',",
-						"     columnNamesAsHeader: true) ~> dataSource",
-						"createRequestBody call(mapColumn(",
-						"          kind,",
-						"          parameters,",
-						"          analysisInput",
-						"     ),",
-						"     skipDuplicateMapInputs: true,",
-						"     skipDuplicateMapOutputs: true,",
-						"     output(",
-						"          body as (kind as string, results as (documents as (redactedText as string, id as string, entities as (text as string, category as string, offset as integer, length as integer, confidenceScore as double)[])[]))",
-						"     ),",
-						"     allowSchemaDrift: true,",
-						"     format: 'rest',",
-						"     store: 'restservice',",
-						"     timeout: 30,",
-						"     requestInterval: 0,",
-						"     httpMethod: 'POST',",
-						"     entity: 'language/:analyze-text?api-version=2022-05-01',",
-						"     bodyColumnName: 'body',",
-						"     requestFormat: ['type' -> 'json'],",
-						"     responseFormat: ['type' -> 'json', 'documentForm' -> 'documentPerLine']) ~> externalCallCogServices",
-						"dataSource derive(kind = 'PiiEntityRecognition',",
-						"          parameters = @(modelVersion='latest'),",
-						"          analysisInput = @(documents=array(@(id=\"1\", language=\"en\", text=concatWS(', ', name,email,phone_number,case_month,res_state,res_county,age_group,sex,race,ethnicity,process,exposure_yn,current_status,symptom_status,hosp_yn,icu_yn,icu_yn,death_yn,underlying_conditions_yn)))),",
-						"          text = concatWS(', ', name,email,phone_number,case_month,res_state,res_county,age_group,sex,race,ethnicity,process,exposure_yn,current_status,symptom_status,hosp_yn,icu_yn,icu_yn,death_yn,underlying_conditions_yn)) ~> createRequestBody",
-						"externalCallCogServices foldDown(unroll(body.results.documents),",
-						"     mapColumn(",
-						"          redactedText = body.results.documents.redactedText,",
-						"          text",
-						"     ),",
-						"     skipDuplicateMapInputs: false,",
-						"     skipDuplicateMapOutputs: false) ~> flattenResults",
-						"flattenResults sink(validateSchema: false,",
-						"     skipDuplicateMapInputs: true,",
-						"     skipDuplicateMapOutputs: true,",
-						"     store: 'cache',",
-						"     format: 'inline',",
-						"     output: false,",
-						"     saveOrder: 1) ~> sink"
-					]
 				}
 			},
 			"dependsOn": []
