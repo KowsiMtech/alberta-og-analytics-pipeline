@@ -9,8 +9,8 @@
 		"type": "AzureSqlTable",
 		"schema": [],
 		"typeProperties": {
-			"schema": "dbo",
-			"table": "PipelineControl"
+			"schema": "staging",
+			"table": "Silver_Wells"
 		}
 	}
 }

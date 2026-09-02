@@ -23,14 +23,14 @@
 						},
 						"BatchId": {
 							"value": {
-								"value": "@concat('BATCH_', formatDateTime(utcNow(),'yyyyMMdd'))",
+								"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd'))",
 								"type": "Expression"
 							},
 							"type": "String"
 						},
 						"RunDate": {
 							"value": {
-								"value": "@formatDateTime(utcNow(),'yyyy-MM-dd')",
+								"value": "@formatDateTime(pipeline().TriggerTime,'yyyy-MM-dd')",
 								"type": "Expression"
 							},
 							"type": "String"
@@ -65,7 +65,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "SELECT Status FROM dbo.PipelineControl WHERE PipelineName='PL_Master_Orchestrator' AND BatchId='@{concat('BATCH_', formatDateTime(utcnow(),'yyyyMMdd'))}'",
+							"value": "SELECT Status FROM dbo.PipelineControl WHERE PipelineName='PL_Master_Orchestrator' AND BatchId='@{concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd'))}'",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
@@ -73,7 +73,8 @@
 					"dataset": {
 						"referenceName": "DS_AzureSQL_Generic",
 						"type": "DatasetReference"
-					}
+					},
+					"firstRowOnly": true
 				}
 			},
 			{
@@ -170,7 +171,7 @@
 							"userProperties": [],
 							"typeProperties": {
 								"pipeline": {
-									"referenceName": "PL_EIA_to_Staging",
+									"referenceName": "PL_EIA_IncrementalIngestion",
 									"type": "PipelineReference"
 								},
 								"waitOnCompletion": true
@@ -219,7 +220,17 @@
 									"referenceName": "PL_Bronze_OilPrice_to_Gold",
 									"type": "PipelineReference"
 								},
-								"waitOnCompletion": true
+								"waitOnCompletion": true,
+								"parameters": {
+									"StartDate": {
+										"value": "@activity('PL_EIA_to_Bronze').output.pipelineReturnValue.StartDate",
+										"type": "Expression"
+									},
+									"EndDate": {
+										"value": "@activity('PL_EIA_to_Bronze').output.pipelineReturnValue.EndDate",
+										"type": "Expression"
+									}
+								}
 							}
 						},
 						{
@@ -298,42 +309,11 @@
 							}
 						},
 						{
-							"name": "GetSilverCounts",
-							"type": "Lookup",
-							"dependsOn": [
-								{
-									"activity": "ADLS gold Archival Copy",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"policy": {
-								"timeout": "0.12:00:00",
-								"retry": 0,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"source": {
-									"type": "AzureSqlSource",
-									"sqlReaderQuery": "DECLARE @RunDateClean NVARCHAR(8) = REPLACE(CONVERT(NVARCHAR(10), GETDATE(), 120), '-', '');\nDECLARE @SQL NVARCHAR(MAX) = N'\nSELECT \n    (SELECT COUNT(*) FROM staging.Silver_Wells) AS SilverRowCount,\n    (SELECT COUNT(*) FROM staging.Silver_Wells) AS SourceRowCount,\n    (SELECT COUNT(*) FROM dbo.quarantine_' + @RunDateClean + N') AS QuarantineRowCount';\nEXEC sp_executesql @SQL;\n",
-									"partitionOption": "None"
-								},
-								"dataset": {
-									"referenceName": "DS_AzureSQL_Generic",
-									"type": "DatasetReference"
-								}
-							}
-						},
-						{
 							"name": "EndPipelineRun_Success",
 							"type": "SqlServerStoredProcedure",
 							"dependsOn": [
 								{
-									"activity": "GetSilverCounts",
+									"activity": "Reconciliation",
 									"dependencyConditions": [
 										"Succeeded"
 									]
@@ -356,28 +336,28 @@
 									},
 									"BatchId": {
 										"value": {
-											"value": "@concat('BATCH_', formatDateTime(utcnow(),'yyyyMMdd'))",
+											"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd'))",
 											"type": "Expression"
 										},
 										"type": "String"
 									},
 									"SourceRowCount": {
 										"value": {
-											"value": "@activity('GetSilverCounts').output.firstRow.SourceRowCount",
+											"value": "@activity('Reconciliation').output.pipelineReturnValue.SourceRowCount",
 											"type": "Expression"
 										},
 										"type": "Int32"
 									},
 									"SilverRowCount": {
 										"value": {
-											"value": "@activity('GetSilverCounts').output.firstRow.SilverRowCount",
+											"value": "@activity('Reconciliation').output.pipelineReturnValue.SilverRowCount",
 											"type": "Expression"
 										},
 										"type": "Int32"
 									},
 									"QuarantineRowCount": {
 										"value": {
-											"value": "@activity('GetSilverCounts').output.firstRow.QuarantineRowCount",
+											"value": "@activity('Reconciliation').output.pipelineReturnValue.QuarantineRowCount",
 											"type": "Expression"
 										},
 										"type": "Int32"
@@ -387,6 +367,29 @@
 							"linkedServiceName": {
 								"referenceName": "LS_AzureSQL",
 								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "Reconciliation",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "ADLS gold Archival Copy",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_ADLS_Reconciliation",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true
 							}
 						}
 					]
@@ -479,7 +482,7 @@
 						},
 						"BatchId": {
 							"value": {
-								"value": "@concat('BATCH_', formatDateTime(utcnow(),'yyyyMMdd'))",
+								"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd'))",
 								"type": "Expression"
 							},
 							"type": "String"

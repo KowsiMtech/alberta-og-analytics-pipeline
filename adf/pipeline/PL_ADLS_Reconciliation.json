@@ -1,0 +1,142 @@
+{
+	"name": "PL_ADLS_Reconciliation",
+	"properties": {
+		"activities": [
+			{
+				"name": "GetRowCount_Silver",
+				"type": "Script",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "LS_Synapse_Serverless",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": "SELECT COUNT(*) AS SilverCount\nFROM OPENROWSET(\n    BULK '/bronze/well/2026-08-27/*.parquet',\n    DATA_SOURCE = 'aer_adls',\n    FORMAT = 'PARQUET'\n) AS b\nWHERE UWI_DISPLAY_FORMAT IS NOT NULL\n  AND UWI_DISPLAY_FORMAT <> ''\n  AND TRY_CONVERT(DATE, LICENSE_ISSUE_DATE, 112) IS NOT NULL\n  AND TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2)) >= 0;"
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			},
+			{
+				"name": "GetRowCount_Quarantine",
+				"type": "Script",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "LS_Synapse_Serverless",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": "SELECT COUNT(*) AS QuarantineCount\nFROM OPENROWSET(\n    BULK '/bronze/well/2026-08-27/*.parquet',\n    DATA_SOURCE = 'aer_adls',\n    FORMAT = 'PARQUET'\n) AS b\nWHERE UWI_DISPLAY_FORMAT IS NULL\n   OR UWI_DISPLAY_FORMAT = ''\n   OR TRY_CONVERT(DATE, LICENSE_ISSUE_DATE, 112) IS NULL\n   OR TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2)) < 0\n   OR (\n        WELL_TOTAL_DEPTH IS NOT NULL\n        AND TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2)) IS NULL\n      );"
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			},
+			{
+				"name": "GetRowCount_Bronze",
+				"type": "Script",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "LS_Synapse_Serverless",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": "DECLARE @RunDate NVARCHAR(10) =\n    CONVERT(NVARCHAR(10), GETDATE(), 120);\n\nDECLARE @SQL NVARCHAR(MAX);\n\nSET @SQL = N'\nSELECT COUNT(*) AS BronzeCount\nFROM OPENROWSET(\n    BULK ''/bronze/well/' + @RunDate + N'/*.parquet'',\n    DATA_SOURCE = ''aer_adls'',\n    FORMAT = ''PARQUET''\n) AS b;\n';\n\nEXEC sp_executesql @SQL;"
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			},
+			{
+				"name": "Set_Reconciliation_ReturnValues",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "GetRowCount_Bronze",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "GetRowCount_Silver",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "GetRowCount_Quarantine",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "pipelineReturnValue",
+					"value": [
+						{
+							"key": "SourceRowCount",
+							"value": {
+								"type": "Expression",
+								"content": "@activity('GetRowCount_Bronze').output.resultSets[0].rows[0].BronzeCount"
+							}
+						},
+						{
+							"key": "SilverRowCount",
+							"value": {
+								"type": "Expression",
+								"content": "@activity('GetRowCount_Silver').output.resultSets[0].rows[0].SilverCount"
+							}
+						},
+						{
+							"key": "QuarantineRowCount",
+							"value": {
+								"type": "Expression",
+								"content": "@activity('GetRowCount_Quarantine').output.resultSets[0].rows[0].QuarantineCount"
+							}
+						}
+					],
+					"setSystemVariable": true
+				}
+			}
+		],
+		"annotations": []
+	}
+}

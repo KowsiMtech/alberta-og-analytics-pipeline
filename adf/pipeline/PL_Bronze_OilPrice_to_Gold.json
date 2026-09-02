@@ -20,7 +20,7 @@
 						"type": "DatasetReference",
 						"parameters": {
 							"RunDate": {
-								"value": "@formatDateTime(utcnow(),'yyyy-MM-dd')",
+								"value": "@concat(pipeline().parameters.StartDate, '_', pipeline().parameters.EndDate)",
 								"type": "Expression"
 							}
 						}
@@ -60,13 +60,24 @@
 					"scripts": [
 						{
 							"type": "NonQuery",
-							"text": "USE aer_synapse_db;\n\n------------------------------------------------------------\n-- 1. RUN DATE / RUN STAMP VARIABLES\n------------------------------------------------------------\n\nDECLARE @RunDate NVARCHAR(10) =\n    CONVERT(NVARCHAR(10), GETDATE(), 120);\n\nDECLARE @RunDateClean NVARCHAR(8) =\n    REPLACE(@RunDate, '-', '');\n\nDECLARE @RunStamp NVARCHAR(25) =\n    @RunDateClean\n    + '_'\n    + REPLACE(\n        CONVERT(NVARCHAR(8), GETDATE(), 108),\n        ':',\n        ''\n      );\n\n\n------------------------------------------------------------\n-- 2. DROP EXISTING EXTERNAL TABLE METADATA IF RE-RUNNING\n-- The ADLS location is unique per run, so this mainly\n-- removes the external-table metadata if it already exists.\n------------------------------------------------------------\n\nDECLARE @DropSQL NVARCHAR(MAX) = N'\n    IF OBJECT_ID(''dbo.fact_oilprice_' + @RunStamp + N''') IS NOT NULL\n        DROP EXTERNAL TABLE dbo.fact_oilprice_' + @RunStamp + N';\n';\n\nEXEC sp_executesql @DropSQL;\n\n\n------------------------------------------------------------\n-- 3. CETAS\n-- Bronze EIA Parquet -> Gold OilPrice Parquet\n--\n-- Each run gets a unique folder:\n-- /gold/fact_oilprice/YYYY-MM-DD/run_YYYYMMDD_HHMMSS/\n------------------------------------------------------------\n\nDECLARE @SQL NVARCHAR(MAX) = N'\nCREATE EXTERNAL TABLE dbo.fact_oilprice_' + @RunStamp + N'\nWITH\n(\n    LOCATION = ''/gold/fact_oilprice/'\n               + @RunDate\n               + N'/run_'\n               + @RunStamp\n               + N'/'',\n\n    DATA_SOURCE = aer_adls,\n    FILE_FORMAT = parquet_format\n)\nAS\nSELECT\n    TRY_CAST([period] AS DATE) AS PriceDate,\n\n    TRY_CAST(\n        [value] AS DECIMAL(10, 2)\n    ) AS OilPrice_USD,\n\n    [series-description] AS SeriesDescription,\n\n    GETDATE() AS Loaded_At\n\nFROM OPENROWSET\n(\n    BULK ''/bronze/oilprice/'\n         + @RunDate\n         + N'/*.parquet'',\n\n    DATA_SOURCE = ''aer_adls'',\n    FORMAT = ''PARQUET''\n) AS b\n\nWHERE [period] IS NOT NULL\n  AND [value] IS NOT NULL\n  AND TRY_CAST([value] AS DECIMAL(10, 2)) IS NOT NULL;\n';\n\nEXEC sp_executesql @SQL;"
+							"text": {
+								"value": "USE aer_synapse_db;\n\n------------------------------------------------------------\n-- 1. RUN STAMP + SOURCE WINDOW\n-- @StartDate/@EndDate come from the pipeline (same watermark\n-- window as PL_EIA_IncrementalIngestion), NOT today's date --\n-- Bronze is partitioned by start_date=/end_date=, not by a\n-- flat run date.\n------------------------------------------------------------\n\nDECLARE @StartDate NVARCHAR(10) = '@{pipeline().parameters.StartDate}';\nDECLARE @EndDate   NVARCHAR(10) = '@{pipeline().parameters.EndDate}';\n\nDECLARE @RunStamp NVARCHAR(25) =\n    REPLACE(CONVERT(NVARCHAR(10), GETDATE(), 120), '-', '')\n    + '_'\n    + REPLACE(CONVERT(NVARCHAR(8), GETDATE(), 108), ':', '');\n\nDECLARE @TableName NVARCHAR(200) = 'dbo.fact_oilprice_' + @RunStamp;\nDECLARE @Location  NVARCHAR(400) =\n    '/gold/fact_oilprice/' + @StartDate + '_' + @EndDate + '/run_' + @RunStamp + '/';\nDECLARE @BronzePath NVARCHAR(400) =\n    '/bronze/oilprice/start_date=' + @StartDate + '/end_date=' + @EndDate + '/*.parquet';\n\n------------------------------------------------------------\n-- 2. DROP EXISTING EXTERNAL TABLE METADATA IF RE-RUNNING\n------------------------------------------------------------\n\nDECLARE @DropSQL NVARCHAR(MAX) =\n    N'IF OBJECT_ID(''' + @TableName + N''') IS NOT NULL DROP EXTERNAL TABLE ' + @TableName + N';';\nEXEC sp_executesql @DropSQL;\n\n------------------------------------------------------------\n-- 3. CETAS: Bronze EIA Parquet -> Gold OilPrice Parquet\n------------------------------------------------------------\n\nDECLARE @SQL NVARCHAR(MAX) =\n    N'CREATE EXTERNAL TABLE ' + @TableName + N'\nWITH\n(\n    LOCATION = ''' + @Location + N''',\n    DATA_SOURCE = aer_adls,\n    FILE_FORMAT = parquet_format\n)\nAS\nSELECT\n    TRY_CAST([period] AS DATE) AS PriceDate,\n    TRY_CAST([value] AS DECIMAL(10,2)) AS OilPrice_USD,\n    [series-description] AS SeriesDescription,\n    GETDATE() AS Loaded_At\nFROM OPENROWSET(\n    BULK ''' + @BronzePath + N''',\n    DATA_SOURCE = ''aer_adls'',\n    FORMAT = ''PARQUET''\n) AS b\nWHERE [period] IS NOT NULL\n  AND [value] IS NOT NULL\n  AND TRY_CAST([value] AS DECIMAL(10,2)) IS NOT NULL;';\n\nEXEC sp_executesql @SQL;",
+								"type": "Expression"
+							}
 						}
 					],
 					"scriptBlockExecutionTimeout": "02:00:00"
 				}
 			}
 		],
+		"parameters": {
+			"StartDate": {
+				"type": "string"
+			},
+			"EndDate": {
+				"type": "string"
+			}
+		},
 		"annotations": [],
 		"lastPublishTime": "2026-04-20T01:01:50Z"
 	},
