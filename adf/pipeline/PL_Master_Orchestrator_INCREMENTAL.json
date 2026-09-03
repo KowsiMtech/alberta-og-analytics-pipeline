@@ -413,20 +413,10 @@
 							"userProperties": [],
 							"typeProperties": {
 								"pipeline": {
-									"referenceName": "PL_ADLS_Reconciliation",
+									"referenceName": "PL_ADLS_Reconciliation_incremental",
 									"type": "PipelineReference"
 								},
-								"waitOnCompletion": true,
-								"parameters": {
-									"WindowKey": {
-										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.WindowKey",
-										"type": "Expression"
-									},
-									"HasRows": {
-										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.HasRows",
-										"type": "Expression"
-									}
-								}
+								"waitOnCompletion": true
 							}
 						}
 					]
