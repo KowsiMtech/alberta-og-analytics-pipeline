@@ -1,5 +1,5 @@
 {
-	"name": "PL_ADLS_Reconciliation_incremental",
+	"name": "PL_ADLS_Reconciliation_INCREMENTAL",
 	"properties": {
 		"description": "Incremental reconciliation for the exact ST37 WindowKey. Returns current-batch Bronze/Silver/Quarantine counts; zero when ST37 has no rows.",
 		"activities": [

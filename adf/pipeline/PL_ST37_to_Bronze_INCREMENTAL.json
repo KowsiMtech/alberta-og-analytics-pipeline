@@ -152,7 +152,7 @@
 				},
 				"inputs": [
 					{
-						"referenceName": "DS_OnPrem_WellList_Inc",
+						"referenceName": "DS_OnPrem_WellList",
 						"type": "DatasetReference"
 					}
 				],
