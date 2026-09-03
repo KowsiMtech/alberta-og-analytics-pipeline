@@ -125,7 +125,7 @@
 					"source": {
 						"type": "SqlServerSource",
 						"sqlReaderQuery": {
-							"value": "@concat('SELECT * FROM [', pipeline().parameters.SourceSchema, '].[', pipeline().parameters.SourceTable, '] WHERE [LastModifiedDateTime] > CONVERT(datetime2(7), ''', variables('v_StartWatermark'), ''', 126) AND [LastModifiedDateTime] <= CONVERT(datetime2(7), ''', variables('v_EndWatermark'), ''', 126)')",
+							"value": "@concat(\n    'SELECT * FROM [',\n    pipeline().parameters.SourceSchema,\n    '].[',\n    pipeline().parameters.SourceTable,\n    '] WHERE [LastModifiedDateTime] > CONVERT(datetime2(7), ''',\n    variables('v_StartWatermark'),\n    ''', 126) AND [LastModifiedDateTime] <= CONVERT(datetime2(7), ''',\n    variables('v_EndWatermark'),\n    ''', 126)'\n)",
 							"type": "Expression"
 						},
 						"queryTimeout": "02:00:00",
