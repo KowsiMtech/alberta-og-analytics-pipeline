@@ -66,7 +66,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "@concat('SELECT Status FROM dbo.PipelineControl WHERE PipelineName=''''PL_Master_Orchestrator_INCREMENTAL'''' AND BatchId=''''', 'BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8), '''''')",
+							"value": "@concat(\n    'SELECT Status FROM dbo.PipelineControl WHERE PipelineName = ''PL_Master_Orchestrator_INCREMENTAL'' AND BatchId = ''',\n    'BATCH_',\n    formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'),\n    '_',\n    substring(pipeline().RunId,0,8),\n    ''''\n)",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
