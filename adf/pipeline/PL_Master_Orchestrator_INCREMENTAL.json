@@ -1,59 +1,12 @@
 {
-	"name": "PL_Master_Orchestrator_Incremental",
+	"name": "PL_Master_Orchestrator_INCREMENTAL",
 	"properties": {
-		"description": "Master orchestrator with incremental ST37 WellList ingestion and incremental EIA ingestion.",
+		"description": "Master orchestrator with incremental ST37 WellList ingestion and incremental EIA ingestion. Idempotency check runs before the run record is created so it checks for a genuine prior RUNNING batch instead of the row it just inserted.",
 		"activities": [
-			{
-				"name": "Pipeline Start Script",
-				"type": "SqlServerStoredProcedure",
-				"dependsOn": [],
-				"policy": {
-					"timeout": "0.12:00:00",
-					"retry": 0,
-					"retryIntervalInSeconds": 30,
-					"secureOutput": false,
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"storedProcedureName": "[dbo].[usp_StartPipelineRun]",
-					"storedProcedureParameters": {
-						"PipelineName": {
-							"value": "PL_Master_Orchestrator_Incremental",
-							"type": "String"
-						},
-						"BatchId": {
-							"value": {
-								"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd'))",
-								"type": "Expression"
-							},
-							"type": "String"
-						},
-						"RunDate": {
-							"value": {
-								"value": "@formatDateTime(pipeline().TriggerTime,'yyyy-MM-dd')",
-								"type": "Expression"
-							},
-							"type": "String"
-						}
-					}
-				},
-				"linkedServiceName": {
-					"referenceName": "LS_AzureSQL",
-					"type": "LinkedServiceReference"
-				}
-			},
 			{
 				"name": "GetIdempotencyStatus",
 				"type": "Lookup",
-				"dependsOn": [
-					{
-						"activity": "Pipeline Start Script",
-						"dependencyConditions": [
-							"Succeeded"
-						]
-					}
-				],
+				"dependsOn": [],
 				"policy": {
 					"timeout": "0.12:00:00",
 					"retry": 0,
@@ -66,7 +19,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "SELECT Status FROM dbo.PipelineControl WHERE PipelineName='PL_Master_Orchestrator_Incremental' AND BatchId='@{concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd'))}'",
+							"value": "SELECT COUNT(*) AS ActiveCount FROM dbo.PipelineControl WHERE PipelineName = 'PL_Master_Orchestrator_INCREMENTAL' AND Status = 'RUNNING' AND RunStartTime > DATEADD(HOUR, -6, GETUTCDATE())",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
@@ -92,7 +45,7 @@
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
-						"value": "@equals(activity('GetIdempotencyStatus').output.firstRow.Status, 'RUNNING')",
+						"value": "@equals(int(activity('GetIdempotencyStatus').output.firstRow.ActiveCount), 0)",
 						"type": "Expression"
 					},
 					"ifFalseActivities": [
@@ -116,7 +69,7 @@
 										"type": "String"
 									},
 									"ErrorMessage": {
-										"value": "Batch already RUNNING or COMPLETED for this date - idempotency check prevented duplicate run",
+										"value": "A batch for this pipeline was already RUNNING within the last 6 hours - idempotency check prevented a concurrent run",
 										"type": "String"
 									},
 									"PipelineName": {
@@ -147,24 +100,67 @@
 					],
 					"ifTrueActivities": [
 						{
+							"name": "Pipeline Start Script",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[dbo].[usp_StartPipelineRun]",
+								"storedProcedureParameters": {
+									"PipelineName": {
+										"value": "PL_Master_Orchestrator_INCREMENTAL",
+										"type": "String"
+									},
+									"BatchId": {
+										"value": {
+											"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"RunDate": {
+										"value": {
+											"value": "@formatDateTime(pipeline().TriggerTime,'yyyy-MM-dd')",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
 							"name": "PLST37_to_Bronze",
 							"type": "ExecutePipeline",
-							"dependsOn": [],
+							"dependsOn": [
+								{
+									"activity": "Pipeline Start Script",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
 							"policy": {
 								"secureInput": false
 							},
 							"userProperties": [],
 							"typeProperties": {
 								"pipeline": {
-									"referenceName": "PL_ST37_to_Bronze",
+									"referenceName": "PL_ST37_to_Bronze_INCREMENTAL",
 									"type": "PipelineReference"
 								},
 								"waitOnCompletion": true,
 								"parameters": {
-									"WatermarkColumn": {
-										"value": "@pipeline().parameters.ST37_WatermarkColumn",
-										"type": "Expression"
-									},
 									"ST37_DefaultLookbackDays": {
 										"value": "@pipeline().parameters.ST37_DefaultLookbackDays",
 										"type": "Expression"
@@ -175,7 +171,14 @@
 						{
 							"name": "PL_EIA_to_Bronze",
 							"type": "ExecutePipeline",
-							"dependsOn": [],
+							"dependsOn": [
+								{
+									"activity": "Pipeline Start Script",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
 							"policy": {
 								"secureInput": false
 							},
@@ -205,7 +208,7 @@
 							"userProperties": [],
 							"typeProperties": {
 								"pipeline": {
-									"referenceName": "PL_Bronze_to_Silver_quarantine",
+									"referenceName": "PL_Bronze_to_Silver_quarantine_INCREMENTAL",
 									"type": "PipelineReference"
 								},
 								"waitOnCompletion": true,
@@ -277,7 +280,7 @@
 							"userProperties": [],
 							"typeProperties": {
 								"pipeline": {
-									"referenceName": "PL_Silver_to_Staging_SQL",
+									"referenceName": "PL_Silver_to_Staging_SQL_INCREMENTAL",
 									"type": "PipelineReference"
 								},
 								"waitOnCompletion": true,
@@ -310,7 +313,7 @@
 							"userProperties": [],
 							"typeProperties": {
 								"pipeline": {
-									"referenceName": "PL_SCD2_MERGE",
+									"referenceName": "PL_SCD2_MERGE_INCREMENTAL_AWARE",
 									"type": "PipelineReference"
 								},
 								"waitOnCompletion": true
@@ -362,12 +365,12 @@
 								"storedProcedureName": "[dbo].[usp_EndPipelineRun]",
 								"storedProcedureParameters": {
 									"PipelineName": {
-										"value": "PL_Master_Orchestrator_Incremental",
+										"value": "PL_Master_Orchestrator_INCREMENTAL",
 										"type": "String"
 									},
 									"BatchId": {
 										"value": {
-											"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd'))",
+											"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
 											"type": "Expression"
 										},
 										"type": "String"
@@ -417,7 +420,7 @@
 							"userProperties": [],
 							"typeProperties": {
 								"pipeline": {
-									"referenceName": "PL_ADLS_Reconciliation_incremental",
+									"referenceName": "PL_ADLS_Reconciliation_INCREMENTAL",
 									"type": "PipelineReference"
 								},
 								"waitOnCompletion": true
@@ -508,12 +511,12 @@
 					"storedProcedureName": "[dbo].[usp_EndPipelineRun]",
 					"storedProcedureParameters": {
 						"PipelineName": {
-							"value": "PL_Master_Orchestrator_Incremental",
+							"value": "PL_Master_Orchestrator_INCREMENTAL",
 							"type": "String"
 						},
 						"BatchId": {
 							"value": {
-								"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd'))",
+								"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
 								"type": "Expression"
 							},
 							"type": "String"
@@ -546,10 +549,6 @@
 			}
 		],
 		"parameters": {
-			"ST37_WatermarkColumn": {
-				"type": "string",
-				"defaultValue": "LastModifiedDateTime"
-			},
 			"ST37_DefaultLookbackDays": {
 				"type": "int",
 				"defaultValue": 7
