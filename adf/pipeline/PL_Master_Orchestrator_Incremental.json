@@ -24,7 +24,7 @@
 						},
 						"BatchId": {
 							"value": {
-								"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
+								"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd'))",
 								"type": "Expression"
 							},
 							"type": "String"
@@ -66,7 +66,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "@concat('SELECT Status FROM dbo.PipelineControl WHERE PipelineName = ''PL_Master_Orchestrator_Incremental'' AND BatchId = ''BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8), '''')",
+							"value": "SELECT Status FROM dbo.PipelineControl WHERE PipelineName='PL_Master_Orchestrator_Incremental' AND BatchId='@{concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd'))}'",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
@@ -161,6 +161,10 @@
 								},
 								"waitOnCompletion": true,
 								"parameters": {
+									"WatermarkColumn": {
+										"value": "@pipeline().parameters.ST37_WatermarkColumn",
+										"type": "Expression"
+									},
 									"ST37_DefaultLookbackDays": {
 										"value": "@pipeline().parameters.ST37_DefaultLookbackDays",
 										"type": "Expression"
@@ -363,7 +367,7 @@
 									},
 									"BatchId": {
 										"value": {
-											"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
+											"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd'))",
 											"type": "Expression"
 										},
 										"type": "String"
@@ -509,7 +513,7 @@
 						},
 						"BatchId": {
 							"value": {
-								"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
+								"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd'))",
 								"type": "Expression"
 							},
 							"type": "String"
@@ -542,6 +546,10 @@
 			}
 		],
 		"parameters": {
+			"ST37_WatermarkColumn": {
+				"type": "string",
+				"defaultValue": "LastModifiedDateTime"
+			},
 			"ST37_DefaultLookbackDays": {
 				"type": "int",
 				"defaultValue": 7
