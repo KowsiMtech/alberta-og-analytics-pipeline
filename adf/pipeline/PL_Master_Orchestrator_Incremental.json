@@ -417,7 +417,7 @@
 							"userProperties": [],
 							"typeProperties": {
 								"pipeline": {
-									"referenceName": "PL_ADLS_Reconciliation",
+									"referenceName": "PL_ADLS_Reconciliation_incremental",
 									"type": "PipelineReference"
 								},
 								"waitOnCompletion": true
