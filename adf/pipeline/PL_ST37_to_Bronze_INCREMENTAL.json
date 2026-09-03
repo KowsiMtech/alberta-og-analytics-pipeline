@@ -125,7 +125,7 @@
 					"source": {
 						"type": "SqlServerSource",
 						"sqlReaderQuery": {
-							"value": "@concat('SELECT * FROM [', pipeline().parameters.SourceSchema, '].[', pipeline().parameters.SourceTable, '] WHERE [', pipeline().parameters.WatermarkColumn, '] > CONVERT(datetime2(7), ''', variables('v_StartWatermark'), ''', 126) AND [', pipeline().parameters.WatermarkColumn, '] <= CONVERT(datetime2(7), ''', variables('v_EndWatermark'), ''', 126)')",
+							"value": "@concat('SELECT * FROM [', pipeline().parameters.SourceSchema, '].[', pipeline().parameters.SourceTable, '] WHERE [LastModifiedDateTime] > CONVERT(datetime2(7), ''', variables('v_StartWatermark'), ''', 126) AND [LastModifiedDateTime] <= CONVERT(datetime2(7), ''', variables('v_EndWatermark'), ''', 126)')",
 							"type": "Expression"
 						},
 						"queryTimeout": "02:00:00",
@@ -269,10 +269,6 @@
 			"SourceTable": {
 				"type": "string",
 				"defaultValue": "WellList"
-			},
-			"WatermarkColumn": {
-				"type": "string",
-				"defaultValue": "LastModifiedDateTime"
 			},
 			"ST37_DefaultLookbackDays": {
 				"type": "int",
