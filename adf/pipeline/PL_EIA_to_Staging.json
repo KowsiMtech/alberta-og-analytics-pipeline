@@ -294,6 +294,9 @@
 				"type": "String"
 			}
 		},
+		"folder": {
+			"name": "Full_Load"
+		},
 		"annotations": [
 			"EIA",
 			"WTI",

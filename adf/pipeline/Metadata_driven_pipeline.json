@@ -320,6 +320,9 @@
 				}
 			}
 		],
+		"folder": {
+			"name": "Metadata_Driven_Pipeline"
+		},
 		"annotations": []
 	}
 }
