@@ -1,0 +1,264 @@
+{
+	"name": "PL_ADLS_Reconciliation_incremental",
+	"properties": {
+		"description": "Incremental reconciliation for the exact ST37 WindowKey. Returns current-batch Bronze/Silver/Quarantine counts; zero when ST37 has no rows.",
+		"activities": [
+			{
+				"name": "Reconcile_When_HasRows",
+				"type": "IfCondition",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(toLower(pipeline().parameters.HasRows),'true')",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "GetRowCount_Bronze",
+							"type": "Script",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"linkedServiceName": {
+								"referenceName": "LS_Synapse_Serverless",
+								"type": "LinkedServiceReference"
+							},
+							"typeProperties": {
+								"scripts": [
+									{
+										"type": "Query",
+										"text": {
+											"value": "@concat('SELECT COUNT(*) AS BronzeCount FROM OPENROWSET(BULK ''''/bronze/well/window=', pipeline().parameters.WindowKey, '/*.parquet'''', DATA_SOURCE = ''''aer_adls'''', FORMAT = ''''PARQUET'''') AS b;')",
+											"type": "Expression"
+										}
+									}
+								],
+								"scriptBlockExecutionTimeout": "02:00:00"
+							}
+						},
+						{
+							"name": "GetRowCount_Silver",
+							"type": "Script",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"linkedServiceName": {
+								"referenceName": "LS_Synapse_Serverless",
+								"type": "LinkedServiceReference"
+							},
+							"typeProperties": {
+								"scripts": [
+									{
+										"type": "Query",
+										"text": {
+											"value": "@concat('SELECT COUNT(*) AS SilverCount FROM OPENROWSET(BULK ''''/silver/clean/window=', pipeline().parameters.WindowKey, '/*.parquet'''', DATA_SOURCE = ''''aer_adls'''', FORMAT = ''''PARQUET'''') AS b;')",
+											"type": "Expression"
+										}
+									}
+								],
+								"scriptBlockExecutionTimeout": "02:00:00"
+							}
+						},
+						{
+							"name": "GetRowCount_Quarantine",
+							"type": "Script",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"linkedServiceName": {
+								"referenceName": "LS_Synapse_Serverless",
+								"type": "LinkedServiceReference"
+							},
+							"typeProperties": {
+								"scripts": [
+									{
+										"type": "Query",
+										"text": {
+											"value": "@concat('SELECT COUNT(*) AS QuarantineCount FROM OPENROWSET(BULK ''''/quarantine/well_rejects/window=', pipeline().parameters.WindowKey, '/*.parquet'''', DATA_SOURCE = ''''aer_adls'''', FORMAT = ''''PARQUET'''') AS b;')",
+											"type": "Expression"
+										}
+									}
+								],
+								"scriptBlockExecutionTimeout": "02:00:00"
+							}
+						},
+						{
+							"name": "Set_BronzeCount",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "GetRowCount_Bronze",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_BronzeCount",
+								"value": {
+									"value": "@int(activity('GetRowCount_Bronze').output.resultSets[0].rows[0].BronzeCount)",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Set_SilverCount",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "GetRowCount_Silver",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_SilverCount",
+								"value": {
+									"value": "@int(activity('GetRowCount_Silver').output.resultSets[0].rows[0].SilverCount)",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Set_QuarantineCount",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "GetRowCount_Quarantine",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_QuarantineCount",
+								"value": {
+									"value": "@int(activity('GetRowCount_Quarantine').output.resultSets[0].rows[0].QuarantineCount)",
+									"type": "Expression"
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Set_Reconciliation_ReturnValues",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Reconcile_When_HasRows",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "pipelineReturnValue",
+					"value": [
+						{
+							"key": "SourceRowCount",
+							"value": {
+								"type": "Expression",
+								"content": "@string(variables('v_BronzeCount'))"
+							}
+						},
+						{
+							"key": "SilverRowCount",
+							"value": {
+								"type": "Expression",
+								"content": "@string(variables('v_SilverCount'))"
+							}
+						},
+						{
+							"key": "QuarantineRowCount",
+							"value": {
+								"type": "Expression",
+								"content": "@string(variables('v_QuarantineCount'))"
+							}
+						},
+						{
+							"key": "WindowKey",
+							"value": {
+								"type": "Expression",
+								"content": "@pipeline().parameters.WindowKey"
+							}
+						}
+					],
+					"setSystemVariable": true
+				}
+			}
+		],
+		"parameters": {
+			"WindowKey": {
+				"type": "string"
+			},
+			"HasRows": {
+				"type": "string",
+				"defaultValue": "false"
+			}
+		},
+		"variables": {
+			"v_BronzeCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_SilverCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_QuarantineCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			}
+		},
+		"folder": {
+			"name": "Incremental_Load"
+		},
+		"annotations": [
+			"Incremental",
+			"WindowKey",
+			"Reconciliation"
+		]
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}
