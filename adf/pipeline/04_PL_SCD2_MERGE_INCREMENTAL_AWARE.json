@@ -1,0 +1,40 @@
+{
+	"name": "04_PL_SCD2_MERGE_INCREMENTAL_AWARE",
+	"properties": {
+		"description": "Incremental-aware SCD2 processing. staging.Silver_Wells contains only the current ST37 delta; dimensions are updated from the delta, while Fact_WellSnapshot is rebuilt from the full current Gold state.",
+		"activities": [
+			{
+				"name": "SCD2 Merge Incremental Aware",
+				"type": "Script",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "NonQuery",
+							"text": "DECLARE @BatchDate DATE = CAST(SYSUTCDATETIME() AS DATE);\n\n------------------------------------------------------------\n-- 1. DIM_OPERATOR - SCD TYPE 2 FROM CURRENT DELTA\n------------------------------------------------------------\nUPDATE t\nSET t.[Is_Current] = 0,\n    t.Effective_To = @BatchDate,\n    t.Updated_At = SYSUTCDATETIME()\nFROM gold.Dim_Operator AS t\nINNER JOIN (\n    SELECT DISTINCT OperatorCode, LicenseeCode\n    FROM staging.Silver_Wells\n    WHERE OperatorCode IS NOT NULL AND OperatorCode <> ''\n) AS s\n  ON t.OperatorCode = s.OperatorCode\n AND t.[Is_Current] = 1\nWHERE ISNULL(t.LicenseeCode,'') <> ISNULL(s.LicenseeCode,'');\n\nINSERT INTO gold.Dim_Operator\n(OperatorCode, LicenseeCode, Effective_From, Effective_To, [Is_Current])\nSELECT DISTINCT s.OperatorCode, s.LicenseeCode, @BatchDate, '9999-12-31', 1\nFROM staging.Silver_Wells AS s\nWHERE s.OperatorCode IS NOT NULL\n  AND s.OperatorCode <> ''\n  AND NOT EXISTS (\n      SELECT 1 FROM gold.Dim_Operator AS d\n      WHERE d.OperatorCode = s.OperatorCode\n        AND ISNULL(d.LicenseeCode,'') = ISNULL(s.LicenseeCode,'')\n        AND d.[Is_Current] = 1\n  );\n\n------------------------------------------------------------\n-- 2. DIM_WELL - SCD TYPE 2 FROM CURRENT DELTA\n-- LicenceStatus is now stored here so a full snapshot can be\n-- reconstructed from the current Gold state.\n------------------------------------------------------------\nUPDATE t\nSET t.[Is_Current] = 0,\n    t.Effective_To = @BatchDate,\n    t.Updated_At = SYSUTCDATETIME()\nFROM gold.Dim_Well AS t\nINNER JOIN staging.Silver_Wells AS s\n  ON t.WellID = s.WellID\n AND t.[Is_Current] = 1\nWHERE ISNULL(t.WellName,'') <> ISNULL(s.WellName,'')\n   OR ISNULL(t.FieldCode,'') <> ISNULL(s.FieldCode,'')\n   OR ISNULL(t.LicenseeCode,'') <> ISNULL(s.LicenseeCode,'')\n   OR ISNULL(t.OperatorCode,'') <> ISNULL(s.OperatorCode,'')\n   OR ISNULL(t.LicenceStatus,'') <> ISNULL(s.LicenceStatus,'')\n   OR ISNULL(t.WellTotalDepth,-1) <> ISNULL(s.WellTotalDepth,-1)\n   OR ISNULL(t.WellStatCode,'') <> ISNULL(s.WellStatCode,'')\n   OR ISNULL(t.FluidDesc,'') <> ISNULL(s.FluidDesc,'')\n   OR ISNULL(t.ModeDesc,'') <> ISNULL(s.ModeDesc,'');\n\nINSERT INTO gold.Dim_Well\n(WellID, WellName, FieldCode, LicenseeCode, OperatorCode, LicenceStatus,\n WellTotalDepth, WellStatCode, FluidDesc, ModeDesc,\n Effective_From, Effective_To, [Is_Current])\nSELECT s.WellID, s.WellName, s.FieldCode, s.LicenseeCode, s.OperatorCode,\n       s.LicenceStatus, s.WellTotalDepth, s.WellStatCode, s.FluidDesc, s.ModeDesc,\n       @BatchDate, '9999-12-31', 1\nFROM staging.Silver_Wells AS s\nWHERE s.WellID IS NOT NULL\n  AND NOT EXISTS (\n      SELECT 1 FROM gold.Dim_Well AS d\n      WHERE d.WellID = s.WellID AND d.[Is_Current] = 1\n  );\n\n------------------------------------------------------------\n-- 3. DIM_LICENCESTATUS - NEW DELTA VALUES ONLY\n------------------------------------------------------------\nMERGE gold.Dim_LicenceStatus AS t\nUSING (\n    SELECT DISTINCT LicenceStatus\n    FROM staging.Silver_Wells\n    WHERE LicenceStatus IS NOT NULL\n) AS s\nON t.LicenceStatus = s.LicenceStatus\nWHEN NOT MATCHED THEN INSERT (LicenceStatus) VALUES (s.LicenceStatus);\n\n------------------------------------------------------------\n-- 4. DIM_WELLTYPE - NEW DELTA COMBINATIONS ONLY\n------------------------------------------------------------\nMERGE gold.Dim_WellType AS t\nUSING (\n    SELECT DISTINCT FluidDesc, ModeDesc, TypeDesc, StructureDesc\n    FROM staging.Silver_Wells\n) AS s\nON  ISNULL(t.FluidDesc,'') = ISNULL(s.FluidDesc,'')\nAND ISNULL(t.ModeDesc,'') = ISNULL(s.ModeDesc,'')\nAND ISNULL(t.TypeDesc,'') = ISNULL(s.TypeDesc,'')\nAND ISNULL(t.StructureDesc,'') = ISNULL(s.StructureDesc,'')\nWHEN NOT MATCHED THEN\nINSERT (FluidDesc, ModeDesc, TypeDesc, StructureDesc)\nVALUES (s.FluidDesc, s.ModeDesc, s.TypeDesc, s.StructureDesc);\n\n------------------------------------------------------------\n-- 5. FACT_OILPRICE - EXISTING UPSERT\n------------------------------------------------------------\nMERGE gold.Fact_OilPrice AS t\nUSING (\n    SELECT TRY_CAST(period AS DATE) AS PriceDate,\n           TRY_CAST(value AS DECIMAL(10,2)) AS OilPrice_USD,\n           [series-description] AS SeriesDescription\n    FROM staging.OilPrice\n    WHERE period IS NOT NULL AND value IS NOT NULL\n) AS s\nON t.PriceDate = s.PriceDate\nWHEN MATCHED AND ISNULL(t.OilPrice_USD,-1) <> ISNULL(s.OilPrice_USD,-1)\nTHEN UPDATE SET t.OilPrice_USD = s.OilPrice_USD, t.Updated_At = SYSUTCDATETIME()\nWHEN NOT MATCHED THEN\nINSERT (PriceDate, OilPrice_USD, SeriesDescription, Created_At, Updated_At)\nVALUES (s.PriceDate, s.OilPrice_USD, s.SeriesDescription, SYSUTCDATETIME(), SYSUTCDATETIME());\n\n------------------------------------------------------------\n-- 6. FACT_WELLSNAPSHOT - FULL DAILY SNAPSHOT FROM GOLD CURRENT STATE\n-- IMPORTANT: no longer sourced from the delta staging table.\n------------------------------------------------------------\nDELETE FROM gold.Fact_WellSnapshot WHERE SnapshotDate = @BatchDate;\n\nINSERT INTO gold.Fact_WellSnapshot\n(SnapshotDate, WellID, OperatorCode, LicenceStatus, FluidDesc, ModeDesc, FieldCode, WellTotalDepth)\nSELECT @BatchDate, WellID, OperatorCode, LicenceStatus, FluidDesc, ModeDesc, FieldCode, WellTotalDepth\nFROM gold.Dim_Well\nWHERE [Is_Current] = 1;\n"
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			}
+		],
+		"annotations": [
+			"SCD2",
+			"IncrementalDelta",
+			"FullDailySnapshot"
+		]
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

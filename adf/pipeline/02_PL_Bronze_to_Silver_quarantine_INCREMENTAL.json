@@ -1,0 +1,142 @@
+{
+	"name": "02_PL_Bronze_to_Silver_quarantine_INCREMENTAL",
+	"properties": {
+		"description": "Processes only the ST37 incremental Bronze window. If ST37 copied zero rows, this pipeline succeeds as a no-op.",
+		"activities": [
+			{
+				"name": "Process_When_HasRows",
+				"type": "IfCondition",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(toLower(pipeline().parameters.HasRows),'true')",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Delete Silver Clean Window",
+							"type": "Delete",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"dataset": {
+									"referenceName": "DS_ADLS_SilverClean_Folder",
+									"type": "DatasetReference",
+									"parameters": {
+										"RunDate": {
+											"value": "@concat('window=', pipeline().parameters.WindowKey)",
+											"type": "Expression"
+										}
+									}
+								},
+								"enableLogging": false,
+								"storeSettings": {
+									"type": "AzureBlobFSReadSettings",
+									"recursive": true,
+									"enablePartitionDiscovery": false
+								}
+							}
+						},
+						{
+							"name": "Delete Quarantine Window",
+							"type": "Delete",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"dataset": {
+									"referenceName": "DS_ADLS_Quarantine_Folder",
+									"type": "DatasetReference",
+									"parameters": {
+										"RunDate": {
+											"value": "@concat('window=', pipeline().parameters.WindowKey)",
+											"type": "Expression"
+										}
+									}
+								},
+								"enableLogging": false,
+								"storeSettings": {
+									"type": "AzureBlobFSReadSettings",
+									"recursive": true,
+									"enablePartitionDiscovery": false
+								}
+							}
+						},
+						{
+							"name": "Bronze delta to Silver and Quarantine",
+							"type": "Script",
+							"dependsOn": [
+								{
+									"activity": "Delete Silver Clean Window",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Delete Quarantine Window",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"linkedServiceName": {
+								"referenceName": "LS_Synapse_Serverless",
+								"type": "LinkedServiceReference"
+							},
+							"typeProperties": {
+								"scripts": [
+									{
+										"type": "NonQuery",
+										"text": {
+											"value": "USE aer_synapse_db;\nDECLARE @WindowKey NVARCHAR(40) = '@{pipeline().parameters.WindowKey}';\nDECLARE @RunStamp NVARCHAR(20) = REPLACE(REPLACE(@WindowKey, '_', ''), '-', '');\nDECLARE @BronzePath NVARCHAR(400) = '/bronze/well/window=' + @WindowKey + '/*.parquet';\nDECLARE @QuarantineLocation NVARCHAR(400) = '/quarantine/well_rejects/window=' + @WindowKey + '/';\nDECLARE @SilverLocation NVARCHAR(400) = '/silver/clean/window=' + @WindowKey + '/';\nDECLARE @QuarantineTable NVARCHAR(200) = 'dbo.quarantine_' + @RunStamp;\nDECLARE @SilverTable NVARCHAR(200) = 'dbo.silver_clean_' + @RunStamp;\n\nDECLARE @DropSQL NVARCHAR(MAX) = N'IF OBJECT_ID(''' + @QuarantineTable + N''') IS NOT NULL DROP EXTERNAL TABLE ' + @QuarantineTable + N'; IF OBJECT_ID(''' + @SilverTable + N''') IS NOT NULL DROP EXTERNAL TABLE ' + @SilverTable + N';';\nEXEC sp_executesql @DropSQL;\n\nDECLARE @QuarantineSQL NVARCHAR(MAX) = N'CREATE EXTERNAL TABLE ' + @QuarantineTable + N' WITH (LOCATION = ''' + @QuarantineLocation + N''', DATA_SOURCE = aer_adls, FILE_FORMAT = parquet_format) AS SELECT UWI_DISPLAY_FORMAT AS WellID, WELL_NAME AS WellName, LICENSE_NO AS LicenceNumber, LICENCE_STATUS AS LicenceStatus, LICENSE_ISSUE_DATE AS LicenceIssueDate, OPERATOR_CODE AS OperatorCode, WELL_TOTAL_DEPTH AS WellTotalDepth, CASE WHEN UWI_DISPLAY_FORMAT IS NULL OR UWI_DISPLAY_FORMAT = '''' THEN ''NULL_UWI'' WHEN LEN(LICENSE_ISSUE_DATE) <> 8 THEN ''INVALID_DATE'' WHEN TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2)) < 0 THEN ''NEGATIVE_DEPTH'' ELSE ''OTHER'' END AS RejectReason, GETDATE() AS QuarantineDate FROM OPENROWSET(BULK ''' + @BronzePath + N''', DATA_SOURCE = ''aer_adls'', FORMAT = ''PARQUET'') AS b WHERE UWI_DISPLAY_FORMAT IS NULL OR UWI_DISPLAY_FORMAT = '''' OR LEN(LICENSE_ISSUE_DATE) <> 8 OR TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2)) < 0;';\nEXEC sp_executesql @QuarantineSQL;\n\nDECLARE @SilverSQL NVARCHAR(MAX) = N'CREATE EXTERNAL TABLE ' + @SilverTable + N' WITH (LOCATION = ''' + @SilverLocation + N''', DATA_SOURCE = aer_adls, FILE_FORMAT = parquet_format) AS SELECT UWI_DISPLAY_FORMAT AS WellID, KEY_LIST_OF_WELLS AS WellKeyID, LTRIM(RTRIM(WELL_NAME)) AS WellName, FIELD_CODE AS FieldCode, POOL_CODE AS PoolCode, LICENSE_NO AS LicenceNumber, LICENCE_STATUS AS LicenceStatus, TRY_CONVERT(DATE, LICENSE_ISSUE_DATE, 112) AS LicenceIssueDate, LICENSEE_CODE AS LicenseeCode, OPERATOR_CODE AS OperatorCode, TRY_CONVERT(DATE, FIN_DRL_DATE, 112) AS FinDrlDate, TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2)) AS WellTotalDepth, WELL_STAT_CODE AS WellStatCode, TRY_CONVERT(DATE, WELL_STAT_DATE, 112) AS WellStatDate, CASE WHEN FLUID_SHORT_DESC = ''N/A'' THEN NULL ELSE LTRIM(RTRIM(FLUID_SHORT_DESC)) END AS FluidDesc, CASE WHEN MODE_SHORT_DESC = ''N/A'' THEN NULL ELSE LTRIM(RTRIM(MODE_SHORT_DESC)) END AS ModeDesc, CASE WHEN TYPE_SHORT_DESC = ''N/A'' THEN NULL ELSE LTRIM(RTRIM(TYPE_SHORT_DESC)) END AS TypeDesc, CASE WHEN STRUCTURE_SHORT_DESC = ''N/A'' THEN NULL ELSE LTRIM(RTRIM(STRUCTURE_SHORT_DESC)) END AS StructureDesc, ''BATCH_' + @WindowKey + N''' AS BatchID, GETDATE() AS IngestionDate, ''WellList_incremental'' AS SourceFile FROM OPENROWSET(BULK ''' + @BronzePath + N''', DATA_SOURCE = ''aer_adls'', FORMAT = ''PARQUET'') AS b WHERE UWI_DISPLAY_FORMAT IS NOT NULL AND UWI_DISPLAY_FORMAT <> '''' AND LEN(LICENSE_ISSUE_DATE) = 8 AND TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2)) >= 0;';\nEXEC sp_executesql @SilverSQL;",
+											"type": "Expression"
+										}
+									}
+								],
+								"scriptBlockExecutionTimeout": "02:00:00"
+							}
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"WindowKey": {
+				"type": "string"
+			},
+			"HasRows": {
+				"type": "string",
+				"defaultValue": "false"
+			}
+		},
+		"annotations": [
+			"Incremental",
+			"Delta",
+			"DataQuality",
+			"Quarantine"
+		]
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}
