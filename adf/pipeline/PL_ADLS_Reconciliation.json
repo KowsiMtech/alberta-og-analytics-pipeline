@@ -138,7 +138,7 @@
 			}
 		],
 		"folder": {
-			"name": "Incremental_Load"
+			"name": "Full_Load"
 		},
 		"annotations": []
 	}
