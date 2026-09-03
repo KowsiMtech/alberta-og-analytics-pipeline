@@ -159,7 +159,10 @@
 									"referenceName": "PL_ST37_to_Bronze_INCREMENTAL",
 									"type": "PipelineReference"
 								},
-								"waitOnCompletion": true
+								"waitOnCompletion": true,
+								"parameters": {
+									"WatermarkColumn": "LastModifiedDateTime"
+								}
 							}
 						},
 						{

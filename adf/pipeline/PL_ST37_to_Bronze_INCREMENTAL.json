@@ -272,7 +272,7 @@
 			},
 			"WatermarkColumn": {
 				"type": "string",
-				"defaultValue": "__REPLACE_WITH_LAST_MODIFIED_DATETIME_COLUMN__"
+				"defaultValue": "@pipeline().parameters.ST37_WatermarkColumn"
 			},
 			"ST37_DefaultLookbackDays": {
 				"type": "int",
