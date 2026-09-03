@@ -1,5 +1,5 @@
 {
-	"name": "05_PL_Master_Orchestrator_INCREMENTAL",
+	"name": "PL_Master_Orchestrator_INCREMENTAL",
 	"properties": {
 		"description": "Master orchestrator with incremental ST37 WellList ingestion and incremental EIA ingestion.",
 		"activities": [
@@ -156,20 +156,10 @@
 							"userProperties": [],
 							"typeProperties": {
 								"pipeline": {
-									"referenceName": "PL_ST37_to_Bronze",
+									"referenceName": "PL_ST37_to_Bronze_INCREMENTAL",
 									"type": "PipelineReference"
 								},
-								"waitOnCompletion": true,
-								"parameters": {
-									"WatermarkColumn": {
-										"value": "@pipeline().parameters.ST37_WatermarkColumn",
-										"type": "Expression"
-									},
-									"ST37_DefaultLookbackDays": {
-										"value": "@pipeline().parameters.ST37_DefaultLookbackDays",
-										"type": "Expression"
-									}
-								}
+								"waitOnCompletion": true
 							}
 						},
 						{
@@ -205,20 +195,10 @@
 							"userProperties": [],
 							"typeProperties": {
 								"pipeline": {
-									"referenceName": "PL_Bronze_to_Silver_quarantine",
+									"referenceName": "PL_Bronze_to_Silver_quarantine_INCREMENTAL",
 									"type": "PipelineReference"
 								},
-								"waitOnCompletion": true,
-								"parameters": {
-									"WindowKey": {
-										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.WindowKey",
-										"type": "Expression"
-									},
-									"HasRows": {
-										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.HasRows",
-										"type": "Expression"
-									}
-								}
+								"waitOnCompletion": true
 							}
 						},
 						{
@@ -277,20 +257,10 @@
 							"userProperties": [],
 							"typeProperties": {
 								"pipeline": {
-									"referenceName": "PL_Silver_to_Staging_SQL",
+									"referenceName": "PL_Silver_to_Staging_SQL_INCREMENTAL",
 									"type": "PipelineReference"
 								},
-								"waitOnCompletion": true,
-								"parameters": {
-									"WindowKey": {
-										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.WindowKey",
-										"type": "Expression"
-									},
-									"HasRows": {
-										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.HasRows",
-										"type": "Expression"
-									}
-								}
+								"waitOnCompletion": true
 							}
 						},
 						{
@@ -310,7 +280,7 @@
 							"userProperties": [],
 							"typeProperties": {
 								"pipeline": {
-									"referenceName": "PL_SCD2_MERGE",
+									"referenceName": "PL_SCD2_MERGE_INCREMENTAL_AWARE",
 									"type": "PipelineReference"
 								},
 								"waitOnCompletion": true

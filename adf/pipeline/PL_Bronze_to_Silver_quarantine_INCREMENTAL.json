@@ -1,5 +1,5 @@
 {
-	"name": "02_PL_Bronze_to_Silver_quarantine_INCREMENTAL",
+	"name": "PL_Bronze_to_Silver_quarantine_INCREMENTAL",
 	"properties": {
 		"description": "Processes only the ST37 incremental Bronze window. If ST37 copied zero rows, this pipeline succeeds as a no-op.",
 		"activities": [

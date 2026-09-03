@@ -1,5 +1,5 @@
 {
-	"name": "01_PL_ST37_to_Bronze_INCREMENTAL",
+	"name": "PL_ST37_to_Bronze_INCREMENTAL",
 	"properties": {
 		"description": "Incremental SQL Server WellList ingestion using a datetime watermark. First run uses ST37_DefaultLookbackDays. On every successful extract the timestamp watermark advances to the extraction end time, even when zero rows are returned. Returns WindowKey/HasRows to the master for downstream delta processing.",
 		"activities": [

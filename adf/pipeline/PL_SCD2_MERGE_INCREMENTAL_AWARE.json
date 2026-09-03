@@ -1,5 +1,5 @@
 {
-	"name": "04_PL_SCD2_MERGE_INCREMENTAL_AWARE",
+	"name": "PL_SCD2_MERGE_INCREMENTAL_AWARE",
 	"properties": {
 		"description": "Incremental-aware SCD2 processing. staging.Silver_Wells contains only the current ST37 delta; dimensions are updated from the delta, while Fact_WellSnapshot is rebuilt from the full current Gold state.",
 		"activities": [
