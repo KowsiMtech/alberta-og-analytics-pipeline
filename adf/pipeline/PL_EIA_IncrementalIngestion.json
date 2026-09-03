@@ -946,6 +946,9 @@
 				"type": "String"
 			}
 		},
+		"folder": {
+			"name": "Incremental_Load"
+		},
 		"annotations": [
 			"EIA",
 			"WTI",

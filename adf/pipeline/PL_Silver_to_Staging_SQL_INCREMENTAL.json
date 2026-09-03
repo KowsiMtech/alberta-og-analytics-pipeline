@@ -348,6 +348,9 @@
 				"defaultValue": "false"
 			}
 		},
+		"folder": {
+			"name": "Incremental_Load"
+		},
 		"annotations": [
 			"Incremental",
 			"DeltaStaging"

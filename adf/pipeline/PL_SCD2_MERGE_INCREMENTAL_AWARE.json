@@ -30,6 +30,9 @@
 				}
 			}
 		],
+		"folder": {
+			"name": "Incremental_Load"
+		},
 		"annotations": [
 			"SCD2",
 			"IncrementalDelta",

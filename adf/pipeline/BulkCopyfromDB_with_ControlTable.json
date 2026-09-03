@@ -141,6 +141,9 @@
 				"type": "String"
 			}
 		},
+		"folder": {
+			"name": "Bulk_Copy"
+		},
 		"annotations": []
 	}
 }

@@ -518,12 +518,15 @@
 		"parameters": {
 			"ST37_WatermarkColumn": {
 				"type": "string",
-				"defaultValue": "__REPLACE_WITH_LAST_MODIFIED_DATETIME_COLUMN__"
+				"defaultValue": "LastModifiedDateTime"
 			},
 			"ST37_DefaultLookbackDays": {
 				"type": "int",
 				"defaultValue": 7
 			}
+		},
+		"folder": {
+			"name": "Incremental_Load"
 		},
 		"annotations": [],
 		"lastPublishTime": "2026-04-20T02:12:31Z"
