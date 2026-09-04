@@ -708,7 +708,8 @@
 							"FolderPath": {
 								"value": "@variables('v_BronzeFolderPath')",
 								"type": "Expression"
-							}
+							},
+							"FileName": "OilPrice.parquet"
 						}
 					}
 				],
