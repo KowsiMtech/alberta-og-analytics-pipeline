@@ -343,6 +343,39 @@
 							}
 						},
 						{
+							"name": "Reconciliation",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "ADLS gold Archival Copy",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_ADLS_Reconciliation_INCREMENTAL",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"WindowKey": {
+										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.WindowKey",
+										"type": "Expression"
+									},
+									"HasRows": {
+										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.HasRows",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
 							"name": "EndPipelineRun_Success",
 							"type": "SqlServerStoredProcedure",
 							"dependsOn": [
@@ -401,29 +434,6 @@
 							"linkedServiceName": {
 								"referenceName": "LS_AzureSQL",
 								"type": "LinkedServiceReference"
-							}
-						},
-						{
-							"name": "Reconciliation",
-							"type": "ExecutePipeline",
-							"dependsOn": [
-								{
-									"activity": "ADLS gold Archival Copy",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"policy": {
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"pipeline": {
-									"referenceName": "PL_ADLS_Reconciliation_INCREMENTAL",
-									"type": "PipelineReference"
-								},
-								"waitOnCompletion": true
 							}
 						}
 					]

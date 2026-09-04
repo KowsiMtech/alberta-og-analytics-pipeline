@@ -1,7 +1,7 @@
 {
 	"name": "PL_ADLS_Reconciliation_INCREMENTAL",
 	"properties": {
-		"description": "Incremental reconciliation for the exact ST37 WindowKey. Returns current-batch Bronze/Silver/Quarantine counts; zero when ST37 has no rows.",
+		"description": "Incremental reconciliation for the exact ST37 WindowKey. Returns current-batch Bronze/Silver/Quarantine counts; zero when ST37 has no rows. Each count query is wrapped in TRY/CATCH so a window with zero matching parquet files (e.g. a batch with no quarantine rejects) returns 0 instead of failing the activity.",
 		"activities": [
 			{
 				"name": "Reconcile_When_HasRows",
@@ -35,7 +35,7 @@
 									{
 										"type": "Query",
 										"text": {
-											"value": "@concat('SELECT COUNT(*) AS BronzeCount FROM OPENROWSET(BULK ''''/bronze/well/window=', pipeline().parameters.WindowKey, '/*.parquet'''', DATA_SOURCE = ''''aer_adls'''', FORMAT = ''''PARQUET'''') AS b;')",
+											"value": "@concat('DECLARE @Cnt INT = 0; BEGIN TRY SELECT @Cnt = COUNT(*) FROM OPENROWSET(BULK ''''/bronze/well/window=', pipeline().parameters.WindowKey, '/*.parquet'''', DATA_SOURCE = ''''aer_adls'''', FORMAT = ''''PARQUET'''') AS b; END TRY BEGIN CATCH SET @Cnt = 0; END CATCH SELECT @Cnt AS BronzeCount;')",
 											"type": "Expression"
 										}
 									}
@@ -64,7 +64,7 @@
 									{
 										"type": "Query",
 										"text": {
-											"value": "@concat('SELECT COUNT(*) AS SilverCount FROM OPENROWSET(BULK ''''/silver/clean/window=', pipeline().parameters.WindowKey, '/*.parquet'''', DATA_SOURCE = ''''aer_adls'''', FORMAT = ''''PARQUET'''') AS b;')",
+											"value": "@concat('DECLARE @Cnt INT = 0; BEGIN TRY SELECT @Cnt = COUNT(*) FROM OPENROWSET(BULK ''''/silver/clean/window=', pipeline().parameters.WindowKey, '/*.parquet'''', DATA_SOURCE = ''''aer_adls'''', FORMAT = ''''PARQUET'''') AS b; END TRY BEGIN CATCH SET @Cnt = 0; END CATCH SELECT @Cnt AS SilverCount;')",
 											"type": "Expression"
 										}
 									}
@@ -93,7 +93,7 @@
 									{
 										"type": "Query",
 										"text": {
-											"value": "@concat('SELECT COUNT(*) AS QuarantineCount FROM OPENROWSET(BULK ''''/quarantine/well_rejects/window=', pipeline().parameters.WindowKey, '/*.parquet'''', DATA_SOURCE = ''''aer_adls'''', FORMAT = ''''PARQUET'''') AS b;')",
+											"value": "@concat('DECLARE @Cnt INT = 0; BEGIN TRY SELECT @Cnt = COUNT(*) FROM OPENROWSET(BULK ''''/quarantine/well_rejects/window=', pipeline().parameters.WindowKey, '/*.parquet'''', DATA_SOURCE = ''''aer_adls'''', FORMAT = ''''PARQUET'''') AS b; END TRY BEGIN CATCH SET @Cnt = 0; END CATCH SELECT @Cnt AS QuarantineCount;')",
 											"type": "Expression"
 										}
 									}
