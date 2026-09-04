@@ -1,7 +1,7 @@
 {
-	"name": "p1",
+	"name": "PL_EIA_Ingestion",
 	"properties": {
-		"description": "Fetches WTI oil prices from EIA REST API using watermark-driven incremental loading. No-data runs skip Bronze file creation and downstream load, return HasRows=false, and do not advance the data watermark. For data-bearing runs, the watermark advances to the maximum actual EIA period loaded.",
+		"description": "EIA incremental controller. Reads the date watermark, probes source availability, creates no files and advances no watermark when zero rows are returned, and calls PL_EIA_ProcessData_INCREMENTAL only when data exists. Returns StartDate, EndDate, HasRows, and RowsFetched to the master.",
 		"activities": [
 			{
 				"name": "Lookup_Watermark",
@@ -75,37 +75,6 @@
 				}
 			},
 			{
-				"name": "Set_BronzeFolderPath",
-				"description": "Create deterministic Bronze folder using extraction start/end dates.",
-				"type": "SetVariable",
-				"dependsOn": [
-					{
-						"activity": "Set_StartDate",
-						"dependencyConditions": [
-							"Succeeded"
-						]
-					},
-					{
-						"activity": "Set_EndDate",
-						"dependencyConditions": [
-							"Succeeded"
-						]
-					}
-				],
-				"policy": {
-					"secureOutput": false,
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"variableName": "v_BronzeFolderPath",
-					"value": {
-						"value": "@concat('bronze/oilprice/start_date=', variables('v_StartDate'), '/end_date=', variables('v_EndDate'))",
-						"type": "Expression"
-					}
-				}
-			},
-			{
 				"name": "Init_PageOffset",
 				"type": "SetVariable",
 				"dependsOn": [],
@@ -145,6 +114,37 @@
 				"typeProperties": {
 					"variableName": "v_DelaySeconds",
 					"value": 30
+				}
+			},
+			{
+				"name": "Set_BronzeFolderPath",
+				"description": "Create deterministic Bronze folder using extraction start/end dates.",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set_StartDate",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set_EndDate",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_BronzeFolderPath",
+					"value": {
+						"value": "@concat('bronze/oilprice/start_date=', variables('v_StartDate'), '/end_date=', variables('v_EndDate'))",
+						"type": "Expression"
+					}
 				}
 			},
 			{
@@ -249,7 +249,7 @@
 			},
 			{
 				"name": "Check_DataAvailability",
-				"description": "Guard before any Bronze write. If EIA returns zero rows, skip Parquet creation, SQL load, and watermark advancement; pipeline returns HasRows=false.",
+				"description": "If EIA returned rows, execute the child processing pipeline. If zero rows, do not create Parquet, do not load staging, and do not advance the data watermark.",
 				"type": "IfCondition",
 				"dependsOn": [
 					{
@@ -267,594 +267,45 @@
 					},
 					"ifTrueActivities": [
 						{
-							"name": "Until_AllPagesFetched",
-							"description": "Manual offset pagination with retry handling.",
-							"type": "Until",
+							"name": "Process_EIA_Data",
+							"type": "ExecutePipeline",
 							"dependsOn": [],
-							"userProperties": [],
-							"typeProperties": {
-								"expression": {
-									"value": "@or(greaterOrEquals(variables('v_PageOffset'), variables('v_ResponseTotal')), greaterOrEquals(variables('v_RetryCount'), 5))",
-									"type": "Expression"
-								},
-								"activities": [
-									{
-										"name": "Copy_EIAPage_To_Bronze",
-										"type": "Copy",
-										"dependsOn": [],
-										"policy": {
-											"timeout": "0.00:10:00",
-											"retry": 0,
-											"retryIntervalInSeconds": 30,
-											"secureOutput": false,
-											"secureInput": false
-										},
-										"userProperties": [],
-										"typeProperties": {
-											"source": {
-												"type": "RestSource",
-												"additionalColumns": [
-													{
-														"name": "IngestionDate",
-														"value": {
-															"value": "@pipeline().TriggerTime",
-															"type": "Expression"
-														}
-													},
-													{
-														"name": "PipelineRunId",
-														"value": {
-															"value": "@pipeline().RunId",
-															"type": "Expression"
-														}
-													},
-													{
-														"name": "SourceStartDate",
-														"value": {
-															"value": "@variables('v_StartDate')",
-															"type": "Expression"
-														}
-													},
-													{
-														"name": "SourceEndDate",
-														"value": {
-															"value": "@variables('v_EndDate')",
-															"type": "Expression"
-														}
-													}
-												],
-												"httpRequestTimeout": "00:01:40",
-												"requestInterval": "00.00:00:00.010",
-												"requestMethod": "GET"
-											},
-											"sink": {
-												"type": "ParquetSink",
-												"storeSettings": {
-													"type": "AzureBlobFSWriteSettings"
-												},
-												"formatSettings": {
-													"type": "ParquetWriteSettings"
-												}
-											},
-											"enableStaging": false,
-											"translator": {
-												"type": "TabularTranslator",
-												"mappings": [
-													{
-														"source": {
-															"path": "['period']"
-														},
-														"sink": {
-															"name": "period",
-															"type": "String"
-														}
-													},
-													{
-														"source": {
-															"path": "['value']"
-														},
-														"sink": {
-															"name": "value",
-															"type": "String"
-														}
-													},
-													{
-														"source": {
-															"path": "['series-description']"
-														},
-														"sink": {
-															"name": "series-description",
-															"type": "String"
-														}
-													},
-													{
-														"source": {
-															"path": "['product-name']"
-														},
-														"sink": {
-															"name": "product-name",
-															"type": "String"
-														}
-													},
-													{
-														"source": {
-															"path": "['units']"
-														},
-														"sink": {
-															"name": "units",
-															"type": "String"
-														}
-													},
-													{
-														"source": {
-															"path": "$['IngestionDate']"
-														},
-														"sink": {
-															"name": "IngestionDate",
-															"type": "DateTime"
-														}
-													},
-													{
-														"source": {
-															"path": "$['PipelineRunId']"
-														},
-														"sink": {
-															"name": "PipelineRunId",
-															"type": "String"
-														}
-													},
-													{
-														"source": {
-															"path": "$['SourceStartDate']"
-														},
-														"sink": {
-															"name": "SourceStartDate",
-															"type": "String"
-														}
-													},
-													{
-														"source": {
-															"path": "$['SourceEndDate']"
-														},
-														"sink": {
-															"name": "SourceEndDate",
-															"type": "String"
-														}
-													}
-												],
-												"collectionReference": "$['response']['data']"
-											}
-										},
-										"inputs": [
-											{
-												"referenceName": "DS_EIA_REST_Source",
-												"type": "DatasetReference",
-												"parameters": {
-													"relativeUrl": "@concat('v2/petroleum/pri/spt/data/?api_key=', activity('Get_EIAKey').output.value, '&frequency=daily&data[0]=value&facets[series][]=RWTC&sort[0][column]=period&sort[0][direction]=desc&start=', variables('v_StartDate'), '&end=', variables('v_EndDate'), '&offset=', string(variables('v_PageOffset')), '&length=', string(pipeline().parameters.EIA_PageSize))"
-												}
-											}
-										],
-										"outputs": [
-											{
-												"referenceName": "DS_Bronze_OilPrice",
-												"type": "DatasetReference",
-												"parameters": {
-													"FolderPath": {
-														"value": "@variables('v_BronzeFolderPath')",
-														"type": "Expression"
-													},
-													"FileName": {
-														"value": "@concat('OilPrice_p', string(variables('v_PageOffset')), '.parquet')",
-														"type": "Expression"
-													}
-												}
-											}
-										]
-									},
-									{
-										"name": "Compute_NextPageOffset",
-										"type": "SetVariable",
-										"dependsOn": [
-											{
-												"activity": "Copy_EIAPage_To_Bronze",
-												"dependencyConditions": [
-													"Succeeded"
-												]
-											}
-										],
-										"policy": {
-											"secureOutput": false,
-											"secureInput": false
-										},
-										"userProperties": [],
-										"typeProperties": {
-											"variableName": "v_NextPageOffset",
-											"value": {
-												"value": "@add(variables('v_PageOffset'), pipeline().parameters.EIA_PageSize)",
-												"type": "Expression"
-											}
-										}
-									},
-									{
-										"name": "Apply_NextPageOffset",
-										"type": "SetVariable",
-										"dependsOn": [
-											{
-												"activity": "Compute_NextPageOffset",
-												"dependencyConditions": [
-													"Succeeded"
-												]
-											}
-										],
-										"policy": {
-											"secureOutput": false,
-											"secureInput": false
-										},
-										"userProperties": [],
-										"typeProperties": {
-											"variableName": "v_PageOffset",
-											"value": {
-												"value": "@variables('v_NextPageOffset')",
-												"type": "Expression"
-											}
-										}
-									},
-									{
-										"name": "Reset_RetryCount",
-										"type": "SetVariable",
-										"dependsOn": [
-											{
-												"activity": "Apply_NextPageOffset",
-												"dependencyConditions": [
-													"Succeeded"
-												]
-											}
-										],
-										"policy": {
-											"secureOutput": false,
-											"secureInput": false
-										},
-										"userProperties": [],
-										"typeProperties": {
-											"variableName": "v_RetryCount",
-											"value": 0
-										}
-									},
-									{
-										"name": "Reset_DelaySeconds",
-										"type": "SetVariable",
-										"dependsOn": [
-											{
-												"activity": "Apply_NextPageOffset",
-												"dependencyConditions": [
-													"Succeeded"
-												]
-											}
-										],
-										"policy": {
-											"secureOutput": false,
-											"secureInput": false
-										},
-										"userProperties": [],
-										"typeProperties": {
-											"variableName": "v_DelaySeconds",
-											"value": 30
-										}
-									},
-									{
-										"name": "Wait_CurrentDelay",
-										"type": "Wait",
-										"dependsOn": [
-											{
-												"activity": "Copy_EIAPage_To_Bronze",
-												"dependencyConditions": [
-													"Failed"
-												]
-											}
-										],
-										"userProperties": [],
-										"typeProperties": {
-											"waitTimeInSeconds": {
-												"value": "@variables('v_DelaySeconds')",
-												"type": "Expression"
-											}
-										}
-									},
-									{
-										"name": "Compute_NextRetryCount",
-										"type": "SetVariable",
-										"dependsOn": [
-											{
-												"activity": "Wait_CurrentDelay",
-												"dependencyConditions": [
-													"Succeeded"
-												]
-											}
-										],
-										"policy": {
-											"secureOutput": false,
-											"secureInput": false
-										},
-										"userProperties": [],
-										"typeProperties": {
-											"variableName": "v_NextRetryCount",
-											"value": {
-												"value": "@add(variables('v_RetryCount'), 1)",
-												"type": "Expression"
-											}
-										}
-									},
-									{
-										"name": "Compute_NextDelaySeconds",
-										"type": "SetVariable",
-										"dependsOn": [
-											{
-												"activity": "Wait_CurrentDelay",
-												"dependencyConditions": [
-													"Succeeded"
-												]
-											}
-										],
-										"policy": {
-											"secureOutput": false,
-											"secureInput": false
-										},
-										"userProperties": [],
-										"typeProperties": {
-											"variableName": "v_NextDelaySeconds",
-											"value": {
-												"value": "@if(greater(mul(variables('v_DelaySeconds'),2), variables('v_MaxDelaySeconds')), variables('v_MaxDelaySeconds'), mul(variables('v_DelaySeconds'),2))",
-												"type": "Expression"
-											}
-										}
-									},
-									{
-										"name": "Apply_NextRetryCount",
-										"type": "SetVariable",
-										"dependsOn": [
-											{
-												"activity": "Compute_NextRetryCount",
-												"dependencyConditions": [
-													"Succeeded"
-												]
-											}
-										],
-										"policy": {
-											"secureOutput": false,
-											"secureInput": false
-										},
-										"userProperties": [],
-										"typeProperties": {
-											"variableName": "v_RetryCount",
-											"value": {
-												"value": "@variables('v_NextRetryCount')",
-												"type": "Expression"
-											}
-										}
-									},
-									{
-										"name": "Apply_NextDelaySeconds",
-										"type": "SetVariable",
-										"dependsOn": [
-											{
-												"activity": "Compute_NextDelaySeconds",
-												"dependencyConditions": [
-													"Succeeded"
-												]
-											}
-										],
-										"policy": {
-											"secureOutput": false,
-											"secureInput": false
-										},
-										"userProperties": [],
-										"typeProperties": {
-											"variableName": "v_DelaySeconds",
-											"value": {
-												"value": "@variables('v_NextDelaySeconds')",
-												"type": "Expression"
-											}
-										}
-									}
-								],
-								"timeout": "0.02:00:00"
-							}
-						},
-						{
-							"name": "Validate_PaginationResult",
-							"description": "Fail the data branch when pagination stopped because retry limit was reached before all rows were fetched. Uses Script instead of a nested IfCondition, which ADF does not allow here.",
-							"type": "Script",
-							"dependsOn": [
-								{
-									"activity": "Until_AllPagesFetched",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
 							"policy": {
-								"timeout": "0.00:05:00",
-								"retry": 0,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"linkedServiceName": {
-								"referenceName": "LS_AzureSQL",
-								"type": "LinkedServiceReference"
-							},
-							"typeProperties": {
-								"scripts": [
-									{
-										"type": "Query",
-										"text": {
-											"value": "@concat('IF ', string(variables('v_PageOffset')), ' < ', string(variables('v_ResponseTotal')), ' THROW 50002, ''EIA pagination did not complete after retries exhausted on one page.'', 1; SELECT 1 AS PaginationComplete;')",
-											"type": "Expression"
-										}
-									}
-								],
-								"scriptBlockExecutionTimeout": "02:00:00"
-							}
-						},
-						{
-							"name": "Copy_Bronze_To_SQL",
-							"type": "Copy",
-							"dependsOn": [
-								{
-									"activity": "Validate_PaginationResult",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"policy": {
-								"timeout": "0.00:10:00",
-								"retry": 2,
-								"retryIntervalInSeconds": 60,
-								"secureOutput": false,
 								"secureInput": false
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"source": {
-									"type": "ParquetSource",
-									"storeSettings": {
-										"type": "AzureBlobFSReadSettings",
-										"recursive": true,
-										"wildcardFileName": "*.parquet"
+								"pipeline": {
+									"referenceName": "PL_EIA_ProcessData_INCREMENTAL",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"StartDate": {
+										"value": "@variables('v_StartDate')",
+										"type": "Expression"
 									},
-									"formatSettings": {
-										"type": "ParquetReadSettings"
-									}
-								},
-								"sink": {
-									"type": "AzureSqlSink",
-									"preCopyScript": "TRUNCATE TABLE staging.OilPrice",
-									"writeBehavior": "insert",
-									"sqlWriterUseTableLock": false,
-									"disableMetricsCollection": false
-								},
-								"enableStaging": false,
-								"translator": {
-									"type": "TabularTranslator",
-									"mappings": [
-										{
-											"source": {
-												"name": "period",
-												"type": "String"
-											},
-											"sink": {
-												"name": "period",
-												"type": "String"
-											}
-										},
-										{
-											"source": {
-												"name": "value",
-												"type": "String"
-											},
-											"sink": {
-												"name": "value",
-												"type": "String"
-											}
-										},
-										{
-											"source": {
-												"name": "series-description",
-												"type": "String"
-											},
-											"sink": {
-												"name": "series-description",
-												"type": "String"
-											}
-										},
-										{
-											"source": {
-												"name": "product-name",
-												"type": "String"
-											},
-											"sink": {
-												"name": "product-name",
-												"type": "String"
-											}
-										},
-										{
-											"source": {
-												"name": "units",
-												"type": "String"
-											},
-											"sink": {
-												"name": "units",
-												"type": "String"
-											}
-										},
-										{
-											"source": {
-												"name": "IngestionDate",
-												"type": "DateTime"
-											},
-											"sink": {
-												"name": "IngestionDate"
-											}
-										}
-									]
-								}
-							},
-							"inputs": [
-								{
-									"referenceName": "DS_Bronze_OilPrice",
-									"type": "DatasetReference",
-									"parameters": {
-										"FolderPath": {
-											"value": "@variables('v_BronzeFolderPath')",
-											"type": "Expression"
-										}
+									"EndDate": {
+										"value": "@variables('v_EndDate')",
+										"type": "Expression"
+									},
+									"ResponseTotal": {
+										"value": "@variables('v_ResponseTotal')",
+										"type": "Expression"
+									},
+									"EIA_PageSize": {
+										"value": "@pipeline().parameters.EIA_PageSize",
+										"type": "Expression"
+									},
+									"WatermarkPipelineName": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
 									}
 								}
-							],
-							"outputs": [
-								{
-									"referenceName": "DS_AzureSQL_OilPrice_Sink",
-									"type": "DatasetReference"
-								}
-							]
-						},
-						{
-							"name": "Update_Watermark",
-							"description": "Advance EIA watermark to MAX actual source period successfully loaded into staging.",
-							"type": "Script",
-							"dependsOn": [
-								{
-									"activity": "Copy_Bronze_To_SQL",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"policy": {
-								"timeout": "0.00:05:00",
-								"retry": 2,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"linkedServiceName": {
-								"referenceName": "LS_AzureSQL",
-								"type": "LinkedServiceReference"
-							},
-							"typeProperties": {
-								"scripts": [
-									{
-										"type": "Query",
-										"text": {
-											"value": "@concat('DECLARE @MaxPriceDate date = (SELECT MAX(TRY_CONVERT(date, [period])) FROM staging.OilPrice); IF @MaxPriceDate IS NULL THROW 50001, ''EIA returned rows but staging contains no valid period'', 1; MERGE control.PipelineWatermark AS target USING (SELECT ''', pipeline().Pipeline, ''' AS PipelineName) AS src ON target.PipelineName = src.PipelineName WHEN MATCHED THEN UPDATE SET LastSuccessfulLoadDate = @MaxPriceDate, LastSuccessfulRunTime = SYSUTCDATETIME(), LastSuccessfulRunId = ''', pipeline().RunId, ''', LastUpdatedTime = SYSUTCDATETIME() WHEN NOT MATCHED THEN INSERT (PipelineName, LastSuccessfulLoadDate, LastSuccessfulRunTime, LastSuccessfulRunId, LastUpdatedTime) VALUES (''', pipeline().Pipeline, ''', @MaxPriceDate, SYSUTCDATETIME(), ''', pipeline().RunId, ''', SYSUTCDATETIME());')",
-											"type": "Expression"
-										}
-									}
-								],
-								"scriptBlockExecutionTimeout": "02:00:00"
 							}
 						}
 					]
@@ -938,29 +389,13 @@
 				"type": "Integer",
 				"defaultValue": 0
 			},
-			"v_NextPageOffset": {
-				"type": "Integer",
-				"defaultValue": 0
-			},
 			"v_RetryCount": {
-				"type": "Integer",
-				"defaultValue": 0
-			},
-			"v_NextRetryCount": {
 				"type": "Integer",
 				"defaultValue": 0
 			},
 			"v_DelaySeconds": {
 				"type": "Integer",
 				"defaultValue": 30
-			},
-			"v_NextDelaySeconds": {
-				"type": "Integer",
-				"defaultValue": 30
-			},
-			"v_MaxDelaySeconds": {
-				"type": "Integer",
-				"defaultValue": 480
 			},
 			"v_BronzeFolderPath": {
 				"type": "String"
@@ -974,15 +409,8 @@
 			"WTI",
 			"OilPrice",
 			"REST",
-			"KeyVault",
-			"ManualPagination",
-			"ExponentialBackoff",
 			"Watermark",
-			"IdempotentRerun",
-			"DeterministicBronzePath",
-			"Replayable",
-			"LateArrivingData",
-			"SelfHealingWatermark",
+			"NoDataGuard",
 			"PipelineReturnValue"
 		]
 	},
