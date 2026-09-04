@@ -1,7 +1,7 @@
 {
 	"name": "PL_ADLS_Reconciliation_INCREMENTAL",
 	"properties": {
-		"description": "Incremental reconciliation for the exact ST37 WindowKey. Returns current-batch Bronze/Silver/Quarantine counts; zero when ST37 has no rows. Each count query is wrapped in TRY/CATCH so a window with zero matching parquet files (e.g. a batch with no quarantine rejects) returns 0 instead of failing the activity.",
+		"description": "Incremental reconciliation for the exact ST37 WindowKey. Returns current-batch Bronze/Silver/Quarantine counts; zero when ST37 has no rows. Bronze/Silver counts are wrapped in TRY/CATCH for runtime errors. Quarantine additionally uses a WITH schema clause since a 100%-clean batch means Synapse never writes a parquet file to that location, which fails schema inference before TRY/CATCH can catch it.",
 		"activities": [
 			{
 				"name": "Reconcile_When_HasRows",
@@ -35,7 +35,7 @@
 									{
 										"type": "Query",
 										"text": {
-											"value": "@concat('DECLARE @Cnt INT = 0; BEGIN TRY SELECT @Cnt = COUNT(*) FROM OPENROWSET(BULK ''''/bronze/well/window=', pipeline().parameters.WindowKey, '/*.parquet'''', DATA_SOURCE = ''''aer_adls'''', FORMAT = ''''PARQUET'''') AS b; END TRY BEGIN CATCH SET @Cnt = 0; END CATCH SELECT @Cnt AS BronzeCount;')",
+											"value": "@concat('DECLARE @Cnt INT = 0; DECLARE @ErrMsg NVARCHAR(4000) = NULL; BEGIN TRY SELECT @Cnt = COUNT(*) FROM OPENROWSET(BULK ''/bronze/well/window=', pipeline().parameters.WindowKey, '/*.parquet'', DATA_SOURCE = ''aer_adls'', FORMAT = ''PARQUET'') AS b; END TRY BEGIN CATCH SET @Cnt = 0; SET @ErrMsg = ERROR_MESSAGE(); END CATCH SELECT @Cnt AS BronzeCount, @ErrMsg AS ErrorMsg;')",
 											"type": "Expression"
 										}
 									}
@@ -64,7 +64,7 @@
 									{
 										"type": "Query",
 										"text": {
-											"value": "@concat('DECLARE @Cnt INT = 0; BEGIN TRY SELECT @Cnt = COUNT(*) FROM OPENROWSET(BULK ''''/silver/clean/window=', pipeline().parameters.WindowKey, '/*.parquet'''', DATA_SOURCE = ''''aer_adls'''', FORMAT = ''''PARQUET'''') AS b; END TRY BEGIN CATCH SET @Cnt = 0; END CATCH SELECT @Cnt AS SilverCount;')",
+											"value": "@concat('DECLARE @Cnt INT = 0; DECLARE @ErrMsg NVARCHAR(4000) = NULL; BEGIN TRY SELECT @Cnt = COUNT(*) FROM OPENROWSET(BULK ''/silver/clean/window=', pipeline().parameters.WindowKey, '/*.parquet'', DATA_SOURCE = ''aer_adls'', FORMAT = ''PARQUET'') AS b; END TRY BEGIN CATCH SET @Cnt = 0; SET @ErrMsg = ERROR_MESSAGE(); END CATCH SELECT @Cnt AS SilverCount, @ErrMsg AS ErrorMsg;')",
 											"type": "Expression"
 										}
 									}
@@ -93,7 +93,7 @@
 									{
 										"type": "Query",
 										"text": {
-											"value": "@concat('DECLARE @Cnt INT = 0; BEGIN TRY SELECT @Cnt = COUNT(*) FROM OPENROWSET(BULK ''''/quarantine/well_rejects/window=', pipeline().parameters.WindowKey, '/*.parquet'''', DATA_SOURCE = ''''aer_adls'''', FORMAT = ''''PARQUET'''') AS b; END TRY BEGIN CATCH SET @Cnt = 0; END CATCH SELECT @Cnt AS QuarantineCount;')",
+											"value": "@concat('DECLARE @Cnt INT = 0; DECLARE @ErrMsg NVARCHAR(4000) = NULL; BEGIN TRY SELECT @Cnt = COUNT(*) FROM OPENROWSET(BULK ''/quarantine/well_rejects/window=', pipeline().parameters.WindowKey, '/*.parquet'', DATA_SOURCE = ''aer_adls'', FORMAT = ''PARQUET'') WITH (WellID NVARCHAR(50)) AS b; END TRY BEGIN CATCH SET @Cnt = 0; SET @ErrMsg = ERROR_MESSAGE(); END CATCH SELECT @Cnt AS QuarantineCount, @ErrMsg AS ErrorMsg;')",
 											"type": "Expression"
 										}
 									}
