@@ -1,5 +1,5 @@
 {
-	"name": "PL_EIA_Ingestion",
+	"name": "PL_EIA_Ingestion_INCREMENTAL",
 	"properties": {
 		"description": "EIA incremental controller. Reads the date watermark, probes source availability, creates no files and advances no watermark when zero rows are returned, and calls PL_EIA_ProcessData_INCREMENTAL only when data exists. Returns StartDate, EndDate, HasRows, and RowsFetched to the master.",
 		"activities": [

@@ -1,5 +1,5 @@
 {
-	"name": "PL_Master",
+	"name": "PL_Master_EIA_INCREMENTAL",
 	"properties": {
 		"description": "EIA data-processing child. Called only by PL_EIA_IncrementalIngestion after a positive source-availability check. Handles pagination, Bronze parquet writes, staging load, and watermark commit to the MAX actual EIA period. Fails fast if invoked directly without required parameters.",
 		"activities": [
