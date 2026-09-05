@@ -438,7 +438,7 @@
 						{
 							"type": "Query",
 							"text": {
-								"value": "@concat('DECLARE @Cnt BIGINT=0; BEGIN TRY SELECT @Cnt=COUNT(*) FROM OPENROWSET(BULK ''''/silver/clean/window=', pipeline().parameters.WindowKey, '/*.parquet'''', DATA_SOURCE=''''aer_adls'''', FORMAT=''''PARQUET'''') AS s; END TRY BEGIN CATCH SET @Cnt=0; END CATCH; SELECT @Cnt AS SilverCount;')",
+								"value": "@concat('DECLARE @Cnt BIGINT=0; BEGIN TRY SELECT @Cnt=COUNT(*) FROM OPENROWSET(BULK ''/silver/clean/window=', pipeline().parameters.WindowKey, '/*.parquet'', DATA_SOURCE=''aer_adls'', FORMAT=''PARQUET'') AS s; END TRY BEGIN CATCH SET @Cnt=0; END CATCH; SELECT @Cnt AS SilverCount;')",
 								"type": "Expression"
 							}
 						}
