@@ -1,36 +1,12 @@
 {
 	"name": "PL_Bronze_to_Silver_quarantine_INCREMENTAL",
 	"properties": {
-		"description": "Stable ST37 Bronze-to-Silver incremental pipeline. Preserves deterministic WindowKey processing, Silver/Quarantine transformation, BatchId/ParentRunId lineage, success/failure PipelineRunDetail logging, and stage timing. Experimental Get_BronzeSilver_RowCounts activity removed; authoritative Bronze/Silver/Quarantine counts remain in the downstream reconciliation pipeline.",
+		"description": "Processes only the ST37 incremental Bronze window. If ST37 copied zero rows, this pipeline succeeds as a no-op. Adds control.PipelineRunDetail success/failure logging correlated by BatchId and ParentRunId. Lineage-hardened: BatchId and WindowKey are propagated to control logging. Detailed transformation failure is logged inside the child branch to control.Log_ADF_Failure; the child then fails explicitly so Master can close its batch.",
 		"activities": [
-			{
-				"name": "Set_BronzeSilver_StartTime",
-				"type": "SetVariable",
-				"dependsOn": [],
-				"policy": {
-					"secureOutput": false,
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"variableName": "v_BronzeSilverStartTime",
-					"value": {
-						"value": "@utcNow()",
-						"type": "Expression"
-					}
-				}
-			},
 			{
 				"name": "Process_When_HasRows",
 				"type": "IfCondition",
-				"dependsOn": [
-					{
-						"activity": "Set_BronzeSilver_StartTime",
-						"dependencyConditions": [
-							"Succeeded"
-						]
-					}
-				],
+				"dependsOn": [],
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
@@ -141,56 +117,87 @@
 								],
 								"scriptBlockExecutionTimeout": "02:00:00"
 							}
+						},
+						{
+							"name": "Log_ADF_Failure_BronzeToSilver_Transform",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Bronze delta to Silver and Quarantine",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.00:05:00",
+								"retry": 1,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[control].[Log_ADF_Failure]",
+								"storedProcedureParameters": {
+									"ActivityName": {
+										"value": "Bronze delta to Silver and Quarantine",
+										"type": "String"
+									},
+									"ErrorMessage": {
+										"value": {
+											"value": "@activity('Bronze delta to Silver and Quarantine').error.message",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineName": {
+										"value": {
+											"value": "@pipeline().Pipeline",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineRunId": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"Status": {
+										"value": "failed",
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "Fail_BronzeToSilver_Transform_After_ADF_Log",
+							"type": "Fail",
+							"dependsOn": [
+								{
+									"activity": "Log_ADF_Failure_BronzeToSilver_Transform",
+									"dependencyConditions": [
+										"Succeeded",
+										"Failed"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"message": {
+									"value": "@activity('Bronze delta to Silver and Quarantine').error.message",
+									"type": "Expression"
+								},
+								"errorCode": "BRONZE_TO_SILVER_TRANSFORM_FAILED"
+							}
 						}
 					]
-				}
-			},
-			{
-				"name": "Set_BronzeSilver_EndTime_Success",
-				"type": "SetVariable",
-				"dependsOn": [
-					{
-						"activity": "Process_When_HasRows",
-						"dependencyConditions": [
-							"Succeeded"
-						]
-					}
-				],
-				"policy": {
-					"secureOutput": false,
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"variableName": "v_BronzeSilverEndTime",
-					"value": {
-						"value": "@utcNow()",
-						"type": "Expression"
-					}
-				}
-			},
-			{
-				"name": "Set_BronzeSilver_EndTime_Failure",
-				"type": "SetVariable",
-				"dependsOn": [
-					{
-						"activity": "Process_When_HasRows",
-						"dependencyConditions": [
-							"Failed"
-						]
-					}
-				],
-				"policy": {
-					"secureOutput": false,
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"variableName": "v_BronzeSilverEndTime",
-					"value": {
-						"value": "@utcNow()",
-						"type": "Expression"
-					}
 				}
 			},
 			{
@@ -198,7 +205,7 @@
 				"type": "SqlServerStoredProcedure",
 				"dependsOn": [
 					{
-						"activity": "Set_BronzeSilver_EndTime_Success",
+						"activity": "Process_When_HasRows",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -254,20 +261,6 @@
 						"Status": {
 							"value": "SUCCESS",
 							"type": "String"
-						},
-						"StartTime": {
-							"value": {
-								"value": "@variables('v_BronzeSilverStartTime')",
-								"type": "Expression"
-							},
-							"type": "DateTime"
-						},
-						"EndTime": {
-							"value": {
-								"value": "@variables('v_BronzeSilverEndTime')",
-								"type": "Expression"
-							},
-							"type": "DateTime"
 						}
 					}
 				},
@@ -281,9 +274,9 @@
 				"type": "SqlServerStoredProcedure",
 				"dependsOn": [
 					{
-						"activity": "Set_BronzeSilver_EndTime_Failure",
+						"activity": "Process_When_HasRows",
 						"dependencyConditions": [
-							"Succeeded"
+							"Failed"
 						]
 					}
 				],
@@ -351,20 +344,6 @@
 								"type": "Expression"
 							},
 							"type": "String"
-						},
-						"StartTime": {
-							"value": {
-								"value": "@variables('v_BronzeSilverStartTime')",
-								"type": "Expression"
-							},
-							"type": "DateTime"
-						},
-						"EndTime": {
-							"value": {
-								"value": "@variables('v_BronzeSilverEndTime')",
-								"type": "Expression"
-							},
-							"type": "DateTime"
 						}
 					}
 				},
@@ -407,14 +386,6 @@
 				"type": "string"
 			}
 		},
-		"variables": {
-			"v_BronzeSilverStartTime": {
-				"type": "String"
-			},
-			"v_BronzeSilverEndTime": {
-				"type": "String"
-			}
-		},
 		"folder": {
 			"name": "Incremental_Load"
 		},
@@ -422,10 +393,7 @@
 			"Incremental",
 			"Delta",
 			"DataQuality",
-			"Quarantine",
-			"Stable",
-			"Timing",
-			"NoExtraRowCountLookup"
+			"Quarantine"
 		]
 	},
 	"type": "Microsoft.DataFactory/factories/pipelines"

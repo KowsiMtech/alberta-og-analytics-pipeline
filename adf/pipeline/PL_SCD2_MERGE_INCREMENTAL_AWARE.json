@@ -1,7 +1,7 @@
 {
 	"name": "PL_SCD2_MERGE_INCREMENTAL_AWARE",
 	"properties": {
-		"description": "Incremental-aware SCD2 processing with control.PipelineRunDetail timing and row metrics. RowsRead = staging.Silver_Wells delta rows. RowsWritten = actual gold.Dim_Well SCD2 rows updated/inserted (not total Gold snapshot rows).",
+		"description": "Incremental-aware SCD2 processing with control.PipelineRunDetail timing and row metrics. RowsRead = staging.Silver_Wells delta rows. RowsWritten = actual gold.Dim_Well SCD2 rows updated/inserted (not total Gold snapshot rows). SCD2 Script failures are logged by the child to ADF_Pipeline_Log after PipelineRunDetail logging and before explicit child Fail.",
 		"activities": [
 			{
 				"name": "Set_SCD2_StartTime",
@@ -296,11 +296,70 @@
 				}
 			},
 			{
+				"name": "Log_ADF_Failure_SCD2",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Log_SCD2_Failure",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 1,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[control].[Log_ADF_Failure]",
+					"storedProcedureParameters": {
+						"ActivityName": {
+							"value": "SCD2 Merge Incremental Aware",
+							"type": "String"
+						},
+						"ErrorMessage": {
+							"value": {
+								"value": "@activity('SCD2 Merge Incremental Aware').error.message",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineRunId": {
+							"value": {
+								"value": "@pipeline().RunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"Status": {
+							"value": "failed",
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
 				"name": "Fail_SCD2_After_Log",
 				"type": "Fail",
 				"dependsOn": [
 					{
-						"activity": "Log_SCD2_Failure",
+						"activity": "Log_ADF_Failure_SCD2",
 						"dependencyConditions": [
 							"Succeeded",
 							"Failed"

@@ -1,7 +1,7 @@
 {
 	"name": "PL_Silver_to_Staging_SQL_INCREMENTAL",
 	"properties": {
-		"description": "Loads only the current ST37 Silver delta into staging.Silver_Wells. Staging is deliberately truncated each run. If there are no ST37 changes, staging is explicitly cleared so stale rows cannot be reprocessed. Adds run correlation and activity logging. Lineage-hardened: BatchId and WindowKey are propagated to control logging.",
+		"description": "Loads only the current ST37 Silver delta into staging.Silver_Wells. Staging is deliberately truncated each run. If there are no ST37 changes, staging is explicitly cleared so stale rows cannot be reprocessed. Adds run correlation and activity logging. Lineage-hardened: BatchId and WindowKey are propagated to control logging. Central ADF failure logging is also emitted before the child is explicitly failed.",
 		"activities": [
 			{
 				"name": "Set_SilverStage_StartTime",
@@ -680,11 +680,70 @@
 				}
 			},
 			{
+				"name": "Log_ADF_Failure_SilverToStaging",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Log_SilverToStaging_Failure",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 1,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[control].[Log_ADF_Failure]",
+					"storedProcedureParameters": {
+						"ActivityName": {
+							"value": "Silver window to staging.Silver_Wells",
+							"type": "String"
+						},
+						"ErrorMessage": {
+							"value": {
+								"value": "@activity('Load_Or_Clear_ST37_Delta').error.message",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineRunId": {
+							"value": {
+								"value": "@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"Status": {
+							"value": "failed",
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
 				"name": "Fail_SilverToStaging_After_Log",
 				"type": "Fail",
 				"dependsOn": [
 					{
-						"activity": "Log_SilverToStaging_Failure",
+						"activity": "Log_ADF_Failure_SilverToStaging",
 						"dependencyConditions": [
 							"Succeeded",
 							"Failed"
