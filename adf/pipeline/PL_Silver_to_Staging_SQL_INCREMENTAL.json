@@ -4,9 +4,33 @@
 		"description": "Loads only the current ST37 Silver delta into staging.Silver_Wells. Staging is deliberately truncated each run. If there are no ST37 changes, staging is explicitly cleared so stale rows cannot be reprocessed. Adds run correlation and activity logging. Lineage-hardened: BatchId and WindowKey are propagated to control logging.",
 		"activities": [
 			{
+				"name": "Set_SilverStage_StartTime",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_StageStartTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
+			{
 				"name": "Load_Or_Clear_ST37_Delta",
 				"type": "IfCondition",
-				"dependsOn": [],
+				"dependsOn": [
+					{
+						"activity": "Set_SilverStage_StartTime",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
@@ -339,11 +363,59 @@
 				}
 			},
 			{
+				"name": "Set_SilverStage_EndTime_Success",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Load_Or_Clear_ST37_Delta",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_StageEndTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_SilverStage_EndTime_Failure",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Load_Or_Clear_ST37_Delta",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_StageEndTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
+			{
 				"name": "Log_SilverToStaging_Success",
 				"type": "SqlServerStoredProcedure",
 				"dependsOn": [
 					{
-						"activity": "Load_Or_Clear_ST37_Delta",
+						"activity": "Set_SilverStage_EndTime_Success",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -399,6 +471,20 @@
 						"Status": {
 							"value": "SUCCESS",
 							"type": "String"
+						},
+						"StartTime": {
+							"value": {
+								"value": "@variables('v_StageStartTime')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"EndTime": {
+							"value": {
+								"value": "@variables('v_StageEndTime')",
+								"type": "Expression"
+							},
+							"type": "String"
 						}
 					}
 				},
@@ -412,9 +498,9 @@
 				"type": "SqlServerStoredProcedure",
 				"dependsOn": [
 					{
-						"activity": "Load_Or_Clear_ST37_Delta",
+						"activity": "Set_SilverStage_EndTime_Failure",
 						"dependencyConditions": [
-							"Failed"
+							"Succeeded"
 						]
 					}
 				],
@@ -482,6 +568,20 @@
 								"type": "Expression"
 							},
 							"type": "String"
+						},
+						"StartTime": {
+							"value": {
+								"value": "@variables('v_StageStartTime')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"EndTime": {
+							"value": {
+								"value": "@variables('v_StageEndTime')",
+								"type": "Expression"
+							},
+							"type": "String"
 						}
 					}
 				},
@@ -522,6 +622,14 @@
 			},
 			"BatchId": {
 				"type": "string"
+			}
+		},
+		"variables": {
+			"v_StageStartTime": {
+				"type": "String"
+			},
+			"v_StageEndTime": {
+				"type": "String"
 			}
 		},
 		"folder": {

@@ -1,7 +1,7 @@
 {
 	"name": "PL_Master_Orchestrator_ST37_CONTROLLED",
 	"properties": {
-		"description": "ST37-only controlled master for NORMAL/REPLAY/BACKFILL validation. EIA is intentionally excluded. Correlates BatchId/RunId, runs exact WindowKey downstream, logs DQ, and uses control.usp_StartPipelineRun/control.usp_EndPipelineRun. Lineage-hardened: BatchId and WindowKey are propagated to control logging.",
+		"description": "ST37-only controlled master for NORMAL/REPLAY/BACKFILL validation. EIA is intentionally excluded. Correlates BatchId/RunId, runs exact WindowKey downstream, logs DQ, and uses control.usp_StartPipelineRun/control.usp_EndPipelineRun. Lineage-hardened: BatchId and WindowKey are propagated to control logging. Adds Gold SCD2 single-current-record DQ gate before archival. Gold SCD2 DQ is implemented as a single Script (log + THROW) to avoid unsupported nested IfCondition.",
 		"activities": [
 			{
 				"name": "GetIdempotencyStatus",
@@ -337,11 +337,47 @@
 							}
 						},
 						{
+							"name": "Check_And_Log_Gold_SCD2_DQ",
+							"type": "Script",
+							"dependsOn": [
+								{
+									"activity": "SCD2 for gold",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.00:05:00",
+								"retry": 1,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							},
+							"typeProperties": {
+								"scripts": [
+									{
+										"type": "NonQuery",
+										"text": {
+											"value": "@concat('DECLARE @FailedRowCount INT; SELECT @FailedRowCount = COUNT(*) FROM (SELECT WellID FROM gold.Dim_Well WHERE [Is_Current] = 1 GROUP BY WellID HAVING COUNT(*) > 1) x; INSERT INTO control.DataQualityResult (PipelineRunId, PipelineName, BatchId, WindowKey, DatasetName, RuleName, RuleResult, ExpectedValue, ActualValue, FailedRowCount, CheckTime) VALUES (''', pipeline().RunId, ''', ''PL_ST37_to_Bronze_INCREMENTAL'', ''', concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8)), ''', ''', activity('PLST37_to_Bronze').output.pipelineReturnValue.WindowKey, ''', ''Gold_Dim_Well'', ''GoldSingleCurrentRecord'', CASE WHEN @FailedRowCount = 0 THEN ''PASS'' ELSE ''FAIL'' END, ''0'', CAST(@FailedRowCount AS NVARCHAR(20)), @FailedRowCount, SYSUTCDATETIME()); IF @FailedRowCount > 0 BEGIN THROW 51001, ''Gold SCD2 DQ failed: duplicate Is_Current records detected.'', 1; END;')",
+											"type": "Expression"
+										}
+									}
+								],
+								"scriptBlockExecutionTimeout": "02:00:00"
+							}
+						},
+						{
 							"name": "Lookup_Gold_Current_Well_Count",
 							"type": "Lookup",
 							"dependsOn": [
 								{
-									"activity": "SCD2 for gold",
+									"activity": "Check_And_Log_Gold_SCD2_DQ",
 									"dependencyConditions": [
 										"Succeeded"
 									]
@@ -671,7 +707,9 @@
 			"Replay",
 			"Backfill",
 			"Retry",
-			"ControlFramework"
+			"ControlFramework",
+			"GoldDQ",
+			"GoldSingleCurrentRecord"
 		],
 		"lastPublishTime": "2026-04-20T02:12:31Z"
 	},
