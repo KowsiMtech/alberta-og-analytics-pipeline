@@ -1,7 +1,7 @@
 {
 	"name": "PL_Silver_to_Staging_SQL_INCREMENTAL",
 	"properties": {
-		"description": "Loads only the actual Silver delta into staging.Silver_Wells. HasRows now means SilverHasRows supplied by Bronze-to-Silver, not Bronze source HasRows. SilverCount is supplied upstream; no Silver OPENROWSET count/rescan is performed. StagingCount is measured after copy/clear. Existing timing and failure logging are preserved. Industry-refactor v1. FINAL V2: consumes upstream SilverCount/SilverHasRows and avoids re-opening Silver storage for recount.",
+		"description": "Loads only the actual Silver delta into staging.Silver_Wells. HasRows now means SilverHasRows supplied by Bronze-to-Silver, not Bronze source HasRows. SilverCount is supplied upstream; no Silver OPENROWSET count/rescan is performed. StagingCount is measured after copy/clear. Existing timing and failure logging are preserved. Industry-refactor v1. FINAL V2: consumes upstream SilverCount/SilverHasRows and avoids re-opening Silver storage for recount. Coordinated Instrumentation V3: existing StartTime/EndTime/RowsRead/RowsWritten instrumentation retained.",
 		"activities": [
 			{
 				"name": "Set_SilverStage_StartTime",

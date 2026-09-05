@@ -1,7 +1,7 @@
 {
 	"name": "PL_SCD2_MERGE_INCREMENTAL_AWARE",
 	"properties": {
-		"description": "Incremental-aware SCD2 processing with control.PipelineRunDetail timing and row metrics. RowsRead = staging.Silver_Wells delta rows. RowsWritten = actual gold.Dim_Well SCD2 rows updated/inserted (not total Gold snapshot rows). SCD2 Script failures are logged by the child to ADF_Pipeline_Log after PipelineRunDetail logging and before explicit child Fail. FINAL V2: preserves SCD2 SQL/metrics and routes operational failure persistence through common handler.",
+		"description": "Incremental-aware SCD2 processing with control.PipelineRunDetail timing and row metrics. RowsRead = staging.Silver_Wells delta rows. RowsWritten = actual gold.Dim_Well SCD2 rows updated/inserted (not total Gold snapshot rows). SCD2 Script failures are logged by the child to ADF_Pipeline_Log after PipelineRunDetail logging and before explicit child Fail. FINAL V2: preserves SCD2 SQL/metrics and routes operational failure persistence through common handler. Coordinated Instrumentation V3: existing StartTime/EndTime/RowsRead/RowsWritten instrumentation retained.",
 		"activities": [
 			{
 				"name": "Set_SCD2_StartTime",

@@ -1,12 +1,36 @@
 {
 	"name": "PL_Bronze_to_Silver_quarantine_INCREMENTAL",
 	"properties": {
-		"description": "Processes the current ST37 Bronze WindowKey into Silver and Quarantine. Industry-refactor v1: classification predicates are defined once inside the transform Script and reused for both CETAS writes and returned counts; SilverCount/QuarantineCount/SilverHasRows are propagated downstream without rescanning Silver/Quarantine storage. Existing child-level failure logging and lineage are preserved. FINAL V2: returns SilverCount/QuarantineCount/SilverHasRows and centralizes operational failure logging through PL_Common_Error_Handler.",
+		"description": "Processes the current ST37 Bronze WindowKey into Silver and Quarantine. Industry-refactor v1: classification predicates are defined once inside the transform Script and reused for both CETAS writes and returned counts; SilverCount/QuarantineCount/SilverHasRows are propagated downstream without rescanning Silver/Quarantine storage. Existing child-level failure logging and lineage are preserved. FINAL V2: returns SilverCount/QuarantineCount/SilverHasRows and centralizes operational failure logging through PL_Common_Error_Handler. Instrumentation V3: transformation StartTime/EndTime persisted; existing single-pass Silver/Quarantine counts retained.",
 		"activities": [
+			{
+				"name": "Set_BronzeSilver_StartTime",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_BronzeSilverStartTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
 			{
 				"name": "Process_When_HasRows",
 				"type": "IfCondition",
-				"dependsOn": [],
+				"dependsOn": [
+					{
+						"activity": "Set_BronzeSilver_StartTime",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
@@ -253,11 +277,59 @@
 				}
 			},
 			{
-				"name": "Set_BronzeToSilver_ReturnValues",
+				"name": "Set_BronzeSilver_EndTime_Success",
 				"type": "SetVariable",
 				"dependsOn": [
 					{
 						"activity": "Process_When_HasRows",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_BronzeSilverEndTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_BronzeSilver_EndTime_Failure",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Process_When_HasRows",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_BronzeSilverEndTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_BronzeToSilver_ReturnValues",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set_BronzeSilver_EndTime_Success",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -378,6 +450,20 @@
 								"type": "Expression"
 							},
 							"type": "Int64"
+						},
+						"StartTime": {
+							"value": {
+								"value": "@variables('v_BronzeSilverStartTime')",
+								"type": "Expression"
+							},
+							"type": "DateTime"
+						},
+						"EndTime": {
+							"value": {
+								"value": "@variables('v_BronzeSilverEndTime')",
+								"type": "Expression"
+							},
+							"type": "DateTime"
 						}
 					}
 				},
@@ -391,9 +477,9 @@
 				"type": "SqlServerStoredProcedure",
 				"dependsOn": [
 					{
-						"activity": "Process_When_HasRows",
+						"activity": "Set_BronzeSilver_EndTime_Failure",
 						"dependencyConditions": [
-							"Failed"
+							"Succeeded"
 						]
 					}
 				],
@@ -461,6 +547,20 @@
 								"type": "Expression"
 							},
 							"type": "String"
+						},
+						"StartTime": {
+							"value": {
+								"value": "@variables('v_BronzeSilverStartTime')",
+								"type": "Expression"
+							},
+							"type": "DateTime"
+						},
+						"EndTime": {
+							"value": {
+								"value": "@variables('v_BronzeSilverEndTime')",
+								"type": "Expression"
+							},
+							"type": "DateTime"
 						}
 					}
 				},
@@ -543,6 +643,12 @@
 			"v_QuarantineCount": {
 				"type": "Integer",
 				"defaultValue": 0
+			},
+			"v_BronzeSilverStartTime": {
+				"type": "String"
+			},
+			"v_BronzeSilverEndTime": {
+				"type": "String"
 			}
 		},
 		"folder": {

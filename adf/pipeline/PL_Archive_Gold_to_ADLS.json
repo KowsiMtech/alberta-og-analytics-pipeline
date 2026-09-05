@@ -1,12 +1,36 @@
 {
 	"name": "PL_Archive_Gold_to_ADLS",
 	"properties": {
-		"description": "Gold archive copies with one reusable common-error-handler call per Copy failure. The common handler logs and fails, so separate Fail_After_* activities are intentionally removed.",
+		"description": "Gold archive copies with one reusable common-error-handler call per Copy failure. The common handler logs and fails, so separate Fail_After_* activities are intentionally removed. Instrumentation V3: one archive-stage success detail row with aggregate rows and elapsed timing; per-copy common error handlers retained.",
 		"activities": [
+			{
+				"name": "Set_Archive_StartTime",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_ArchiveStartTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
 			{
 				"name": "Archive_DimOperator",
 				"type": "Copy",
-				"dependsOn": [],
+				"dependsOn": [
+					{
+						"activity": "Set_Archive_StartTime",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"policy": {
 					"timeout": "0.12:00:00",
 					"retry": 0,
@@ -95,7 +119,14 @@
 			{
 				"name": "Archive_DimWell",
 				"type": "Copy",
-				"dependsOn": [],
+				"dependsOn": [
+					{
+						"activity": "Set_Archive_StartTime",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"policy": {
 					"timeout": "0.12:00:00",
 					"retry": 0,
@@ -184,7 +215,14 @@
 			{
 				"name": "Archive_FactWellSnapshot",
 				"type": "Copy",
-				"dependsOn": [],
+				"dependsOn": [
+					{
+						"activity": "Set_Archive_StartTime",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"policy": {
 					"timeout": "0.12:00:00",
 					"retry": 0,
@@ -274,7 +312,14 @@
 				"name": "Archive_DimLicenceStatus",
 				"description": "SELECT * FROM gold.Dim_LicenceStatus",
 				"type": "Copy",
-				"dependsOn": [],
+				"dependsOn": [
+					{
+						"activity": "Set_Archive_StartTime",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"policy": {
 					"timeout": "0.12:00:00",
 					"retry": 0,
@@ -363,7 +408,14 @@
 			{
 				"name": "Archive_DimWellType",
 				"type": "Copy",
-				"dependsOn": [],
+				"dependsOn": [
+					{
+						"activity": "Set_Archive_StartTime",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"policy": {
 					"timeout": "0.12:00:00",
 					"retry": 0,
@@ -452,7 +504,14 @@
 			{
 				"name": "vw_WellMarketTrend",
 				"type": "Copy",
-				"dependsOn": [],
+				"dependsOn": [
+					{
+						"activity": "Set_Archive_StartTime",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"policy": {
 					"timeout": "0.12:00:00",
 					"retry": 0,
@@ -537,6 +596,157 @@
 						"WindowKey": "{\"value\":{\"value\":\"@pipeline().parameters.WindowKey\",\"type\":\"Expression\"},\"type\":\"String\"}"
 					}
 				}
+			},
+			{
+				"name": "Set_Archive_EndTime_Success",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Archive_DimOperator",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Archive_DimWell",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Archive_FactWellSnapshot",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Archive_DimLicenceStatus",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Archive_DimWellType",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "vw_WellMarketTrend",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_ArchiveEndTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Log_Archive_Success",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Set_Archive_EndTime_Success",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 1,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[control].[usp_LogPipelineRunDetail]",
+					"storedProcedureParameters": {
+						"PipelineRunId": {
+							"value": {
+								"value": "@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"BatchId": {
+							"value": {
+								"value": "@pipeline().parameters.BatchId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"WindowKey": {
+							"value": {
+								"value": "@pipeline().parameters.WindowKey",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ActivityName": {
+							"value": "Archive Gold to ADLS",
+							"type": "String"
+						},
+						"ActivityType": {
+							"value": "Archive",
+							"type": "String"
+						},
+						"Status": {
+							"value": "SUCCESS",
+							"type": "String"
+						},
+						"RowsRead": {
+							"value": {
+								"value": "@add(add(add(int(activity('Archive_DimOperator').output.rowsRead),int(activity('Archive_DimWell').output.rowsRead)),add(int(activity('Archive_FactWellSnapshot').output.rowsRead),int(activity('Archive_DimLicenceStatus').output.rowsRead))),add(int(activity('Archive_DimWellType').output.rowsRead),int(activity('vw_WellMarketTrend').output.rowsRead)))",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"RowsWritten": {
+							"value": {
+								"value": "@add(add(add(int(activity('Archive_DimOperator').output.rowsCopied),int(activity('Archive_DimWell').output.rowsCopied)),add(int(activity('Archive_FactWellSnapshot').output.rowsCopied),int(activity('Archive_DimLicenceStatus').output.rowsCopied))),add(int(activity('Archive_DimWellType').output.rowsCopied),int(activity('vw_WellMarketTrend').output.rowsCopied)))",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"StartTime": {
+							"value": {
+								"value": "@variables('v_ArchiveStartTime')",
+								"type": "Expression"
+							},
+							"type": "DateTime"
+						},
+						"EndTime": {
+							"value": {
+								"value": "@variables('v_ArchiveEndTime')",
+								"type": "Expression"
+							},
+							"type": "DateTime"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
 			}
 		],
 		"parameters": {
@@ -548,6 +758,14 @@
 			},
 			"WindowKey": {
 				"type": "string"
+			}
+		},
+		"variables": {
+			"v_ArchiveStartTime": {
+				"type": "String"
+			},
+			"v_ArchiveEndTime": {
+				"type": "String"
 			}
 		},
 		"folder": {

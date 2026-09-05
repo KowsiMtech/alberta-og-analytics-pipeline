@@ -1,12 +1,36 @@
 {
 	"name": "PL_ADLS_Reconciliation_INCREMENTAL",
 	"properties": {
-		"description": "FINAL V2 reconciliation consumes upstream counts only; no Bronze/Silver/Quarantine ADLS rescans. DQ logging failure is persisted by the common error handler.",
+		"description": "FINAL V2 reconciliation consumes upstream counts only; no Bronze/Silver/Quarantine ADLS rescans. DQ logging failure is persisted by the common error handler. Instrumentation V3: reconciliation timing and PipelineRunDetail success/failure rows added; no ADLS recount introduced.",
 		"activities": [
+			{
+				"name": "Set_Reconciliation_StartTime",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_ReconciliationStartTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
 			{
 				"name": "Set_SourceRowCount_FromParameter",
 				"type": "SetVariable",
-				"dependsOn": [],
+				"dependsOn": [
+					{
+						"activity": "Set_Reconciliation_StartTime",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"policy": {
 					"secureOutput": false,
 					"secureInput": false
@@ -23,7 +47,14 @@
 			{
 				"name": "Set_SilverRowCount_FromParameter",
 				"type": "SetVariable",
-				"dependsOn": [],
+				"dependsOn": [
+					{
+						"activity": "Set_Reconciliation_StartTime",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"policy": {
 					"secureOutput": false,
 					"secureInput": false
@@ -40,7 +71,14 @@
 			{
 				"name": "Set_QuarantineRowCount_FromParameter",
 				"type": "SetVariable",
-				"dependsOn": [],
+				"dependsOn": [
+					{
+						"activity": "Set_Reconciliation_StartTime",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"policy": {
 					"secureOutput": false,
 					"secureInput": false
@@ -157,11 +195,267 @@
 				}
 			},
 			{
-				"name": "Set_Reconciliation_ReturnValues",
+				"name": "Set_Reconciliation_EndTime_Success",
 				"type": "SetVariable",
 				"dependsOn": [
 					{
 						"activity": "Log_DQ_BronzeEqualsSilverPlusQuarantine",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_ReconciliationEndTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_Reconciliation_EndTime_Failure",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Log_DQ_BronzeEqualsSilverPlusQuarantine",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_ReconciliationEndTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Log_Reconciliation_Success",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Set_Reconciliation_EndTime_Success",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 1,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[control].[usp_LogPipelineRunDetail]",
+					"storedProcedureParameters": {
+						"PipelineRunId": {
+							"value": {
+								"value": "@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"BatchId": {
+							"value": {
+								"value": "@pipeline().parameters.BatchId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"WindowKey": {
+							"value": {
+								"value": "@pipeline().parameters.WindowKey",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ActivityName": {
+							"value": "Bronze = Silver + Quarantine Reconciliation",
+							"type": "String"
+						},
+						"ActivityType": {
+							"value": "Reconciliation",
+							"type": "String"
+						},
+						"Status": {
+							"value": "SUCCESS",
+							"type": "String"
+						},
+						"RowsRead": {
+							"value": {
+								"value": "@int(variables('v_BronzeCount'))",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"RowsWritten": {
+							"value": {
+								"value": "@add(int(variables('v_SilverCount')),int(variables('v_QuarantineCount')))",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"StartTime": {
+							"value": {
+								"value": "@variables('v_ReconciliationStartTime')",
+								"type": "Expression"
+							},
+							"type": "DateTime"
+						},
+						"EndTime": {
+							"value": {
+								"value": "@variables('v_ReconciliationEndTime')",
+								"type": "Expression"
+							},
+							"type": "DateTime"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Log_Reconciliation_Failure",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Set_Reconciliation_EndTime_Failure",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 1,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[control].[usp_LogPipelineRunDetail]",
+					"storedProcedureParameters": {
+						"PipelineRunId": {
+							"value": {
+								"value": "@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"BatchId": {
+							"value": {
+								"value": "@pipeline().parameters.BatchId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"WindowKey": {
+							"value": {
+								"value": "@pipeline().parameters.WindowKey",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ActivityName": {
+							"value": "Bronze = Silver + Quarantine Reconciliation",
+							"type": "String"
+						},
+						"ActivityType": {
+							"value": "Reconciliation",
+							"type": "String"
+						},
+						"Status": {
+							"value": "FAILED",
+							"type": "String"
+						},
+						"RowsRead": {
+							"value": {
+								"value": "@int(variables('v_BronzeCount'))",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"RowsWritten": {
+							"value": {
+								"value": "@add(int(variables('v_SilverCount')),int(variables('v_QuarantineCount')))",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"StartTime": {
+							"value": {
+								"value": "@variables('v_ReconciliationStartTime')",
+								"type": "Expression"
+							},
+							"type": "DateTime"
+						},
+						"EndTime": {
+							"value": {
+								"value": "@variables('v_ReconciliationEndTime')",
+								"type": "Expression"
+							},
+							"type": "DateTime"
+						},
+						"ErrorCode": {
+							"value": {
+								"value": "@activity('Log_DQ_BronzeEqualsSilverPlusQuarantine').error.errorCode",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ErrorMessage": {
+							"value": {
+								"value": "@activity('Log_DQ_BronzeEqualsSilverPlusQuarantine').error.message",
+								"type": "Expression"
+							},
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Set_Reconciliation_ReturnValues",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Log_Reconciliation_Success",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -212,8 +506,9 @@
 				"type": "ExecutePipeline",
 				"dependsOn": [
 					{
-						"activity": "Log_DQ_BronzeEqualsSilverPlusQuarantine",
+						"activity": "Log_Reconciliation_Failure",
 						"dependencyConditions": [
+							"Succeeded",
 							"Failed"
 						]
 					}
@@ -296,6 +591,12 @@
 			"v_QuarantineCount": {
 				"type": "Integer",
 				"defaultValue": 0
+			},
+			"v_ReconciliationStartTime": {
+				"type": "String"
+			},
+			"v_ReconciliationEndTime": {
+				"type": "String"
 			}
 		},
 		"folder": {

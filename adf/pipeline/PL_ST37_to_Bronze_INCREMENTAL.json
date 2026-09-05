@@ -1,7 +1,7 @@
 {
 	"name": "PL_ST37_to_Bronze_INCREMENTAL",
 	"properties": {
-		"description": "ST37 WellList ingestion with NORMAL, REPLAY and BACKFILL modes. NORMAL uses control.PipelineWatermark plus control.PipelineConfig lookback and commits the watermark/window after successful copy and control logging. REPLAY/BACKFILL require explicit WindowStart/WindowEnd, reuse deterministic Bronze paths, and never advance the operational watermark. Copy activity is logged to control.PipelineRunDetail. WindowKey propagation hardened: empty keys fail fast and successful NORMAL runs persist LastSuccessfulWindowKey. Child owns exact ST37 copy failure logging in both PipelineRunDetail and ADF_Pipeline_Log before explicit Fail. Industry-refactor v1: returns SourceRowCount from the physical Copy output so downstream reconciliation consumes stage-produced metadata instead of rescanning ADLS. FINAL V2: common operational error handler used for copy failures.",
+		"description": "ST37 WellList ingestion with NORMAL, REPLAY and BACKFILL modes. NORMAL uses control.PipelineWatermark plus control.PipelineConfig lookback and commits the watermark/window after successful copy and control logging. REPLAY/BACKFILL require explicit WindowStart/WindowEnd, reuse deterministic Bronze paths, and never advance the operational watermark. Copy activity is logged to control.PipelineRunDetail. WindowKey propagation hardened: empty keys fail fast and successful NORMAL runs persist LastSuccessfulWindowKey. Child owns exact ST37 copy failure logging in both PipelineRunDetail and ADF_Pipeline_Log before explicit Fail. Industry-refactor v1: returns SourceRowCount from the physical Copy output so downstream reconciliation consumes stage-produced metadata instead of rescanning ADLS. FINAL V2: common operational error handler used for copy failures. Instrumentation V3: copy StartTime/EndTime persisted; DurationSeconds derived by usp_LogPipelineRunDetail.",
 		"activities": [
 			{
 				"name": "Lookup_Watermark",
@@ -206,11 +206,35 @@
 				}
 			},
 			{
+				"name": "Set_ST37_Copy_StartTime",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Validate_WindowKey_NotEmpty",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_CopyStartTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
+			{
 				"name": "Copy OnPremData Incremental",
 				"type": "Copy",
 				"dependsOn": [
 					{
-						"activity": "Validate_WindowKey_NotEmpty",
+						"activity": "Set_ST37_Copy_StartTime",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -277,11 +301,59 @@
 				]
 			},
 			{
+				"name": "Set_ST37_Copy_EndTime_Success",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Copy OnPremData Incremental",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_CopyEndTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_ST37_Copy_EndTime_Failure",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Copy OnPremData Incremental",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_CopyEndTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
+			{
 				"name": "Log_ST37_Copy_Success",
 				"type": "SqlServerStoredProcedure",
 				"dependsOn": [
 					{
-						"activity": "Copy OnPremData Incremental",
+						"activity": "Set_ST37_Copy_EndTime_Success",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -351,6 +423,20 @@
 								"type": "Expression"
 							},
 							"type": "Int64"
+						},
+						"StartTime": {
+							"value": {
+								"value": "@variables('v_CopyStartTime')",
+								"type": "Expression"
+							},
+							"type": "DateTime"
+						},
+						"EndTime": {
+							"value": {
+								"value": "@variables('v_CopyEndTime')",
+								"type": "Expression"
+							},
+							"type": "DateTime"
 						}
 					}
 				},
@@ -493,9 +579,9 @@
 				"type": "SqlServerStoredProcedure",
 				"dependsOn": [
 					{
-						"activity": "Copy OnPremData Incremental",
+						"activity": "Set_ST37_Copy_EndTime_Failure",
 						"dependencyConditions": [
-							"Failed"
+							"Succeeded"
 						]
 					}
 				],
@@ -563,6 +649,20 @@
 								"type": "Expression"
 							},
 							"type": "String"
+						},
+						"StartTime": {
+							"value": {
+								"value": "@variables('v_CopyStartTime')",
+								"type": "Expression"
+							},
+							"type": "DateTime"
+						},
+						"EndTime": {
+							"value": {
+								"value": "@variables('v_CopyEndTime')",
+								"type": "Expression"
+							},
+							"type": "DateTime"
 						}
 					}
 				},
@@ -663,6 +763,12 @@
 				"type": "String"
 			},
 			"v_WindowKey": {
+				"type": "String"
+			},
+			"v_CopyStartTime": {
+				"type": "String"
+			},
+			"v_CopyEndTime": {
 				"type": "String"
 			}
 		},
