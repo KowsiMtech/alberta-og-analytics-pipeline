@@ -195,7 +195,7 @@
 			},
 			{
 				"name": "Get_BronzeSilver_RowCounts",
-				"type": "Script",
+				"type": "Lookup",
 				"dependsOn": [
 					{
 						"activity": "Set_BronzeSilver_EndTime_Success",
@@ -212,21 +212,21 @@
 					"secureInput": false
 				},
 				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('DECLARE @WindowKey NVARCHAR(200)=N''', pipeline().parameters.WindowKey, '''; DECLARE @RunStamp NVARCHAR(200)=REPLACE(REPLACE(@WindowKey,''_'',''''),''-'',''''); DECLARE @SilverTable NVARCHAR(300)=N''dbo.silver_clean_''+@RunStamp; DECLARE @QuarantineTable NVARCHAR(300)=N''dbo.quarantine_''+@RunStamp; DECLARE @SQL NVARCHAR(MAX)=N''SELECT ((SELECT COUNT(*) FROM ''+@SilverTable+'') + (SELECT COUNT(*) FROM ''+@QuarantineTable+'')) AS BronzeCount, (SELECT COUNT(*) FROM ''+@SilverTable+'') AS SilverCount, (SELECT COUNT(*) FROM ''+@QuarantineTable+'') AS QuarantineCount;''; EXEC sp_executesql @SQL;')",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"firstRowOnly": true
+				},
 				"linkedServiceName": {
 					"referenceName": "LS_Synapse_Serverless",
 					"type": "LinkedServiceReference"
-				},
-				"typeProperties": {
-					"scripts": [
-						{
-							"type": "Query",
-							"text": {
-								"value": "@concat('USE aer_synapse_db;\nDECLARE @WindowKey NVARCHAR(200)=N''', pipeline().parameters.WindowKey, ''';\nDECLARE @RunStamp NVARCHAR(200)=REPLACE(REPLACE(@WindowKey,''_'',''''),''-'','''');\nDECLARE @SilverTable SYSNAME=N''dbo.silver_clean_''+@RunStamp;\nDECLARE @QuarantineTable SYSNAME=N''dbo.quarantine_''+@RunStamp;\nDECLARE @SilverCount BIGINT=0,@QuarantineCount BIGINT=0,@SQL NVARCHAR(MAX);\n\nIF OBJECT_ID(@SilverTable) IS NOT NULL\nBEGIN\n  SET @SQL=N''SELECT @C=COUNT(*) FROM ''+QUOTENAME(PARSENAME(@SilverTable,2))+N''.''+QUOTENAME(PARSENAME(@SilverTable,1))+N'';'';\n  EXEC sp_executesql @SQL,N''@C BIGINT OUTPUT'',@C=@SilverCount OUTPUT;\nEND;\n\nIF OBJECT_ID(@QuarantineTable) IS NOT NULL\nBEGIN\n  SET @SQL=N''SELECT @C=COUNT(*) FROM ''+QUOTENAME(PARSENAME(@QuarantineTable,2))+N''.''+QUOTENAME(PARSENAME(@QuarantineTable,1))+N'';'';\n  EXEC sp_executesql @SQL,N''@C BIGINT OUTPUT'',@C=@QuarantineCount OUTPUT;\nEND;\n\nSELECT (@SilverCount+@QuarantineCount) AS BronzeCount,@SilverCount AS SilverCount,@QuarantineCount AS QuarantineCount;')",
-								"type": "Expression"
-							}
-						}
-					],
-					"scriptBlockExecutionTimeout": "02:00:00"
 				}
 			},
 			{
@@ -307,14 +307,14 @@
 						},
 						"RowsRead": {
 							"value": {
-								"value": "@int(activity('Get_BronzeSilver_RowCounts').output.resultSets[0].rows[0].BronzeCount)",
+								"value": "@int(activity('Get_BronzeSilver_RowCounts').output.firstRow.BronzeCount)",
 								"type": "Expression"
 							},
 							"type": "Int64"
 						},
 						"RowsWritten": {
 							"value": {
-								"value": "@add(int(activity('Get_BronzeSilver_RowCounts').output.resultSets[0].rows[0].SilverCount),int(activity('Get_BronzeSilver_RowCounts').output.resultSets[0].rows[0].QuarantineCount))",
+								"value": "@add(int(activity('Get_BronzeSilver_RowCounts').output.firstRow.SilverCount),int(activity('Get_BronzeSilver_RowCounts').output.firstRow.QuarantineCount))",
 								"type": "Expression"
 							},
 							"type": "Int64"
