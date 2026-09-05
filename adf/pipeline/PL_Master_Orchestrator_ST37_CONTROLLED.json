@@ -1,7 +1,7 @@
 {
 	"name": "PL_Master_Orchestrator_ST37_CONTROLLED",
 	"properties": {
-		"description": "ST37-only controlled master for NORMAL/REPLAY/BACKFILL validation. EIA is intentionally excluded. Correlates BatchId/RunId, runs exact WindowKey downstream, logs DQ, and uses control.usp_StartPipelineRun/control.usp_EndPipelineRun. Lineage-hardened: BatchId and WindowKey are propagated to control logging. Adds Gold SCD2 single-current-record DQ gate before archival. Gold SCD2 DQ is implemented as a single Script (log + THROW) to avoid unsupported nested IfCondition.",
+		"description": "ST37-only controlled master for NORMAL/REPLAY/BACKFILL validation. EIA is intentionally excluded. Correlates BatchId/RunId, runs exact WindowKey downstream, logs DQ, and uses control.usp_StartPipelineRun/control.usp_EndPipelineRun. Lineage-hardened: BatchId and WindowKey are propagated to control logging. Adds Gold SCD2 single-current-record DQ gate before archival. Gold SCD2 DQ is implemented as a single Script (log + THROW) to avoid unsupported nested IfCondition. Idempotency guard updated to a 30-minute active-run window; stale RUNNING rows older than 30 minutes are ignored by the guard and can be closed with the companion SQL cleanup script.",
 		"activities": [
 			{
 				"name": "GetIdempotencyStatus",
@@ -19,7 +19,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "SELECT DB_NAME() AS DatabaseName, @@SERVERNAME AS ServerName, CAST(COUNT(*) AS INT) AS ActiveCount FROM control.PipelineControl WHERE PipelineName = 'PL_Master_Orchestrator_ST37_CONTROLLED' AND Status = 'RUNNING' AND RunStartTime > DATEADD(HOUR, -6, GETUTCDATE())",
+							"value": "SELECT DB_NAME() AS DatabaseName, @@SERVERNAME AS ServerName, CAST(COUNT(*) AS INT) AS ActiveCount FROM control.PipelineControl WHERE PipelineName = 'PL_Master_Orchestrator_ST37_CONTROLLED' AND Status = 'RUNNING' AND RunStartTime >= DATEADD(MINUTE, -30, SYSUTCDATETIME())",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
@@ -62,14 +62,14 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "[control].[Log_ADF_Failure]",
+								"storedProcedureName": "[dbo].[Log_ADF_Failure]",
 								"storedProcedureParameters": {
 									"ActivityName": {
 										"value": "master orchestrator run - skipped, already processed",
 										"type": "String"
 									},
 									"ErrorMessage": {
-										"value": "A batch for this pipeline was already RUNNING within the last 6 hours - idempotency check prevented a concurrent run",
+										"value": "A run for this pipeline is already RUNNING within the last 30 minutes - idempotency check prevented a concurrent run",
 										"type": "String"
 									},
 									"PipelineName": {
@@ -616,27 +616,6 @@
 						},
 						"Status": {
 							"value": "failed",
-							"type": "String"
-						},
-						"BatchId": {
-							"value": {
-								"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
-								"type": "Expression"
-							},
-							"type": "String"
-						},
-						"WindowKey": {
-							"value": {
-								"value": "@if(contains(activity('PLST37_to_Bronze').output,'pipelineReturnValue'),string(activity('PLST37_to_Bronze').output.pipelineReturnValue.WindowKey),'')",
-								"type": "Expression"
-							},
-							"type": "String"
-						},
-						"ErrorCode": {
-							"value": {
-								"value": "@activity('CheckIdempotency').error.errorCode",
-								"type": "Expression"
-							},
 							"type": "String"
 						}
 					}
