@@ -587,7 +587,7 @@
 				},
 				"userProperties": [],
 				"typeProperties": {
-					"storedProcedureName": "[dbo].[Log_ADF_Failure]",
+					"storedProcedureName": "[control].[usp_LogPipelineRunDetail]",
 					"storedProcedureParameters": {
 						"ActivityName": {
 							"value": "master orchestrator run",
