@@ -604,6 +604,10 @@
 				],
 				"userProperties": [],
 				"typeProperties": {
+					"on": {
+						"value": "@variables('v_RunRoute')",
+						"type": "Expression"
+					},
 					"cases": [
 						{
 							"value": "PROCESS",
@@ -1705,11 +1709,7 @@
 								}
 							]
 						}
-					],
-					"expression": {
-						"value": "@variables('v_RunRoute')",
-						"type": "Expression"
-					}
+					]
 				}
 			},
 			{
