@@ -1,7 +1,7 @@
 {
 	"name": "PL_ST37_to_Bronze_INCREMENTAL",
 	"properties": {
-		"description": "ST37 WellList ingestion with NORMAL, REPLAY and BACKFILL modes. NORMAL uses control.PipelineWatermark plus control.PipelineConfig lookback and commits the watermark/window after successful copy and control logging. REPLAY/BACKFILL require explicit WindowStart/WindowEnd, reuse deterministic Bronze paths, and never advance the operational watermark. Copy activity is logged to control.PipelineRunDetail. WindowKey propagation hardened: empty keys fail fast and successful NORMAL runs persist LastSuccessfulWindowKey. Child owns exact ST37 copy failure logging in both PipelineRunDetail and ADF_Pipeline_Log before explicit Fail. Industry-refactor v1: returns SourceRowCount from the physical Copy output so downstream reconciliation consumes stage-produced metadata instead of rescanning ADLS. FINAL V2: common operational error handler used for copy failures. Instrumentation V3: copy StartTime/EndTime persisted; DurationSeconds derived by usp_LogPipelineRunDetail.",
+		"description": "ST37 WellList ingestion with NORMAL, REPLAY and BACKFILL modes. NORMAL uses control.PipelineWatermark plus control.PipelineConfig lookback and commits the watermark/window after successful copy and control logging. REPLAY/BACKFILL require explicit WindowStart/WindowEnd, reuse deterministic Bronze paths, and never advance the operational watermark. Copy activity is logged to control.PipelineRunDetail. WindowKey propagation hardened: empty keys fail fast and successful NORMAL runs persist LastSuccessfulWindowKey. Child owns exact ST37 copy failure logging in both PipelineRunDetail and ADF_Pipeline_Log before explicit Fail. Industry-refactor v1: returns SourceRowCount from the physical Copy output so downstream reconciliation consumes stage-produced metadata instead of rescanning ADLS. FINAL V2: common operational error handler used for copy failures. Instrumentation V3: copy StartTime/EndTime persisted; DurationSeconds derived by usp_LogPipelineRunDetail. V4: explicit StartTime, EndTime and DurationSeconds expressions passed to usp_LogPipelineRunDetail.",
 		"activities": [
 			{
 				"name": "Lookup_Watermark",
@@ -429,14 +429,21 @@
 								"value": "@variables('v_CopyStartTime')",
 								"type": "Expression"
 							},
-							"type": "DateTime"
+							"type": "String"
 						},
 						"EndTime": {
 							"value": {
 								"value": "@variables('v_CopyEndTime')",
 								"type": "Expression"
 							},
-							"type": "DateTime"
+							"type": "String"
+						},
+						"DurationSeconds": {
+							"value": {
+								"value": "@int(div(sub(ticks(variables('v_CopyEndTime')),ticks(variables('v_CopyStartTime'))),10000000))",
+								"type": "Expression"
+							},
+							"type": "Int32"
 						}
 					}
 				},
@@ -655,14 +662,21 @@
 								"value": "@variables('v_CopyStartTime')",
 								"type": "Expression"
 							},
-							"type": "DateTime"
+							"type": "String"
 						},
 						"EndTime": {
 							"value": {
 								"value": "@variables('v_CopyEndTime')",
 								"type": "Expression"
 							},
-							"type": "DateTime"
+							"type": "String"
+						},
+						"DurationSeconds": {
+							"value": {
+								"value": "@int(div(sub(ticks(variables('v_CopyEndTime')),ticks(variables('v_CopyStartTime'))),10000000))",
+								"type": "Expression"
+							},
+							"type": "Int32"
 						}
 					}
 				},
@@ -786,7 +800,8 @@
 			"DeterministicBronzePath",
 			"PipelineReturnValue",
 			"WindowKeyValidated",
-			"WindowKeyPersisted"
+			"WindowKeyPersisted",
+			"ExplicitTimingExpressionsV4"
 		]
 	},
 	"type": "Microsoft.DataFactory/factories/pipelines"

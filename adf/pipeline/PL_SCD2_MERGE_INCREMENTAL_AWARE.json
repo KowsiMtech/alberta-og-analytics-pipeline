@@ -1,7 +1,7 @@
 {
 	"name": "PL_SCD2_MERGE_INCREMENTAL_AWARE",
 	"properties": {
-		"description": "Incremental-aware SCD2 processing with control.PipelineRunDetail timing and row metrics. RowsRead = staging.Silver_Wells delta rows. RowsWritten = actual gold.Dim_Well SCD2 rows updated/inserted (not total Gold snapshot rows). SCD2 Script failures are logged by the child to ADF_Pipeline_Log after PipelineRunDetail logging and before explicit child Fail. FINAL V2: preserves SCD2 SQL/metrics and routes operational failure persistence through common handler. Coordinated Instrumentation V3: existing StartTime/EndTime/RowsRead/RowsWritten instrumentation retained.",
+		"description": "Incremental-aware SCD2 processing with control.PipelineRunDetail timing and row metrics. RowsRead = staging.Silver_Wells delta rows. RowsWritten = actual gold.Dim_Well SCD2 rows updated/inserted (not total Gold snapshot rows). SCD2 Script failures are logged by the child to ADF_Pipeline_Log after PipelineRunDetail logging and before explicit child Fail. FINAL V2: preserves SCD2 SQL/metrics and routes operational failure persistence through common handler. Coordinated Instrumentation V3: existing StartTime/EndTime/RowsRead/RowsWritten instrumentation retained. V4: explicit StartTime, EndTime and DurationSeconds expressions passed to usp_LogPipelineRunDetail.",
 		"activities": [
 			{
 				"name": "Set_SCD2_StartTime",
@@ -182,14 +182,21 @@
 								"value": "@variables('v_SCD2StartTime')",
 								"type": "Expression"
 							},
-							"type": "DateTime"
+							"type": "String"
 						},
 						"EndTime": {
 							"value": {
 								"value": "@variables('v_SCD2EndTime')",
 								"type": "Expression"
 							},
-							"type": "DateTime"
+							"type": "String"
+						},
+						"DurationSeconds": {
+							"value": {
+								"value": "@int(div(sub(ticks(variables('v_SCD2EndTime')),ticks(variables('v_SCD2StartTime'))),10000000))",
+								"type": "Expression"
+							},
+							"type": "Int32"
 						}
 					}
 				},
@@ -265,14 +272,14 @@
 								"value": "@variables('v_SCD2StartTime')",
 								"type": "Expression"
 							},
-							"type": "DateTime"
+							"type": "String"
 						},
 						"EndTime": {
 							"value": {
 								"value": "@variables('v_SCD2EndTime')",
 								"type": "Expression"
 							},
-							"type": "DateTime"
+							"type": "String"
 						},
 						"ErrorCode": {
 							"value": {
@@ -287,6 +294,13 @@
 								"type": "Expression"
 							},
 							"type": "String"
+						},
+						"DurationSeconds": {
+							"value": {
+								"value": "@int(div(sub(ticks(variables('v_SCD2EndTime')),ticks(variables('v_SCD2StartTime'))),10000000))",
+								"type": "Expression"
+							},
+							"type": "Int32"
 						}
 					}
 				},
@@ -373,7 +387,8 @@
 			"IncrementalDelta",
 			"FullDailySnapshot",
 			"ControlLogging",
-			"StageMetrics"
+			"StageMetrics",
+			"ExplicitTimingExpressionsV4"
 		]
 	},
 	"type": "Microsoft.DataFactory/factories/pipelines"

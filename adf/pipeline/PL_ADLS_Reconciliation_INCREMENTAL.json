@@ -1,7 +1,7 @@
 {
 	"name": "PL_ADLS_Reconciliation_INCREMENTAL",
 	"properties": {
-		"description": "FINAL V2 reconciliation consumes upstream counts only; no Bronze/Silver/Quarantine ADLS rescans. DQ logging failure is persisted by the common error handler. Instrumentation V3: reconciliation timing and PipelineRunDetail success/failure rows added; no ADLS recount introduced.",
+		"description": "FINAL V2 reconciliation consumes upstream counts only; no Bronze/Silver/Quarantine ADLS rescans. DQ logging failure is persisted by the common error handler. Instrumentation V3: reconciliation timing and PipelineRunDetail success/failure rows added; no ADLS recount introduced. V4: explicit StartTime, EndTime and DurationSeconds expressions passed to usp_LogPipelineRunDetail.",
 		"activities": [
 			{
 				"name": "Set_Reconciliation_StartTime",
@@ -323,14 +323,21 @@
 								"value": "@variables('v_ReconciliationStartTime')",
 								"type": "Expression"
 							},
-							"type": "DateTime"
+							"type": "String"
 						},
 						"EndTime": {
 							"value": {
 								"value": "@variables('v_ReconciliationEndTime')",
 								"type": "Expression"
 							},
-							"type": "DateTime"
+							"type": "String"
+						},
+						"DurationSeconds": {
+							"value": {
+								"value": "@int(div(sub(ticks(variables('v_ReconciliationEndTime')),ticks(variables('v_ReconciliationStartTime'))),10000000))",
+								"type": "Expression"
+							},
+							"type": "Int32"
 						}
 					}
 				},
@@ -420,14 +427,14 @@
 								"value": "@variables('v_ReconciliationStartTime')",
 								"type": "Expression"
 							},
-							"type": "DateTime"
+							"type": "String"
 						},
 						"EndTime": {
 							"value": {
 								"value": "@variables('v_ReconciliationEndTime')",
 								"type": "Expression"
 							},
-							"type": "DateTime"
+							"type": "String"
 						},
 						"ErrorCode": {
 							"value": {
@@ -442,6 +449,13 @@
 								"type": "Expression"
 							},
 							"type": "String"
+						},
+						"DurationSeconds": {
+							"value": {
+								"value": "@int(div(sub(ticks(variables('v_ReconciliationEndTime')),ticks(variables('v_ReconciliationStartTime'))),10000000))",
+								"type": "Expression"
+							},
+							"type": "Int32"
 						}
 					}
 				},
@@ -608,7 +622,8 @@
 			"Reconciliation",
 			"UpstreamMetrics",
 			"NoStorageRecount",
-			"CommonErrorHandler"
+			"CommonErrorHandler",
+			"ExplicitTimingExpressionsV4"
 		]
 	},
 	"type": "Microsoft.DataFactory/factories/pipelines"
