@@ -1,7 +1,7 @@
 {
 	"name": "PL_Silver_to_Staging_SQL_INCREMENTAL",
 	"properties": {
-		"description": "Loads the current Silver delta into staging.Silver_Wells and clears staging when SilverHasRows=false. SilverCount is supplied by the Bronze-to-Silver child, so this pipeline no longer probes a potentially non-existent Silver parquet folder with OPENROWSET. Keeps timing, staging row count, PipelineRunDetail logging, and child failure logging.",
+		"description": "Loads only the actual Silver delta into staging.Silver_Wells. HasRows now means SilverHasRows supplied by Bronze-to-Silver, not Bronze source HasRows. SilverCount is supplied upstream; no Silver OPENROWSET count/rescan is performed. StagingCount is measured after copy/clear. Existing timing and failure logging are preserved. Industry-refactor v1. FINAL V2: consumes upstream SilverCount/SilverHasRows and avoids re-opening Silver storage for recount.",
 		"activities": [
 			{
 				"name": "Set_SilverStage_StartTime",
@@ -492,8 +492,8 @@
 				}
 			},
 			{
-				"name": "Log_ADF_Failure_Get_Staging_RowCount",
-				"type": "SqlServerStoredProcedure",
+				"name": "Handle_Get_Staging_RowCount_Failure",
+				"type": "ExecutePipeline",
 				"dependsOn": [
 					{
 						"activity": "Get_Staging_RowCount",
@@ -503,50 +503,24 @@
 					}
 				],
 				"policy": {
-					"timeout": "0.00:05:00",
-					"retry": 1,
-					"retryIntervalInSeconds": 30,
-					"secureOutput": false,
 					"secureInput": false
 				},
 				"userProperties": [],
 				"typeProperties": {
-					"storedProcedureName": "[control].[Log_ADF_Failure]",
-					"storedProcedureParameters": {
-						"ActivityName": {
-							"value": "Get_Staging_RowCount",
-							"type": "String"
-						},
-						"ErrorMessage": {
-							"value": {
-								"value": "@activity('Get_Staging_RowCount').error.message",
-								"type": "Expression"
-							},
-							"type": "String"
-						},
-						"PipelineName": {
-							"value": {
-								"value": "@pipeline().Pipeline",
-								"type": "Expression"
-							},
-							"type": "String"
-						},
-						"PipelineRunId": {
-							"value": {
-								"value": "@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)",
-								"type": "Expression"
-							},
-							"type": "String"
-						},
-						"Status": {
-							"value": "failed",
-							"type": "String"
-						}
+					"pipeline": {
+						"referenceName": "PL_Common_Error_Handler",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"PipelineRunId": "{\"value\":{\"value\":\"@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"ActivityName": "{\"value\":\"Get_Staging_RowCount\",\"type\":\"String\"}",
+						"ErrorMessage": "{\"value\":{\"value\":\"@activity('Get_Staging_RowCount').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"ErrorCode": "{\"value\":\"STAGING_ROWCOUNT_FAILED\",\"type\":\"String\"}",
+						"BatchId": "{\"value\":{\"value\":\"@pipeline().parameters.BatchId\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"WindowKey": "{\"value\":{\"value\":\"@pipeline().parameters.WindowKey\",\"type\":\"Expression\"},\"type\":\"String\"}"
 					}
-				},
-				"linkedServiceName": {
-					"referenceName": "LS_AzureSQL",
-					"type": "LinkedServiceReference"
 				}
 			},
 			{
@@ -554,7 +528,7 @@
 				"type": "Fail",
 				"dependsOn": [
 					{
-						"activity": "Log_ADF_Failure_Get_Staging_RowCount",
+						"activity": "Handle_Get_Staging_RowCount_Failure",
 						"dependencyConditions": [
 							"Succeeded",
 							"Failed"
@@ -765,62 +739,35 @@
 				}
 			},
 			{
-				"name": "Log_ADF_Failure_SilverToStaging",
-				"type": "SqlServerStoredProcedure",
+				"name": "Handle_SilverToStaging_Failure",
+				"type": "ExecutePipeline",
 				"dependsOn": [
 					{
 						"activity": "Log_SilverToStaging_Failure",
 						"dependencyConditions": [
-							"Succeeded",
-							"Failed"
+							"Succeeded"
 						]
 					}
 				],
 				"policy": {
-					"timeout": "0.00:05:00",
-					"retry": 1,
-					"retryIntervalInSeconds": 30,
-					"secureOutput": false,
 					"secureInput": false
 				},
 				"userProperties": [],
 				"typeProperties": {
-					"storedProcedureName": "[control].[Log_ADF_Failure]",
-					"storedProcedureParameters": {
-						"ActivityName": {
-							"value": "Silver window to staging.Silver_Wells",
-							"type": "String"
-						},
-						"ErrorMessage": {
-							"value": {
-								"value": "@activity('Load_Or_Clear_ST37_Delta').error.message",
-								"type": "Expression"
-							},
-							"type": "String"
-						},
-						"PipelineName": {
-							"value": {
-								"value": "@pipeline().Pipeline",
-								"type": "Expression"
-							},
-							"type": "String"
-						},
-						"PipelineRunId": {
-							"value": {
-								"value": "@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)",
-								"type": "Expression"
-							},
-							"type": "String"
-						},
-						"Status": {
-							"value": "failed",
-							"type": "String"
-						}
+					"pipeline": {
+						"referenceName": "PL_Common_Error_Handler",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"PipelineRunId": "{\"value\":{\"value\":\"@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"ActivityName": "{\"value\":\"Silver window to staging.Silver_Wells\",\"type\":\"String\"}",
+						"ErrorMessage": "{\"value\":{\"value\":\"@activity('Load_Or_Clear_ST37_Delta').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"ErrorCode": "{\"value\":\"ST37_SILVER_TO_STAGING_FAILED\",\"type\":\"String\"}",
+						"BatchId": "{\"value\":{\"value\":\"@pipeline().parameters.BatchId\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"WindowKey": "{\"value\":{\"value\":\"@pipeline().parameters.WindowKey\",\"type\":\"Expression\"},\"type\":\"String\"}"
 					}
-				},
-				"linkedServiceName": {
-					"referenceName": "LS_AzureSQL",
-					"type": "LinkedServiceReference"
 				}
 			},
 			{
@@ -828,7 +775,7 @@
 				"type": "Fail",
 				"dependsOn": [
 					{
-						"activity": "Log_ADF_Failure_SilverToStaging",
+						"activity": "Handle_SilverToStaging_Failure",
 						"dependencyConditions": [
 							"Succeeded",
 							"Failed"

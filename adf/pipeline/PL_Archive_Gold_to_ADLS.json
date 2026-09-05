@@ -1,6 +1,7 @@
 {
 	"name": "PL_Archive_Gold_to_ADLS",
 	"properties": {
+		"description": "Gold archive copies with one reusable common-error-handler call per Copy failure. The common handler logs and fails, so separate Fail_After_* activities are intentionally removed.",
 		"activities": [
 			{
 				"name": "Archive_DimOperator",
@@ -60,6 +61,38 @@
 				]
 			},
 			{
+				"name": "Handle_Failure_Archive_DimOperator",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Archive_DimOperator",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_Common_Error_Handler",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"PipelineRunId": "{\"value\":{\"value\":\"@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"ActivityName": "{\"value\":\"Archive_DimOperator\",\"type\":\"String\"}",
+						"ErrorMessage": "{\"value\":{\"value\":\"@activity('Archive_DimOperator').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"ErrorCode": "{\"value\":\"GOLD_ARCHIVE_ARCHIVE_DIMOPERATOR_FAILED\",\"type\":\"String\"}",
+						"BatchId": "{\"value\":{\"value\":\"@pipeline().parameters.BatchId\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"WindowKey": "{\"value\":{\"value\":\"@pipeline().parameters.WindowKey\",\"type\":\"Expression\"},\"type\":\"String\"}"
+					}
+				}
+			},
+			{
 				"name": "Archive_DimWell",
 				"type": "Copy",
 				"dependsOn": [],
@@ -117,6 +150,38 @@
 				]
 			},
 			{
+				"name": "Handle_Failure_Archive_DimWell",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Archive_DimWell",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_Common_Error_Handler",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"PipelineRunId": "{\"value\":{\"value\":\"@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"ActivityName": "{\"value\":\"Archive_DimWell\",\"type\":\"String\"}",
+						"ErrorMessage": "{\"value\":{\"value\":\"@activity('Archive_DimWell').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"ErrorCode": "{\"value\":\"GOLD_ARCHIVE_ARCHIVE_DIMWELL_FAILED\",\"type\":\"String\"}",
+						"BatchId": "{\"value\":{\"value\":\"@pipeline().parameters.BatchId\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"WindowKey": "{\"value\":{\"value\":\"@pipeline().parameters.WindowKey\",\"type\":\"Expression\"},\"type\":\"String\"}"
+					}
+				}
+			},
+			{
 				"name": "Archive_FactWellSnapshot",
 				"type": "Copy",
 				"dependsOn": [],
@@ -172,6 +237,38 @@
 						}
 					}
 				]
+			},
+			{
+				"name": "Handle_Failure_Archive_FactWellSnapshot",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Archive_FactWellSnapshot",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_Common_Error_Handler",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"PipelineRunId": "{\"value\":{\"value\":\"@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"ActivityName": "{\"value\":\"Archive_FactWellSnapshot\",\"type\":\"String\"}",
+						"ErrorMessage": "{\"value\":{\"value\":\"@activity('Archive_FactWellSnapshot').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"ErrorCode": "{\"value\":\"GOLD_ARCHIVE_ARCHIVE_FACTWELLSNAPSHOT_FAILED\",\"type\":\"String\"}",
+						"BatchId": "{\"value\":{\"value\":\"@pipeline().parameters.BatchId\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"WindowKey": "{\"value\":{\"value\":\"@pipeline().parameters.WindowKey\",\"type\":\"Expression\"},\"type\":\"String\"}"
+					}
+				}
 			},
 			{
 				"name": "Archive_DimLicenceStatus",
@@ -232,6 +329,38 @@
 				]
 			},
 			{
+				"name": "Handle_Failure_Archive_DimLicenceStatus",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Archive_DimLicenceStatus",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_Common_Error_Handler",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"PipelineRunId": "{\"value\":{\"value\":\"@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"ActivityName": "{\"value\":\"Archive_DimLicenceStatus\",\"type\":\"String\"}",
+						"ErrorMessage": "{\"value\":{\"value\":\"@activity('Archive_DimLicenceStatus').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"ErrorCode": "{\"value\":\"GOLD_ARCHIVE_ARCHIVE_DIMLICENCESTATUS_FAILED\",\"type\":\"String\"}",
+						"BatchId": "{\"value\":{\"value\":\"@pipeline().parameters.BatchId\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"WindowKey": "{\"value\":{\"value\":\"@pipeline().parameters.WindowKey\",\"type\":\"Expression\"},\"type\":\"String\"}"
+					}
+				}
+			},
+			{
 				"name": "Archive_DimWellType",
 				"type": "Copy",
 				"dependsOn": [],
@@ -289,6 +418,38 @@
 				]
 			},
 			{
+				"name": "Handle_Failure_Archive_DimWellType",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Archive_DimWellType",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_Common_Error_Handler",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"PipelineRunId": "{\"value\":{\"value\":\"@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"ActivityName": "{\"value\":\"Archive_DimWellType\",\"type\":\"String\"}",
+						"ErrorMessage": "{\"value\":{\"value\":\"@activity('Archive_DimWellType').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"ErrorCode": "{\"value\":\"GOLD_ARCHIVE_ARCHIVE_DIMWELLTYPE_FAILED\",\"type\":\"String\"}",
+						"BatchId": "{\"value\":{\"value\":\"@pipeline().parameters.BatchId\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"WindowKey": "{\"value\":{\"value\":\"@pipeline().parameters.WindowKey\",\"type\":\"Expression\"},\"type\":\"String\"}"
+					}
+				}
+			},
+			{
 				"name": "vw_WellMarketTrend",
 				"type": "Copy",
 				"dependsOn": [],
@@ -344,12 +505,59 @@
 						}
 					}
 				]
+			},
+			{
+				"name": "Handle_Failure_vw_WellMarketTrend",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "vw_WellMarketTrend",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_Common_Error_Handler",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"PipelineRunId": "{\"value\":{\"value\":\"@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"ActivityName": "{\"value\":\"vw_WellMarketTrend\",\"type\":\"String\"}",
+						"ErrorMessage": "{\"value\":{\"value\":\"@activity('vw_WellMarketTrend').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"ErrorCode": "{\"value\":\"GOLD_ARCHIVE_VW_WELLMARKETTREND_FAILED\",\"type\":\"String\"}",
+						"BatchId": "{\"value\":{\"value\":\"@pipeline().parameters.BatchId\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"WindowKey": "{\"value\":{\"value\":\"@pipeline().parameters.WindowKey\",\"type\":\"Expression\"},\"type\":\"String\"}"
+					}
+				}
 			}
 		],
+		"parameters": {
+			"ParentRunId": {
+				"type": "string"
+			},
+			"BatchId": {
+				"type": "string"
+			},
+			"WindowKey": {
+				"type": "string"
+			}
+		},
 		"folder": {
 			"name": "Incremental_Load"
 		},
-		"annotations": [],
+		"annotations": [
+			"GoldArchive",
+			"CommonErrorHandler",
+			"ParallelCopies"
+		],
 		"lastPublishTime": "2026-04-20T02:12:31Z"
 	},
 	"type": "Microsoft.DataFactory/factories/pipelines"

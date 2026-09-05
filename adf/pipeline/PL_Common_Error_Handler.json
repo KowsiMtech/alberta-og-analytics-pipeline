@@ -1,0 +1,113 @@
+{
+	"name": "PL_Common_Error_Handler",
+	"properties": {
+		"description": "Reusable failure handler. Persists the supplied activity failure to control.Log_ADF_Failure and then intentionally fails so the calling ExecutePipeline activity propagates failure to its parent pipeline.",
+		"activities": [
+			{
+				"name": "Log_ADF_Failure",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 1,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[control].[Log_ADF_Failure]",
+					"storedProcedureParameters": {
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().parameters.PipelineName",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineRunId": {
+							"value": {
+								"value": "@pipeline().parameters.PipelineRunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ActivityName": {
+							"value": {
+								"value": "@pipeline().parameters.ActivityName",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ErrorMessage": {
+							"value": {
+								"value": "@pipeline().parameters.ErrorMessage",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"Status": {
+							"value": "failed",
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Fail_After_Common_Error_Log",
+				"type": "Fail",
+				"dependsOn": [
+					{
+						"activity": "Log_ADF_Failure",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"message": "Child activity failed. Failure details were sent to control.Log_ADF_Failure.",
+					"errorCode": "COMMON_CHILD_ACTIVITY_FAILED"
+				}
+			}
+		],
+		"parameters": {
+			"PipelineName": {
+				"type": "string"
+			},
+			"PipelineRunId": {
+				"type": "string"
+			},
+			"ActivityName": {
+				"type": "string"
+			},
+			"ErrorMessage": {
+				"type": "string"
+			},
+			"ErrorCode": {
+				"type": "string",
+				"defaultValue": "ADF_STAGE_FAILED"
+			},
+			"BatchId": {
+				"type": "string"
+			},
+			"WindowKey": {
+				"type": "string"
+			}
+		},
+		"folder": {
+			"name": "Common"
+		},
+		"annotations": [
+			"ReusableErrorHandler",
+			"OperationalLogging",
+			"CallerOwnsFail"
+		]
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

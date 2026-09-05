@@ -1,7 +1,7 @@
 {
 	"name": "PL_SCD2_MERGE_INCREMENTAL_AWARE",
 	"properties": {
-		"description": "Incremental-aware SCD2 processing with control.PipelineRunDetail timing and row metrics. RowsRead = staging.Silver_Wells delta rows. RowsWritten = actual gold.Dim_Well SCD2 rows updated/inserted (not total Gold snapshot rows). SCD2 Script failures are logged by the child to ADF_Pipeline_Log after PipelineRunDetail logging and before explicit child Fail.",
+		"description": "Incremental-aware SCD2 processing with control.PipelineRunDetail timing and row metrics. RowsRead = staging.Silver_Wells delta rows. RowsWritten = actual gold.Dim_Well SCD2 rows updated/inserted (not total Gold snapshot rows). SCD2 Script failures are logged by the child to ADF_Pipeline_Log after PipelineRunDetail logging and before explicit child Fail. FINAL V2: preserves SCD2 SQL/metrics and routes operational failure persistence through common handler.",
 		"activities": [
 			{
 				"name": "Set_SCD2_StartTime",
@@ -296,62 +296,35 @@
 				}
 			},
 			{
-				"name": "Log_ADF_Failure_SCD2",
-				"type": "SqlServerStoredProcedure",
+				"name": "Handle_SCD2_Failure",
+				"type": "ExecutePipeline",
 				"dependsOn": [
 					{
 						"activity": "Log_SCD2_Failure",
 						"dependencyConditions": [
-							"Succeeded",
-							"Failed"
+							"Succeeded"
 						]
 					}
 				],
 				"policy": {
-					"timeout": "0.00:05:00",
-					"retry": 1,
-					"retryIntervalInSeconds": 30,
-					"secureOutput": false,
 					"secureInput": false
 				},
 				"userProperties": [],
 				"typeProperties": {
-					"storedProcedureName": "[control].[Log_ADF_Failure]",
-					"storedProcedureParameters": {
-						"ActivityName": {
-							"value": "SCD2 Merge Incremental Aware",
-							"type": "String"
-						},
-						"ErrorMessage": {
-							"value": {
-								"value": "@activity('SCD2 Merge Incremental Aware').error.message",
-								"type": "Expression"
-							},
-							"type": "String"
-						},
-						"PipelineName": {
-							"value": {
-								"value": "@pipeline().Pipeline",
-								"type": "Expression"
-							},
-							"type": "String"
-						},
-						"PipelineRunId": {
-							"value": {
-								"value": "@pipeline().RunId",
-								"type": "Expression"
-							},
-							"type": "String"
-						},
-						"Status": {
-							"value": "failed",
-							"type": "String"
-						}
+					"pipeline": {
+						"referenceName": "PL_Common_Error_Handler",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"PipelineRunId": "{\"value\":{\"value\":\"@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"ActivityName": "{\"value\":\"SCD2 Merge Incremental Aware\",\"type\":\"String\"}",
+						"ErrorMessage": "{\"value\":{\"value\":\"@activity('SCD2 Merge Incremental Aware').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"ErrorCode": "{\"value\":\"ST37_SCD2_GOLD_FAILED\",\"type\":\"String\"}",
+						"BatchId": "{\"value\":{\"value\":\"@pipeline().parameters.BatchId\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"WindowKey": "{\"value\":{\"value\":\"@pipeline().parameters.WindowKey\",\"type\":\"Expression\"},\"type\":\"String\"}"
 					}
-				},
-				"linkedServiceName": {
-					"referenceName": "LS_AzureSQL",
-					"type": "LinkedServiceReference"
 				}
 			},
 			{
@@ -359,7 +332,7 @@
 				"type": "Fail",
 				"dependsOn": [
 					{
-						"activity": "Log_ADF_Failure_SCD2",
+						"activity": "Handle_SCD2_Failure",
 						"dependencyConditions": [
 							"Succeeded",
 							"Failed"

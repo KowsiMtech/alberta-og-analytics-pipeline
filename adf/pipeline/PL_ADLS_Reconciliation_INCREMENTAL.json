@@ -1,416 +1,57 @@
 {
 	"name": "PL_ADLS_Reconciliation_INCREMENTAL",
 	"properties": {
-		"description": "Incremental reconciliation for the exact ST37 WindowKey. Returns current-batch Bronze/Silver/Quarantine counts; zero when ST37 has no rows. Bronze/Silver counts are wrapped in TRY/CATCH for runtime errors. Quarantine additionally uses a WITH schema clause since a 100%-clean batch means Synapse never writes a parquet file to that location, which fails schema inference before TRY/CATCH can catch it. Logs Bronze = Silver + Quarantine rule into control.DataQualityResult. Lineage-hardened: BatchId and WindowKey are propagated to control logging. Each reconciliation count Script owns its exact failure logging and explicit Fail; Master only closes the Master batch.",
+		"description": "FINAL V2 reconciliation consumes upstream counts only; no Bronze/Silver/Quarantine ADLS rescans. DQ logging failure is persisted by the common error handler.",
 		"activities": [
 			{
-				"name": "Reconcile_When_HasRows",
-				"type": "IfCondition",
+				"name": "Set_SourceRowCount_FromParameter",
+				"type": "SetVariable",
 				"dependsOn": [],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
 				"userProperties": [],
 				"typeProperties": {
-					"expression": {
-						"value": "@equals(toLower(pipeline().parameters.HasRows),'true')",
+					"variableName": "v_BronzeCount",
+					"value": {
+						"value": "@int(pipeline().parameters.SourceRowCount)",
 						"type": "Expression"
-					},
-					"ifTrueActivities": [
-						{
-							"name": "GetRowCount_Bronze",
-							"type": "Script",
-							"dependsOn": [],
-							"policy": {
-								"timeout": "0.12:00:00",
-								"retry": 0,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"linkedServiceName": {
-								"referenceName": "LS_Synapse_Serverless",
-								"type": "LinkedServiceReference"
-							},
-							"typeProperties": {
-								"scripts": [
-									{
-										"type": "Query",
-										"text": {
-											"value": "@concat('DECLARE @Cnt INT = 0; DECLARE @ErrMsg NVARCHAR(4000) = NULL; BEGIN TRY SELECT @Cnt = COUNT(*) FROM OPENROWSET(BULK ''/bronze/well/window=', pipeline().parameters.WindowKey, '/*.parquet'', DATA_SOURCE = ''aer_adls'', FORMAT = ''PARQUET'') AS b; END TRY BEGIN CATCH SET @Cnt = 0; SET @ErrMsg = ERROR_MESSAGE(); END CATCH SELECT @Cnt AS BronzeCount, @ErrMsg AS ErrorMsg;')",
-											"type": "Expression"
-										}
-									}
-								],
-								"scriptBlockExecutionTimeout": "02:00:00"
-							}
-						},
-						{
-							"name": "GetRowCount_Silver",
-							"type": "Script",
-							"dependsOn": [],
-							"policy": {
-								"timeout": "0.12:00:00",
-								"retry": 0,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"linkedServiceName": {
-								"referenceName": "LS_Synapse_Serverless",
-								"type": "LinkedServiceReference"
-							},
-							"typeProperties": {
-								"scripts": [
-									{
-										"type": "Query",
-										"text": {
-											"value": "@concat('DECLARE @Cnt INT = 0; DECLARE @ErrMsg NVARCHAR(4000) = NULL; BEGIN TRY SELECT @Cnt = COUNT(*) FROM OPENROWSET(BULK ''/silver/clean/window=', pipeline().parameters.WindowKey, '/*.parquet'', DATA_SOURCE = ''aer_adls'', FORMAT = ''PARQUET'') AS b; END TRY BEGIN CATCH SET @Cnt = 0; SET @ErrMsg = ERROR_MESSAGE(); END CATCH SELECT @Cnt AS SilverCount, @ErrMsg AS ErrorMsg;')",
-											"type": "Expression"
-										}
-									}
-								],
-								"scriptBlockExecutionTimeout": "02:00:00"
-							}
-						},
-						{
-							"name": "GetRowCount_Quarantine",
-							"type": "Script",
-							"dependsOn": [],
-							"policy": {
-								"timeout": "0.12:00:00",
-								"retry": 0,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"linkedServiceName": {
-								"referenceName": "LS_Synapse_Serverless",
-								"type": "LinkedServiceReference"
-							},
-							"typeProperties": {
-								"scripts": [
-									{
-										"type": "Query",
-										"text": {
-											"value": "@concat('DECLARE @Cnt INT = 0; DECLARE @ErrMsg NVARCHAR(4000) = NULL; BEGIN TRY SELECT @Cnt = COUNT(*) FROM OPENROWSET(BULK ''/quarantine/well_rejects/window=', pipeline().parameters.WindowKey, '/*.parquet'', DATA_SOURCE = ''aer_adls'', FORMAT = ''PARQUET'') WITH (WellID NVARCHAR(50)) AS b; END TRY BEGIN CATCH SET @Cnt = 0; SET @ErrMsg = ERROR_MESSAGE(); END CATCH SELECT @Cnt AS QuarantineCount, @ErrMsg AS ErrorMsg;')",
-											"type": "Expression"
-										}
-									}
-								],
-								"scriptBlockExecutionTimeout": "02:00:00"
-							}
-						},
-						{
-							"name": "Set_BronzeCount",
-							"type": "SetVariable",
-							"dependsOn": [
-								{
-									"activity": "GetRowCount_Bronze",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"policy": {
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"variableName": "v_BronzeCount",
-								"value": {
-									"value": "@int(activity('GetRowCount_Bronze').output.resultSets[0].rows[0].BronzeCount)",
-									"type": "Expression"
-								}
-							}
-						},
-						{
-							"name": "Set_SilverCount",
-							"type": "SetVariable",
-							"dependsOn": [
-								{
-									"activity": "GetRowCount_Silver",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"policy": {
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"variableName": "v_SilverCount",
-								"value": {
-									"value": "@int(activity('GetRowCount_Silver').output.resultSets[0].rows[0].SilverCount)",
-									"type": "Expression"
-								}
-							}
-						},
-						{
-							"name": "Set_QuarantineCount",
-							"type": "SetVariable",
-							"dependsOn": [
-								{
-									"activity": "GetRowCount_Quarantine",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"policy": {
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"variableName": "v_QuarantineCount",
-								"value": {
-									"value": "@int(activity('GetRowCount_Quarantine').output.resultSets[0].rows[0].QuarantineCount)",
-									"type": "Expression"
-								}
-							}
-						},
-						{
-							"name": "Log_ADF_Failure_GetRowCount_Bronze",
-							"type": "SqlServerStoredProcedure",
-							"dependsOn": [
-								{
-									"activity": "GetRowCount_Bronze",
-									"dependencyConditions": [
-										"Failed"
-									]
-								}
-							],
-							"policy": {
-								"timeout": "0.00:05:00",
-								"retry": 1,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"storedProcedureName": "[control].[Log_ADF_Failure]",
-								"storedProcedureParameters": {
-									"ActivityName": {
-										"value": "Reconciliation - GetRowCount_Bronze",
-										"type": "String"
-									},
-									"ErrorMessage": {
-										"value": {
-											"value": "@activity('GetRowCount_Bronze').error.message",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"PipelineName": {
-										"value": {
-											"value": "@pipeline().Pipeline",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"PipelineRunId": {
-										"value": {
-											"value": "@pipeline().RunId",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"Status": {
-										"value": "failed",
-										"type": "String"
-									}
-								}
-							},
-							"linkedServiceName": {
-								"referenceName": "LS_AzureSQL",
-								"type": "LinkedServiceReference"
-							}
-						},
-						{
-							"name": "Fail_GetRowCount_Bronze_After_ADF_Log",
-							"type": "Fail",
-							"dependsOn": [
-								{
-									"activity": "Log_ADF_Failure_GetRowCount_Bronze",
-									"dependencyConditions": [
-										"Succeeded",
-										"Failed"
-									]
-								}
-							],
-							"userProperties": [],
-							"typeProperties": {
-								"message": {
-									"value": "@activity('GetRowCount_Bronze').error.message",
-									"type": "Expression"
-								},
-								"errorCode": "RECON_BRONZE_COUNT_FAILED"
-							}
-						},
-						{
-							"name": "Log_ADF_Failure_GetRowCount_Silver",
-							"type": "SqlServerStoredProcedure",
-							"dependsOn": [
-								{
-									"activity": "GetRowCount_Silver",
-									"dependencyConditions": [
-										"Failed"
-									]
-								}
-							],
-							"policy": {
-								"timeout": "0.00:05:00",
-								"retry": 1,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"storedProcedureName": "[control].[Log_ADF_Failure]",
-								"storedProcedureParameters": {
-									"ActivityName": {
-										"value": "Reconciliation - GetRowCount_Silver",
-										"type": "String"
-									},
-									"ErrorMessage": {
-										"value": {
-											"value": "@activity('GetRowCount_Silver').error.message",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"PipelineName": {
-										"value": {
-											"value": "@pipeline().Pipeline",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"PipelineRunId": {
-										"value": {
-											"value": "@pipeline().RunId",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"Status": {
-										"value": "failed",
-										"type": "String"
-									}
-								}
-							},
-							"linkedServiceName": {
-								"referenceName": "LS_AzureSQL",
-								"type": "LinkedServiceReference"
-							}
-						},
-						{
-							"name": "Fail_GetRowCount_Silver_After_ADF_Log",
-							"type": "Fail",
-							"dependsOn": [
-								{
-									"activity": "Log_ADF_Failure_GetRowCount_Silver",
-									"dependencyConditions": [
-										"Succeeded",
-										"Failed"
-									]
-								}
-							],
-							"userProperties": [],
-							"typeProperties": {
-								"message": {
-									"value": "@activity('GetRowCount_Silver').error.message",
-									"type": "Expression"
-								},
-								"errorCode": "RECON_SILVER_COUNT_FAILED"
-							}
-						},
-						{
-							"name": "Log_ADF_Failure_GetRowCount_Quarantine",
-							"type": "SqlServerStoredProcedure",
-							"dependsOn": [
-								{
-									"activity": "GetRowCount_Quarantine",
-									"dependencyConditions": [
-										"Failed"
-									]
-								}
-							],
-							"policy": {
-								"timeout": "0.00:05:00",
-								"retry": 1,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"storedProcedureName": "[control].[Log_ADF_Failure]",
-								"storedProcedureParameters": {
-									"ActivityName": {
-										"value": "Reconciliation - GetRowCount_Quarantine",
-										"type": "String"
-									},
-									"ErrorMessage": {
-										"value": {
-											"value": "@activity('GetRowCount_Quarantine').error.message",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"PipelineName": {
-										"value": {
-											"value": "@pipeline().Pipeline",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"PipelineRunId": {
-										"value": {
-											"value": "@pipeline().RunId",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"Status": {
-										"value": "failed",
-										"type": "String"
-									}
-								}
-							},
-							"linkedServiceName": {
-								"referenceName": "LS_AzureSQL",
-								"type": "LinkedServiceReference"
-							}
-						},
-						{
-							"name": "Fail_GetRowCount_Quarantine_After_ADF_Log",
-							"type": "Fail",
-							"dependsOn": [
-								{
-									"activity": "Log_ADF_Failure_GetRowCount_Quarantine",
-									"dependencyConditions": [
-										"Succeeded",
-										"Failed"
-									]
-								}
-							],
-							"userProperties": [],
-							"typeProperties": {
-								"message": {
-									"value": "@activity('GetRowCount_Quarantine').error.message",
-									"type": "Expression"
-								},
-								"errorCode": "RECON_QUARANTINE_COUNT_FAILED"
-							}
-						}
-					]
+					}
+				}
+			},
+			{
+				"name": "Set_SilverRowCount_FromParameter",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_SilverCount",
+					"value": {
+						"value": "@int(pipeline().parameters.SilverRowCount)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_QuarantineRowCount_FromParameter",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_QuarantineCount",
+					"value": {
+						"value": "@int(pipeline().parameters.QuarantineRowCount)",
+						"type": "Expression"
+					}
 				}
 			},
 			{
@@ -418,7 +59,19 @@
 				"type": "SqlServerStoredProcedure",
 				"dependsOn": [
 					{
-						"activity": "Reconcile_When_HasRows",
+						"activity": "Set_SourceRowCount_FromParameter",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set_SilverRowCount_FromParameter",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set_QuarantineRowCount_FromParameter",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -553,21 +206,82 @@
 					],
 					"setSystemVariable": true
 				}
+			},
+			{
+				"name": "Handle_Reconciliation_DQ_Failure",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Log_DQ_BronzeEqualsSilverPlusQuarantine",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_Common_Error_Handler",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"PipelineRunId": "{\"value\":{\"value\":\"@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"ActivityName": "{\"value\":\"BronzeEqualsSilverPlusQuarantine\",\"type\":\"String\"}",
+						"ErrorMessage": "{\"value\":{\"value\":\"@activity('Log_DQ_BronzeEqualsSilverPlusQuarantine').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"ErrorCode": "{\"value\":\"ST37_RECONCILIATION_FAILED\",\"type\":\"String\"}",
+						"BatchId": "{\"value\":{\"value\":\"@pipeline().parameters.BatchId\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"WindowKey": "{\"value\":{\"value\":\"@pipeline().parameters.WindowKey\",\"type\":\"Expression\"},\"type\":\"String\"}"
+					}
+				}
+			},
+			{
+				"name": "Fail_Reconciliation_After_Handler",
+				"type": "Fail",
+				"dependsOn": [
+					{
+						"activity": "Handle_Reconciliation_DQ_Failure",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"message": {
+						"value": "@activity('Log_DQ_BronzeEqualsSilverPlusQuarantine').error.message",
+						"type": "Expression"
+					},
+					"errorCode": "ST37_RECONCILIATION_FAILED"
+				}
 			}
 		],
 		"parameters": {
 			"WindowKey": {
 				"type": "string"
 			},
-			"HasRows": {
-				"type": "string",
-				"defaultValue": "false"
-			},
 			"ParentRunId": {
 				"type": "string"
 			},
 			"BatchId": {
 				"type": "string"
+			},
+			"SourceRowCount": {
+				"type": "string",
+				"defaultValue": "0"
+			},
+			"SilverRowCount": {
+				"type": "string",
+				"defaultValue": "0"
+			},
+			"QuarantineRowCount": {
+				"type": "string",
+				"defaultValue": "0"
 			}
 		},
 		"variables": {
@@ -590,7 +304,10 @@
 		"annotations": [
 			"Incremental",
 			"WindowKey",
-			"Reconciliation"
+			"Reconciliation",
+			"UpstreamMetrics",
+			"NoStorageRecount",
+			"CommonErrorHandler"
 		]
 	},
 	"type": "Microsoft.DataFactory/factories/pipelines"

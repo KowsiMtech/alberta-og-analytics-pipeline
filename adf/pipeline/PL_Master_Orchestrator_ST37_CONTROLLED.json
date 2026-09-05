@@ -1,7 +1,7 @@
 {
 	"name": "PL_Master_Orchestrator_ST37_CONTROLLED",
 	"properties": {
-		"description": "ST37-only controlled master for NORMAL/REPLAY/BACKFILL validation. EIA is intentionally excluded. Correlates BatchId/RunId, runs exact WindowKey downstream, logs DQ, and uses control.usp_StartPipelineRun/control.usp_EndPipelineRun. Lineage-hardened: BatchId and WindowKey are propagated to control logging. Adds Gold SCD2 single-current-record DQ gate before archival. Gold SCD2 DQ is implemented as a single Script (log + THROW) to avoid unsupported nested IfCondition. Idempotency guard updated to a 30-minute active-run window; stale RUNNING rows older than 30 minutes are ignored by the guard and can be closed with the companion SQL cleanup script. Idempotency decision is now SQL-derived via CanRun and skip logging records the actual ActiveCount/database/server instead of a hard-coded message. Failure lifecycle hardened: each critical activity inside the NORMAL/REPLAY/BACKFILL branch now logs its own error, closes the matching PipelineControl BatchId via control.usp_EndPipelineRun, and explicitly fails the master so RUNNING rows do not remain stale. Idempotency uses a 60-minute active-run safety window as a secondary escape valve for cancelled/orphaned RUNNING rows; per-stage failure cleanup remains the primary lifecycle control. Downstream Silver-to-Staging is gated by SilverHasRows returned by Bronze-to-Silver, not Bronze source HasRows.",
+		"description": "ST37 controlled master orchestration. Industry-refactor v1: thin orchestration, ADF concurrency=1 plus existing SQL active-run guard, stage-produced row-count metadata propagation, and metadata-driven reconciliation. Master owns batch lifecycle; children own detailed stage failures. FINAL V2: thin-master ownership. Child pipelines own detailed stage failure logging; Master owns batch close/fail. Native Master failures use PL_Common_Error_Handler. Upstream row counts are propagated to reconciliation without ADLS recounts.",
 		"activities": [
 			{
 				"name": "GetIdempotencyStatus",
@@ -445,7 +445,21 @@
 									"referenceName": "PL_Archive_Gold_to_ADLS",
 									"type": "PipelineReference"
 								},
-								"waitOnCompletion": true
+								"waitOnCompletion": true,
+								"parameters": {
+									"ParentRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.WindowKey",
+										"type": "Expression"
+									}
+								}
 							}
 						},
 						{
@@ -474,16 +488,24 @@
 										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.WindowKey",
 										"type": "Expression"
 									},
-									"HasRows": {
-										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.HasRows",
-										"type": "Expression"
-									},
 									"ParentRunId": {
 										"value": "@pipeline().RunId",
 										"type": "Expression"
 									},
 									"BatchId": {
 										"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
+										"type": "Expression"
+									},
+									"SourceRowCount": {
+										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.SourceRowCount",
+										"type": "Expression"
+									},
+									"SilverRowCount": {
+										"value": "@activity('PL_Bronze_to_Silver').output.pipelineReturnValue.SilverCount",
+										"type": "Expression"
+									},
+									"QuarantineRowCount": {
+										"value": "@activity('PL_Bronze_to_Silver').output.pipelineReturnValue.QuarantineCount",
 										"type": "Expression"
 									}
 								}
@@ -659,8 +681,8 @@
 							}
 						},
 						{
-							"name": "Log_Failure_Update_Master_Run_Context",
-							"type": "SqlServerStoredProcedure",
+							"name": "Handle_Failure_Update_Master_Run_Context",
+							"type": "ExecutePipeline",
 							"dependsOn": [
 								{
 									"activity": "Update_Master_Run_Context",
@@ -670,50 +692,24 @@
 								}
 							],
 							"policy": {
-								"timeout": "0.12:00:00",
-								"retry": 0,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
 								"secureInput": false
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "[control].[Log_ADF_Failure]",
-								"storedProcedureParameters": {
-									"ActivityName": {
-										"value": "Update_Master_Run_Context",
-										"type": "String"
-									},
-									"ErrorMessage": {
-										"value": {
-											"value": "@activity('Update_Master_Run_Context').error.message",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"PipelineName": {
-										"value": {
-											"value": "@pipeline().Pipeline",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"PipelineRunId": {
-										"value": {
-											"value": "@pipeline().RunId",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"Status": {
-										"value": "failed",
-										"type": "String"
-									}
+								"pipeline": {
+									"referenceName": "PL_Common_Error_Handler",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
+									"PipelineRunId": "{\"value\":{\"value\":\"@pipeline().RunId\",\"type\":\"Expression\"},\"type\":\"String\"}",
+									"ActivityName": "{\"value\":\"Update_Master_Run_Context\",\"type\":\"String\"}",
+									"ErrorMessage": "{\"value\":{\"value\":\"@activity('Update_Master_Run_Context').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
+									"ErrorCode": "{\"value\":\"MASTER_CONTEXT_UPDATE_FAILED\",\"type\":\"String\"}",
+									"BatchId": "{\"value\":{\"value\":\"@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))\",\"type\":\"Expression\"},\"type\":\"String\"}",
+									"WindowKey": "{\"value\":\"\",\"type\":\"String\"}"
 								}
-							},
-							"linkedServiceName": {
-								"referenceName": "LS_AzureSQL",
-								"type": "LinkedServiceReference"
 							}
 						},
 						{
@@ -721,7 +717,7 @@
 							"type": "SqlServerStoredProcedure",
 							"dependsOn": [
 								{
-									"activity": "Log_Failure_Update_Master_Run_Context",
+									"activity": "Handle_Failure_Update_Master_Run_Context",
 									"dependencyConditions": [
 										"Succeeded",
 										"Failed"
@@ -1066,8 +1062,8 @@
 							}
 						},
 						{
-							"name": "Log_Failure_Gold_SCD2_DQ",
-							"type": "SqlServerStoredProcedure",
+							"name": "Handle_Failure_Gold_SCD2_DQ",
+							"type": "ExecutePipeline",
 							"dependsOn": [
 								{
 									"activity": "Check_And_Log_Gold_SCD2_DQ",
@@ -1077,50 +1073,24 @@
 								}
 							],
 							"policy": {
-								"timeout": "0.12:00:00",
-								"retry": 0,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
 								"secureInput": false
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "[control].[Log_ADF_Failure]",
-								"storedProcedureParameters": {
-									"ActivityName": {
-										"value": "Check_And_Log_Gold_SCD2_DQ",
-										"type": "String"
-									},
-									"ErrorMessage": {
-										"value": {
-											"value": "@activity('Check_And_Log_Gold_SCD2_DQ').error.message",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"PipelineName": {
-										"value": {
-											"value": "@pipeline().Pipeline",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"PipelineRunId": {
-										"value": {
-											"value": "@pipeline().RunId",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"Status": {
-										"value": "failed",
-										"type": "String"
-									}
+								"pipeline": {
+									"referenceName": "PL_Common_Error_Handler",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
+									"PipelineRunId": "{\"value\":{\"value\":\"@pipeline().RunId\",\"type\":\"Expression\"},\"type\":\"String\"}",
+									"ActivityName": "{\"value\":\"Check_And_Log_Gold_SCD2_DQ\",\"type\":\"String\"}",
+									"ErrorMessage": "{\"value\":{\"value\":\"@activity('Check_And_Log_Gold_SCD2_DQ').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
+									"ErrorCode": "{\"value\":\"MASTER_GOLD_DQ_FAILED\",\"type\":\"String\"}",
+									"BatchId": "{\"value\":{\"value\":\"@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))\",\"type\":\"Expression\"},\"type\":\"String\"}",
+									"WindowKey": "{\"value\":{\"value\":\"@activity('PLST37_to_Bronze').output.pipelineReturnValue.WindowKey\",\"type\":\"Expression\"},\"type\":\"String\"}"
 								}
-							},
-							"linkedServiceName": {
-								"referenceName": "LS_AzureSQL",
-								"type": "LinkedServiceReference"
 							}
 						},
 						{
@@ -1128,7 +1098,7 @@
 							"type": "SqlServerStoredProcedure",
 							"dependsOn": [
 								{
-									"activity": "Log_Failure_Gold_SCD2_DQ",
+									"activity": "Handle_Failure_Gold_SCD2_DQ",
 									"dependencyConditions": [
 										"Succeeded",
 										"Failed"
@@ -1212,8 +1182,8 @@
 							}
 						},
 						{
-							"name": "Log_Failure_Gold_Current_Count",
-							"type": "SqlServerStoredProcedure",
+							"name": "Handle_Failure_Gold_Current_Count",
+							"type": "ExecutePipeline",
 							"dependsOn": [
 								{
 									"activity": "Lookup_Gold_Current_Well_Count",
@@ -1223,50 +1193,24 @@
 								}
 							],
 							"policy": {
-								"timeout": "0.12:00:00",
-								"retry": 0,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
 								"secureInput": false
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "[control].[Log_ADF_Failure]",
-								"storedProcedureParameters": {
-									"ActivityName": {
-										"value": "Lookup_Gold_Current_Well_Count",
-										"type": "String"
-									},
-									"ErrorMessage": {
-										"value": {
-											"value": "@activity('Lookup_Gold_Current_Well_Count').error.message",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"PipelineName": {
-										"value": {
-											"value": "@pipeline().Pipeline",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"PipelineRunId": {
-										"value": {
-											"value": "@pipeline().RunId",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"Status": {
-										"value": "failed",
-										"type": "String"
-									}
+								"pipeline": {
+									"referenceName": "PL_Common_Error_Handler",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
+									"PipelineRunId": "{\"value\":{\"value\":\"@pipeline().RunId\",\"type\":\"Expression\"},\"type\":\"String\"}",
+									"ActivityName": "{\"value\":\"Lookup_Gold_Current_Well_Count\",\"type\":\"String\"}",
+									"ErrorMessage": "{\"value\":{\"value\":\"@activity('Lookup_Gold_Current_Well_Count').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
+									"ErrorCode": "{\"value\":\"MASTER_GOLD_COUNT_FAILED\",\"type\":\"String\"}",
+									"BatchId": "{\"value\":{\"value\":\"@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))\",\"type\":\"Expression\"},\"type\":\"String\"}",
+									"WindowKey": "{\"value\":{\"value\":\"@activity('PLST37_to_Bronze').output.pipelineReturnValue.WindowKey\",\"type\":\"Expression\"},\"type\":\"String\"}"
 								}
-							},
-							"linkedServiceName": {
-								"referenceName": "LS_AzureSQL",
-								"type": "LinkedServiceReference"
 							}
 						},
 						{
@@ -1274,7 +1218,7 @@
 							"type": "SqlServerStoredProcedure",
 							"dependsOn": [
 								{
-									"activity": "Log_Failure_Gold_Current_Count",
+									"activity": "Handle_Failure_Gold_Current_Count",
 									"dependencyConditions": [
 										"Succeeded",
 										"Failed"
@@ -1532,8 +1476,8 @@
 							}
 						},
 						{
-							"name": "Log_Failure_Pipeline_Start",
-							"type": "SqlServerStoredProcedure",
+							"name": "Handle_Failure_Pipeline_Start",
+							"type": "ExecutePipeline",
 							"dependsOn": [
 								{
 									"activity": "Pipeline Start Script",
@@ -1543,50 +1487,24 @@
 								}
 							],
 							"policy": {
-								"timeout": "0.12:00:00",
-								"retry": 0,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
 								"secureInput": false
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "[control].[Log_ADF_Failure]",
-								"storedProcedureParameters": {
-									"ActivityName": {
-										"value": "Pipeline Start Script",
-										"type": "String"
-									},
-									"ErrorMessage": {
-										"value": {
-											"value": "@activity('Pipeline Start Script').error.message",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"PipelineName": {
-										"value": {
-											"value": "@pipeline().Pipeline",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"PipelineRunId": {
-										"value": {
-											"value": "@pipeline().RunId",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"Status": {
-										"value": "failed",
-										"type": "String"
-									}
+								"pipeline": {
+									"referenceName": "PL_Common_Error_Handler",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
+									"PipelineRunId": "{\"value\":{\"value\":\"@pipeline().RunId\",\"type\":\"Expression\"},\"type\":\"String\"}",
+									"ActivityName": "{\"value\":\"Pipeline Start Script\",\"type\":\"String\"}",
+									"ErrorMessage": "{\"value\":{\"value\":\"@activity('Pipeline Start Script').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
+									"ErrorCode": "{\"value\":\"MASTER_PIPELINE_START_FAILED\",\"type\":\"String\"}",
+									"BatchId": "{\"value\":{\"value\":\"@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))\",\"type\":\"Expression\"},\"type\":\"String\"}",
+									"WindowKey": "{\"value\":\"\",\"type\":\"String\"}"
 								}
-							},
-							"linkedServiceName": {
-								"referenceName": "LS_AzureSQL",
-								"type": "LinkedServiceReference"
 							}
 						},
 						{
@@ -1594,7 +1512,7 @@
 							"type": "Fail",
 							"dependsOn": [
 								{
-									"activity": "Log_Failure_Pipeline_Start",
+									"activity": "Handle_Failure_Pipeline_Start",
 									"dependencyConditions": [
 										"Succeeded",
 										"Failed"
@@ -1672,6 +1590,7 @@
 				}
 			}
 		],
+		"concurrency": 1,
 		"parameters": {
 			"ST37_DefaultLookbackDays": {
 				"type": "int",
