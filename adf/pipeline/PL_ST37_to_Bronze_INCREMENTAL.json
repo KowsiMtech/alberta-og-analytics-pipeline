@@ -206,11 +206,35 @@
 				}
 			},
 			{
+				"name": "Set_ST37_Copy_StartTime",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Validate_WindowKey_NotEmpty",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_CopyStartTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
+			{
 				"name": "Copy OnPremData Incremental",
 				"type": "Copy",
 				"dependsOn": [
 					{
-						"activity": "Validate_WindowKey_NotEmpty",
+						"activity": "Set_ST37_Copy_StartTime",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -277,11 +301,59 @@
 				]
 			},
 			{
+				"name": "Set_ST37_Copy_EndTime_Success",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Copy OnPremData Incremental",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_CopyEndTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_ST37_Copy_EndTime_Failure",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Copy OnPremData Incremental",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_CopyEndTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
+			{
 				"name": "Log_ST37_Copy_Success",
 				"type": "SqlServerStoredProcedure",
 				"dependsOn": [
 					{
-						"activity": "Copy OnPremData Incremental",
+						"activity": "Set_ST37_Copy_EndTime_Success",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -351,6 +423,20 @@
 								"type": "Expression"
 							},
 							"type": "Int64"
+						},
+						"StartTime": {
+							"value": {
+								"value": "@variables('v_CopyStartTime')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"EndTime": {
+							"value": {
+								"value": "@variables('v_CopyEndTime')",
+								"type": "Expression"
+							},
+							"type": "String"
 						}
 					}
 				},
@@ -486,9 +572,9 @@
 				"type": "SqlServerStoredProcedure",
 				"dependsOn": [
 					{
-						"activity": "Copy OnPremData Incremental",
+						"activity": "Set_ST37_Copy_EndTime_Failure",
 						"dependencyConditions": [
-							"Failed"
+							"Succeeded"
 						]
 					}
 				],
@@ -553,6 +639,20 @@
 						"ErrorMessage": {
 							"value": {
 								"value": "@activity('Copy OnPremData Incremental').error.message",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"StartTime": {
+							"value": {
+								"value": "@variables('v_CopyStartTime')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"EndTime": {
+							"value": {
+								"value": "@variables('v_CopyEndTime')",
 								"type": "Expression"
 							},
 							"type": "String"
@@ -624,6 +724,12 @@
 				"type": "String"
 			},
 			"v_WindowKey": {
+				"type": "String"
+			},
+			"v_CopyStartTime": {
+				"type": "String"
+			},
+			"v_CopyEndTime": {
 				"type": "String"
 			}
 		},
