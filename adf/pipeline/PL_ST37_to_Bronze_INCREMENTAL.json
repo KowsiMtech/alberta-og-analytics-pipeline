@@ -1,7 +1,7 @@
 {
 	"name": "PL_ST37_to_Bronze_INCREMENTAL",
 	"properties": {
-		"description": "ST37 WellList ingestion with NORMAL, REPLAY and BACKFILL modes. NORMAL uses control.PipelineWatermark plus control.PipelineConfig lookback and commits the watermark/window after successful copy and control logging. REPLAY/BACKFILL require explicit WindowStart/WindowEnd, reuse deterministic Bronze paths, and never advance the operational watermark. Copy activity is logged to control.PipelineRunDetail.",
+		"description": "ST37 WellList ingestion with NORMAL, REPLAY and BACKFILL modes. NORMAL uses control.PipelineWatermark plus control.PipelineConfig lookback and commits the watermark/window after successful copy and control logging. REPLAY/BACKFILL require explicit WindowStart/WindowEnd, reuse deterministic Bronze paths, and never advance the operational watermark. Copy activity is logged to control.PipelineRunDetail. WindowKey propagation hardened: empty keys fail fast and successful NORMAL runs persist LastSuccessfulWindowKey.",
 		"activities": [
 			{
 				"name": "Lookup_Watermark",
@@ -169,9 +169,40 @@
 				"typeProperties": {
 					"variableName": "v_WindowKey",
 					"value": {
-						"value": "@if(equals(pipeline().parameters.WindowKey,''),concat(formatDateTime(variables('v_StartWatermark'),'yyyyMMddHHmmss'),'_',formatDateTime(variables('v_EndWatermark'),'yyyyMMddHHmmss')),pipeline().parameters.WindowKey)",
+						"value": "@if(empty(pipeline().parameters.WindowKey),concat(formatDateTime(variables('v_StartWatermark'),'yyyyMMddHHmmss'),'_',formatDateTime(variables('v_EndWatermark'),'yyyyMMddHHmmss')),pipeline().parameters.WindowKey)",
 						"type": "Expression"
 					}
+				}
+			},
+			{
+				"name": "Validate_WindowKey_NotEmpty",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Set_WindowKey",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@empty(variables('v_WindowKey'))",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Fail_Empty_WindowKey",
+							"type": "Fail",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"message": "ST37 WindowKey resolved to empty. Extraction stopped to prevent non-deterministic paths and missing lineage.",
+								"errorCode": "ST37_EMPTY_WINDOWKEY"
+							}
+						}
+					]
 				}
 			},
 			{
@@ -179,7 +210,7 @@
 				"type": "Copy",
 				"dependsOn": [
 					{
-						"activity": "Set_WindowKey",
+						"activity": "Validate_WindowKey_NotEmpty",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -290,7 +321,7 @@
 						},
 						"WindowKey": {
 							"value": {
-								"value": "@variables('v_WindowKey')",
+								"value": "@string(variables('v_WindowKey'))",
 								"type": "Expression"
 							},
 							"type": "String"
@@ -367,7 +398,7 @@
 									{
 										"type": "Query",
 										"text": {
-											"value": "@concat('MERGE control.PipelineWatermark AS target USING (SELECT ''', pipeline().Pipeline, ''' AS PipelineName) AS src ON target.PipelineName = src.PipelineName WHEN MATCHED THEN UPDATE SET LastSuccessfulLoadTimestamp = CONVERT(datetime2(7), ''', variables('v_EndWatermark'), ''', 126), LastSuccessfulLoadDate = CAST(CONVERT(datetime2(7), ''', variables('v_EndWatermark'), ''', 126) AS date), LastSuccessfulWindowKey = ''', variables('v_WindowKey'), ''', LastSuccessfulRunTime = SYSUTCDATETIME(), LastSuccessfulRunId = ''', pipeline().RunId, ''', LastUpdatedTime = SYSUTCDATETIME() WHEN NOT MATCHED THEN INSERT (PipelineName, LastSuccessfulLoadDate, LastSuccessfulLoadTimestamp, LastSuccessfulWindowKey, LastSuccessfulRunTime, LastSuccessfulRunId, LastUpdatedTime) VALUES (''', pipeline().Pipeline, ''', CAST(CONVERT(datetime2(7), ''', variables('v_EndWatermark'), ''', 126) AS date), CONVERT(datetime2(7), ''', variables('v_EndWatermark'), ''', 126), ''', variables('v_WindowKey'), ''', SYSUTCDATETIME(), ''', pipeline().RunId, ''', SYSUTCDATETIME());')",
+											"value": "@concat('MERGE control.PipelineWatermark AS target USING (SELECT ''', pipeline().Pipeline, ''' AS PipelineName) AS src ON target.PipelineName = src.PipelineName WHEN MATCHED THEN UPDATE SET LastSuccessfulLoadTimestamp = CONVERT(datetime2(7), ''', variables('v_EndWatermark'), ''', 126), LastSuccessfulLoadDate = CAST(CONVERT(datetime2(7), ''', variables('v_EndWatermark'), ''', 126) AS date), LastSuccessfulWindowKey = ''', string(variables('v_WindowKey')), ''', LastSuccessfulRunTime = SYSUTCDATETIME(), LastSuccessfulRunId = ''', pipeline().RunId, ''', LastUpdatedTime = SYSUTCDATETIME() WHEN NOT MATCHED THEN INSERT (PipelineName, LastSuccessfulLoadDate, LastSuccessfulLoadTimestamp, LastSuccessfulWindowKey, LastSuccessfulRunTime, LastSuccessfulRunId, LastUpdatedTime) VALUES (''', pipeline().Pipeline, ''', CAST(CONVERT(datetime2(7), ''', variables('v_EndWatermark'), ''', 126) AS date), CONVERT(datetime2(7), ''', variables('v_EndWatermark'), ''', 126), ''', string(variables('v_WindowKey')), ''', SYSUTCDATETIME(), ''', pipeline().RunId, ''', SYSUTCDATETIME());')",
 											"type": "Expression"
 										}
 									}
@@ -495,7 +526,7 @@
 						},
 						"WindowKey": {
 							"value": {
-								"value": "@variables('v_WindowKey')",
+								"value": "@string(variables('v_WindowKey'))",
 								"type": "Expression"
 							},
 							"type": "String"
@@ -608,7 +639,9 @@
 			"Watermark",
 			"PipelineRunDetail",
 			"DeterministicBronzePath",
-			"PipelineReturnValue"
+			"PipelineReturnValue",
+			"WindowKeyValidated",
+			"WindowKeyPersisted"
 		]
 	},
 	"type": "Microsoft.DataFactory/factories/pipelines"

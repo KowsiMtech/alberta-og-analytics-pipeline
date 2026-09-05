@@ -1,7 +1,7 @@
 {
 	"name": "PL_Master_Orchestrator_ST37_CONTROLLED",
 	"properties": {
-		"description": "ST37-only controlled master for NORMAL/REPLAY/BACKFILL validation. EIA is intentionally excluded. Correlates BatchId/RunId, runs exact WindowKey downstream, logs DQ, and uses control.usp_StartPipelineRun/control.usp_EndPipelineRun.",
+		"description": "ST37-only controlled master for NORMAL/REPLAY/BACKFILL validation. EIA is intentionally excluded. Correlates BatchId/RunId, runs exact WindowKey downstream, logs DQ, and uses control.usp_StartPipelineRun/control.usp_EndPipelineRun. Lineage-hardened: BatchId and WindowKey are propagated to control logging.",
 		"activities": [
 			{
 				"name": "GetIdempotencyStatus",
@@ -337,11 +337,43 @@
 							}
 						},
 						{
+							"name": "Lookup_Gold_Current_Well_Count",
+							"type": "Lookup",
+							"dependsOn": [
+								{
+									"activity": "SCD2 for gold",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.00:05:00",
+								"retry": 2,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": "SELECT COUNT(*) AS GoldRowCount FROM gold.Dim_Well WHERE [Is_Current] = 1",
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "DS_AzureSQL_Generic",
+									"type": "DatasetReference"
+								},
+								"firstRowOnly": true
+							}
+						},
+						{
 							"name": "ADLS gold Archival Copy",
 							"type": "ExecutePipeline",
 							"dependsOn": [
 								{
-									"activity": "SCD2 for gold",
+									"activity": "Lookup_Gold_Current_Well_Count",
 									"dependencyConditions": [
 										"Succeeded"
 									]
@@ -453,6 +485,27 @@
 											"type": "Expression"
 										},
 										"type": "Int32"
+									},
+									"GoldRowCount": {
+										"value": {
+											"value": "@int(activity('Lookup_Gold_Current_Well_Count').output.firstRow.GoldRowCount)",
+											"type": "Expression"
+										},
+										"type": "Int32"
+									},
+									"WindowKey": {
+										"value": {
+											"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.WindowKey",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineRunId": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
 									}
 								}
 							},
@@ -574,6 +627,13 @@
 						"QuarantineRowCount": {
 							"value": "0",
 							"type": "Int32"
+						},
+						"PipelineRunId": {
+							"value": {
+								"value": "@pipeline().RunId",
+								"type": "Expression"
+							},
+							"type": "String"
 						}
 					}
 				},

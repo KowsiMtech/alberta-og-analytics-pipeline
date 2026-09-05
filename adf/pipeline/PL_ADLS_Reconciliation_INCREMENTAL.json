@@ -1,7 +1,7 @@
 {
 	"name": "PL_ADLS_Reconciliation_INCREMENTAL",
 	"properties": {
-		"description": "Incremental reconciliation for the exact ST37 WindowKey. Returns current-batch Bronze/Silver/Quarantine counts; zero when ST37 has no rows. Bronze/Silver counts are wrapped in TRY/CATCH for runtime errors. Quarantine additionally uses a WITH schema clause since a 100%-clean batch means Synapse never writes a parquet file to that location, which fails schema inference before TRY/CATCH can catch it. Logs Bronze = Silver + Quarantine rule into control.DataQualityResult.",
+		"description": "Incremental reconciliation for the exact ST37 WindowKey. Returns current-batch Bronze/Silver/Quarantine counts; zero when ST37 has no rows. Bronze/Silver counts are wrapped in TRY/CATCH for runtime errors. Quarantine additionally uses a WITH schema clause since a 100%-clean batch means Synapse never writes a parquet file to that location, which fails schema inference before TRY/CATCH can catch it. Logs Bronze = Silver + Quarantine rule into control.DataQualityResult. Lineage-hardened: BatchId and WindowKey are propagated to control logging.",
 		"activities": [
 			{
 				"name": "Reconcile_When_HasRows",

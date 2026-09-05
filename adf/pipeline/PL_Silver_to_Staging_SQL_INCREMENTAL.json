@@ -1,7 +1,7 @@
 {
 	"name": "PL_Silver_to_Staging_SQL_INCREMENTAL",
 	"properties": {
-		"description": "Loads only the current ST37 Silver delta into staging.Silver_Wells. Staging is deliberately truncated each run. If there are no ST37 changes, staging is explicitly cleared so stale rows cannot be reprocessed. Adds run correlation and activity logging.",
+		"description": "Loads only the current ST37 Silver delta into staging.Silver_Wells. Staging is deliberately truncated each run. If there are no ST37 changes, staging is explicitly cleared so stale rows cannot be reprocessed. Adds run correlation and activity logging. Lineage-hardened: BatchId and WindowKey are propagated to control logging.",
 		"activities": [
 			{
 				"name": "Load_Or_Clear_ST37_Delta",
