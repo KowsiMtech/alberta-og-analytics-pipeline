@@ -1,7 +1,7 @@
 {
 	"name": "PL_Silver_to_Staging_SQL_INCREMENTAL",
 	"properties": {
-		"description": "Loads only the actual Silver delta into staging.Silver_Wells. HasRows now means SilverHasRows supplied by Bronze-to-Silver, not Bronze source HasRows. SilverCount is supplied upstream; no Silver OPENROWSET count/rescan is performed. StagingCount is measured after copy/clear. Existing timing and failure logging are preserved. Industry-refactor v1. FINAL V2: consumes upstream SilverCount/SilverHasRows and avoids re-opening Silver storage for recount. Coordinated Instrumentation V3: existing StartTime/EndTime/RowsRead/RowsWritten instrumentation retained. V4: explicit StartTime, EndTime and DurationSeconds expressions passed to usp_LogPipelineRunDetail. V5: consumes upstream SilverCount; no Get_Silver_Window_RowCount recount. ParentRunId fallback is null-safe. V6: failure path hardened; common error handler runs even when PipelineRunDetail failure logging fails; ParentRunId null-safe throughout.",
+		"description": "Loads only the actual Silver delta into staging.Silver_Wells. HasRows now means SilverHasRows supplied by Bronze-to-Silver, not Bronze source HasRows. SilverCount is supplied upstream; no Silver OPENROWSET count/rescan is performed. StagingCount is measured after copy/clear. Existing timing and failure logging are preserved. Industry-refactor v1. FINAL V2: consumes upstream SilverCount/SilverHasRows and avoids re-opening Silver storage for recount. Coordinated Instrumentation V3: existing StartTime/EndTime/RowsRead/RowsWritten instrumentation retained. V4: explicit StartTime, EndTime and DurationSeconds expressions passed to usp_LogPipelineRunDetail. V5: consumes upstream SilverCount; no Get_Silver_Window_RowCount recount. ParentRunId fallback is null-safe. V6: failure path hardened; common error handler runs even when PipelineRunDetail failure logging fails; ParentRunId null-safe throughout. V8: canonical ExecutePipeline parameter encoding; static values are raw strings, dynamic values are expression objects.",
 		"activities": [
 			{
 				"name": "Set_SilverStage_StartTime",
@@ -513,13 +513,28 @@
 					},
 					"waitOnCompletion": true,
 					"parameters": {
-						"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
-						"PipelineRunId": "{\"value\":{\"value\":\"@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)\",\"type\":\"Expression\"},\"type\":\"String\"}",
-						"ActivityName": "{\"value\":\"Get_Staging_RowCount\",\"type\":\"String\"}",
-						"ErrorMessage": "{\"value\":{\"value\":\"@activity('Get_Staging_RowCount').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
-						"ErrorCode": "{\"value\":\"STAGING_ROWCOUNT_FAILED\",\"type\":\"String\"}",
-						"BatchId": "{\"value\":{\"value\":\"@pipeline().parameters.BatchId\",\"type\":\"Expression\"},\"type\":\"String\"}",
-						"WindowKey": "{\"value\":{\"value\":\"@pipeline().parameters.WindowKey\",\"type\":\"Expression\"},\"type\":\"String\"}"
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"PipelineRunId": {
+							"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
+							"type": "Expression"
+						},
+						"ActivityName": "Get_Staging_RowCount",
+						"ErrorMessage": {
+							"value": "@activity('Get_Staging_RowCount').error.message",
+							"type": "Expression"
+						},
+						"ErrorCode": "STAGING_ROWCOUNT_FAILED",
+						"BatchId": {
+							"value": "@pipeline().parameters.BatchId",
+							"type": "Expression"
+						},
+						"WindowKey": {
+							"value": "@pipeline().parameters.WindowKey",
+							"type": "Expression"
+						}
 					}
 				}
 			},
@@ -783,12 +798,12 @@
 							"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
 							"type": "Expression"
 						},
-						"ActivityName": "{\"value\":\"Silver window to staging.Silver_Wells\",\"type\":\"String\"}",
+						"ActivityName": "ADLS Incremental Silver Window to Staging Sql",
 						"ErrorMessage": {
 							"value": "@activity('Load_Or_Clear_ST37_Delta').error.message",
 							"type": "Expression"
 						},
-						"ErrorCode": "{\"value\":\"ST37_SILVER_TO_STAGING_FAILED\",\"type\":\"String\"}",
+						"ErrorCode": "ST37_SILVER_TO_STAGING_FAILED",
 						"BatchId": {
 							"value": "@pipeline().parameters.BatchId",
 							"type": "Expression"
@@ -868,7 +883,8 @@
 			"ParentRunIdNullSafe",
 			"FailurePathHardened",
 			"NullSafeParentRunId",
-			"IndependentCommonErrorHandler"
+			"IndependentCommonErrorHandler",
+			"ExecutePipelineParamsCanonicalV8"
 		]
 	},
 	"type": "Microsoft.DataFactory/factories/pipelines"
