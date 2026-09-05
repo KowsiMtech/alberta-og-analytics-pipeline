@@ -1,7 +1,7 @@
 {
 	"name": "PL_ADLS_Reconciliation_INCREMENTAL",
 	"properties": {
-		"description": "FINAL V2 reconciliation consumes upstream counts only; no Bronze/Silver/Quarantine ADLS rescans. DQ logging failure is persisted by the common error handler. Instrumentation V3: reconciliation timing and PipelineRunDetail success/failure rows added; no ADLS recount introduced. V4: explicit StartTime, EndTime and DurationSeconds expressions passed to usp_LogPipelineRunDetail. V6: reconciliation failure path hardened; common error handler remains reachable even if detail logging fails; ParentRunId null-safe throughout.",
+		"description": "FINAL V2 reconciliation consumes upstream counts only; no Bronze/Silver/Quarantine ADLS rescans. DQ logging failure is persisted by the common error handler. Instrumentation V3: reconciliation timing and PipelineRunDetail success/failure rows added; no ADLS recount introduced. V4: explicit StartTime, EndTime and DurationSeconds expressions passed to usp_LogPipelineRunDetail. V6: reconciliation failure path hardened; common error handler remains reachable even if detail logging fails; ParentRunId null-safe throughout. Canonicalized ExecutePipeline parameters for PL_Common_Error_Handler; null-safe ParentRunId; resilient failure-handler dependency where applicable.",
 		"activities": [
 			{
 				"name": "Set_Reconciliation_StartTime",
@@ -538,13 +538,28 @@
 					},
 					"waitOnCompletion": true,
 					"parameters": {
-						"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
-						"PipelineRunId": "{\"value\":{\"value\":\"@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)\",\"type\":\"Expression\"},\"type\":\"String\"}",
-						"ActivityName": "{\"value\":\"BronzeEqualsSilverPlusQuarantine\",\"type\":\"String\"}",
-						"ErrorMessage": "{\"value\":{\"value\":\"@activity('Log_DQ_BronzeEqualsSilverPlusQuarantine').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
-						"ErrorCode": "{\"value\":\"ST37_RECONCILIATION_FAILED\",\"type\":\"String\"}",
-						"BatchId": "{\"value\":{\"value\":\"@pipeline().parameters.BatchId\",\"type\":\"Expression\"},\"type\":\"String\"}",
-						"WindowKey": "{\"value\":{\"value\":\"@pipeline().parameters.WindowKey\",\"type\":\"Expression\"},\"type\":\"String\"}"
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"PipelineRunId": {
+							"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
+							"type": "Expression"
+						},
+						"ActivityName": "BronzeEqualsSilverPlusQuarantine",
+						"ErrorMessage": {
+							"value": "@activity('Log_DQ_BronzeEqualsSilverPlusQuarantine').error.message",
+							"type": "Expression"
+						},
+						"ErrorCode": "ST37_RECONCILIATION_FAILED",
+						"BatchId": {
+							"value": "@pipeline().parameters.BatchId",
+							"type": "Expression"
+						},
+						"WindowKey": {
+							"value": "@pipeline().parameters.WindowKey",
+							"type": "Expression"
+						}
 					}
 				}
 			},
@@ -627,7 +642,8 @@
 			"ParentRunIdNullSafeV5",
 			"FailurePathHardened",
 			"NullSafeParentRunId",
-			"IndependentCommonErrorHandler"
+			"IndependentCommonErrorHandler",
+			"CommonErrorHandlerCanonicalParams"
 		]
 	},
 	"type": "Microsoft.DataFactory/factories/pipelines"

@@ -1,7 +1,7 @@
 {
 	"name": "PL_Bronze_to_Silver_quarantine_INCREMENTAL",
 	"properties": {
-		"description": "Processes the current ST37 Bronze WindowKey into Silver and Quarantine. Industry-refactor v1: classification predicates are defined once inside the transform Script and reused for both CETAS writes and returned counts; SilverCount/QuarantineCount/SilverHasRows are propagated downstream without rescanning Silver/Quarantine storage. Existing child-level failure logging and lineage are preserved. FINAL V2: returns SilverCount/QuarantineCount/SilverHasRows and centralizes operational failure logging through PL_Common_Error_Handler. Instrumentation V3: transformation StartTime/EndTime persisted; existing single-pass Silver/Quarantine counts retained. V4: explicit StartTime, EndTime and DurationSeconds expressions passed to usp_LogPipelineRunDetail.",
+		"description": "Processes the current ST37 Bronze WindowKey into Silver and Quarantine. Industry-refactor v1: classification predicates are defined once inside the transform Script and reused for both CETAS writes and returned counts; SilverCount/QuarantineCount/SilverHasRows are propagated downstream without rescanning Silver/Quarantine storage. Existing child-level failure logging and lineage are preserved. FINAL V2: returns SilverCount/QuarantineCount/SilverHasRows and centralizes operational failure logging through PL_Common_Error_Handler. Instrumentation V3: transformation StartTime/EndTime persisted; existing single-pass Silver/Quarantine counts retained. V4: explicit StartTime, EndTime and DurationSeconds expressions passed to usp_LogPipelineRunDetail. Canonicalized ExecutePipeline parameters for PL_Common_Error_Handler; null-safe ParentRunId; resilient failure-handler dependency where applicable.",
 		"activities": [
 			{
 				"name": "Set_BronzeSilver_StartTime",
@@ -194,13 +194,28 @@
 								},
 								"waitOnCompletion": true,
 								"parameters": {
-									"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
-									"PipelineRunId": "{\"value\":{\"value\":\"@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)\",\"type\":\"Expression\"},\"type\":\"String\"}",
-									"ActivityName": "{\"value\":\"Bronze delta to Silver and Quarantine\",\"type\":\"String\"}",
-									"ErrorMessage": "{\"value\":{\"value\":\"@activity('Bronze delta to Silver and Quarantine').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
-									"ErrorCode": "{\"value\":\"BRONZE_TO_SILVER_TRANSFORM_FAILED\",\"type\":\"String\"}",
-									"BatchId": "{\"value\":{\"value\":\"@pipeline().parameters.BatchId\",\"type\":\"Expression\"},\"type\":\"String\"}",
-									"WindowKey": "{\"value\":{\"value\":\"@pipeline().parameters.WindowKey\",\"type\":\"Expression\"},\"type\":\"String\"}"
+									"PipelineName": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"PipelineRunId": {
+										"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
+										"type": "Expression"
+									},
+									"ActivityName": "Bronze delta to Silver and Quarantine",
+									"ErrorMessage": {
+										"value": "@activity('Bronze delta to Silver and Quarantine').error.message",
+										"type": "Expression"
+									},
+									"ErrorCode": "BRONZE_TO_SILVER_TRANSFORM_FAILED",
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									}
 								}
 							}
 						},
@@ -399,7 +414,7 @@
 					"storedProcedureParameters": {
 						"PipelineRunId": {
 							"value": {
-								"value": "@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)",
+								"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
 								"type": "Expression"
 							},
 							"type": "String"
@@ -503,7 +518,7 @@
 					"storedProcedureParameters": {
 						"PipelineRunId": {
 							"value": {
-								"value": "@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)",
+								"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
 								"type": "Expression"
 							},
 							"type": "String"
@@ -590,7 +605,8 @@
 					{
 						"activity": "Log_BronzeToSilver_Failure",
 						"dependencyConditions": [
-							"Succeeded"
+							"Succeeded",
+							"Failed"
 						]
 					}
 				],
@@ -605,13 +621,28 @@
 					},
 					"waitOnCompletion": true,
 					"parameters": {
-						"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
-						"PipelineRunId": "{\"value\":{\"value\":\"@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)\",\"type\":\"Expression\"},\"type\":\"String\"}",
-						"ActivityName": "{\"value\":\"Bronze to Silver and Quarantine\",\"type\":\"String\"}",
-						"ErrorMessage": "{\"value\":{\"value\":\"@activity('Process_When_HasRows').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
-						"ErrorCode": "{\"value\":\"ST37_BRONZE_TO_SILVER_FAILED\",\"type\":\"String\"}",
-						"BatchId": "{\"value\":{\"value\":\"@pipeline().parameters.BatchId\",\"type\":\"Expression\"},\"type\":\"String\"}",
-						"WindowKey": "{\"value\":{\"value\":\"@pipeline().parameters.WindowKey\",\"type\":\"Expression\"},\"type\":\"String\"}"
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"PipelineRunId": {
+							"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
+							"type": "Expression"
+						},
+						"ActivityName": "Bronze to Silver and Quarantine",
+						"ErrorMessage": {
+							"value": "@activity('Process_When_HasRows').error.message",
+							"type": "Expression"
+						},
+						"ErrorCode": "ST37_BRONZE_TO_SILVER_FAILED",
+						"BatchId": {
+							"value": "@pipeline().parameters.BatchId",
+							"type": "Expression"
+						},
+						"WindowKey": {
+							"value": "@pipeline().parameters.WindowKey",
+							"type": "Expression"
+						}
 					}
 				}
 			},
@@ -673,7 +704,8 @@
 			"Delta",
 			"DataQuality",
 			"Quarantine",
-			"ExplicitTimingExpressionsV4"
+			"ExplicitTimingExpressionsV4",
+			"CommonErrorHandlerCanonicalParams"
 		]
 	},
 	"type": "Microsoft.DataFactory/factories/pipelines"

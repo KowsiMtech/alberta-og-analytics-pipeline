@@ -1,7 +1,7 @@
 {
 	"name": "PL_SCD2_MERGE_INCREMENTAL_AWARE",
 	"properties": {
-		"description": "Incremental-aware SCD2 processing with control.PipelineRunDetail timing and row metrics. RowsRead = staging.Silver_Wells delta rows. RowsWritten = actual gold.Dim_Well SCD2 rows updated/inserted (not total Gold snapshot rows). SCD2 Script failures are logged by the child to ADF_Pipeline_Log after PipelineRunDetail logging and before explicit child Fail. FINAL V2: preserves SCD2 SQL/metrics and routes operational failure persistence through common handler. Coordinated Instrumentation V3: existing StartTime/EndTime/RowsRead/RowsWritten instrumentation retained. V4: explicit StartTime, EndTime and DurationSeconds expressions passed to usp_LogPipelineRunDetail.",
+		"description": "Incremental-aware SCD2 processing with control.PipelineRunDetail timing and row metrics. RowsRead = staging.Silver_Wells delta rows. RowsWritten = actual gold.Dim_Well SCD2 rows updated/inserted (not total Gold snapshot rows). SCD2 Script failures are logged by the child to ADF_Pipeline_Log after PipelineRunDetail logging and before explicit child Fail. FINAL V2: preserves SCD2 SQL/metrics and routes operational failure persistence through common handler. Coordinated Instrumentation V3: existing StartTime/EndTime/RowsRead/RowsWritten instrumentation retained. V4: explicit StartTime, EndTime and DurationSeconds expressions passed to usp_LogPipelineRunDetail. Canonicalized ExecutePipeline parameters for PL_Common_Error_Handler; null-safe ParentRunId; resilient failure-handler dependency where applicable.",
 		"activities": [
 			{
 				"name": "Set_SCD2_StartTime",
@@ -125,7 +125,7 @@
 					"storedProcedureParameters": {
 						"PipelineRunId": {
 							"value": {
-								"value": "@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)",
+								"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
 								"type": "Expression"
 							},
 							"type": "String"
@@ -229,7 +229,7 @@
 					"storedProcedureParameters": {
 						"PipelineRunId": {
 							"value": {
-								"value": "@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)",
+								"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
 								"type": "Expression"
 							},
 							"type": "String"
@@ -316,7 +316,8 @@
 					{
 						"activity": "Log_SCD2_Failure",
 						"dependencyConditions": [
-							"Succeeded"
+							"Succeeded",
+							"Failed"
 						]
 					}
 				],
@@ -331,13 +332,28 @@
 					},
 					"waitOnCompletion": true,
 					"parameters": {
-						"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
-						"PipelineRunId": "{\"value\":{\"value\":\"@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)\",\"type\":\"Expression\"},\"type\":\"String\"}",
-						"ActivityName": "{\"value\":\"SCD2 Merge Incremental Aware\",\"type\":\"String\"}",
-						"ErrorMessage": "{\"value\":{\"value\":\"@activity('SCD2 Merge Incremental Aware').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
-						"ErrorCode": "{\"value\":\"ST37_SCD2_GOLD_FAILED\",\"type\":\"String\"}",
-						"BatchId": "{\"value\":{\"value\":\"@pipeline().parameters.BatchId\",\"type\":\"Expression\"},\"type\":\"String\"}",
-						"WindowKey": "{\"value\":{\"value\":\"@pipeline().parameters.WindowKey\",\"type\":\"Expression\"},\"type\":\"String\"}"
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"PipelineRunId": {
+							"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
+							"type": "Expression"
+						},
+						"ActivityName": "SCD2 Merge Incremental Aware",
+						"ErrorMessage": {
+							"value": "@activity('SCD2 Merge Incremental Aware').error.message",
+							"type": "Expression"
+						},
+						"ErrorCode": "ST37_SCD2_GOLD_FAILED",
+						"BatchId": {
+							"value": "@pipeline().parameters.BatchId",
+							"type": "Expression"
+						},
+						"WindowKey": {
+							"value": "@pipeline().parameters.WindowKey",
+							"type": "Expression"
+						}
 					}
 				}
 			},
@@ -388,7 +404,8 @@
 			"FullDailySnapshot",
 			"ControlLogging",
 			"StageMetrics",
-			"ExplicitTimingExpressionsV4"
+			"ExplicitTimingExpressionsV4",
+			"CommonErrorHandlerCanonicalParams"
 		]
 	},
 	"type": "Microsoft.DataFactory/factories/pipelines"

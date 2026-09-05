@@ -1,7 +1,7 @@
 {
 	"name": "PL_Master_Orchestrator_ST37_CONTROLLED",
 	"properties": {
-		"description": "ST37 controlled master orchestration. Industry-refactor v1: thin orchestration, ADF concurrency=1 plus existing SQL active-run guard, stage-produced row-count metadata propagation, and metadata-driven reconciliation. Master owns batch lifecycle; children own detailed stage failures. FINAL V2: thin-master ownership. Child pipelines own detailed stage failure logging; Master owns batch close/fail. Native Master failures use PL_Common_Error_Handler. Upstream row counts are propagated to reconciliation without ADLS recounts. FINAL V4: removed invalid nested IfCondition; uses a top-level Switch router after Bronze metadata is cached in pipeline variables. FINAL V6: PipelineControl close calls now explicitly set DataLoadStatus and ErrorCode.",
+		"description": "ST37 controlled master orchestration. Industry-refactor v1: thin orchestration, ADF concurrency=1 plus existing SQL active-run guard, stage-produced row-count metadata propagation, and metadata-driven reconciliation. Master owns batch lifecycle; children own detailed stage failures. FINAL V2: thin-master ownership. Child pipelines own detailed stage failure logging; Master owns batch close/fail. Native Master failures use PL_Common_Error_Handler. Upstream row counts are propagated to reconciliation without ADLS recounts. FINAL V4: removed invalid nested IfCondition; uses a top-level Switch router after Bronze metadata is cached in pipeline variables. FINAL V6: PipelineControl close calls now explicitly set DataLoadStatus and ErrorCode. Canonicalized ExecutePipeline parameters for PL_Common_Error_Handler; null-safe ParentRunId; resilient failure-handler dependency where applicable.",
 		"activities": [
 			{
 				"name": "GetIdempotencyStatus",
@@ -373,13 +373,25 @@
 								},
 								"waitOnCompletion": true,
 								"parameters": {
-									"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
-									"PipelineRunId": "{\"value\":{\"value\":\"@pipeline().RunId\",\"type\":\"Expression\"},\"type\":\"String\"}",
-									"ActivityName": "{\"value\":\"Update_Master_Run_Context\",\"type\":\"String\"}",
-									"ErrorMessage": "{\"value\":{\"value\":\"@activity('Update_Master_Run_Context').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
-									"ErrorCode": "{\"value\":\"MASTER_CONTEXT_UPDATE_FAILED\",\"type\":\"String\"}",
-									"BatchId": "{\"value\":{\"value\":\"@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))\",\"type\":\"Expression\"},\"type\":\"String\"}",
-									"WindowKey": "{\"value\":\"\",\"type\":\"String\"}"
+									"PipelineName": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"PipelineRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"ActivityName": "Update_Master_Run_Context",
+									"ErrorMessage": {
+										"value": "@activity('Update_Master_Run_Context').error.message",
+										"type": "Expression"
+									},
+									"ErrorCode": "MASTER_CONTEXT_UPDATE_FAILED",
+									"BatchId": {
+										"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
+										"type": "Expression"
+									},
+									"WindowKey": ""
 								}
 							}
 						},
@@ -501,13 +513,25 @@
 								},
 								"waitOnCompletion": true,
 								"parameters": {
-									"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
-									"PipelineRunId": "{\"value\":{\"value\":\"@pipeline().RunId\",\"type\":\"Expression\"},\"type\":\"String\"}",
-									"ActivityName": "{\"value\":\"Pipeline Start Script\",\"type\":\"String\"}",
-									"ErrorMessage": "{\"value\":{\"value\":\"@activity('Pipeline Start Script').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
-									"ErrorCode": "{\"value\":\"MASTER_PIPELINE_START_FAILED\",\"type\":\"String\"}",
-									"BatchId": "{\"value\":{\"value\":\"@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))\",\"type\":\"Expression\"},\"type\":\"String\"}",
-									"WindowKey": "{\"value\":\"\",\"type\":\"String\"}"
+									"PipelineName": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"PipelineRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"ActivityName": "Pipeline Start Script",
+									"ErrorMessage": {
+										"value": "@activity('Pipeline Start Script').error.message",
+										"type": "Expression"
+									},
+									"ErrorCode": "MASTER_PIPELINE_START_FAILED",
+									"BatchId": {
+										"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
+										"type": "Expression"
+									},
+									"WindowKey": ""
 								}
 							}
 						},
@@ -1298,13 +1322,28 @@
 										},
 										"waitOnCompletion": true,
 										"parameters": {
-											"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
-											"PipelineRunId": "{\"value\":{\"value\":\"@pipeline().RunId\",\"type\":\"Expression\"},\"type\":\"String\"}",
-											"ActivityName": "{\"value\":\"Check_And_Log_Gold_SCD2_DQ\",\"type\":\"String\"}",
-											"ErrorMessage": "{\"value\":{\"value\":\"@activity('Check_And_Log_Gold_SCD2_DQ').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
-											"ErrorCode": "{\"value\":\"MASTER_GOLD_DQ_FAILED\",\"type\":\"String\"}",
-											"BatchId": "{\"value\":{\"value\":\"@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))\",\"type\":\"Expression\"},\"type\":\"String\"}",
-											"WindowKey": "{\"value\":{\"value\":\"@variables('v_WindowKey')\",\"type\":\"Expression\"},\"type\":\"String\"}"
+											"PipelineName": {
+												"value": "@pipeline().Pipeline",
+												"type": "Expression"
+											},
+											"PipelineRunId": {
+												"value": "@pipeline().RunId",
+												"type": "Expression"
+											},
+											"ActivityName": "Check_And_Log_Gold_SCD2_DQ",
+											"ErrorMessage": {
+												"value": "@activity('Check_And_Log_Gold_SCD2_DQ').error.message",
+												"type": "Expression"
+											},
+											"ErrorCode": "MASTER_GOLD_DQ_FAILED",
+											"BatchId": {
+												"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
+												"type": "Expression"
+											},
+											"WindowKey": {
+												"value": "@variables('v_WindowKey')",
+												"type": "Expression"
+											}
 										}
 									}
 								},
@@ -1426,13 +1465,28 @@
 										},
 										"waitOnCompletion": true,
 										"parameters": {
-											"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
-											"PipelineRunId": "{\"value\":{\"value\":\"@pipeline().RunId\",\"type\":\"Expression\"},\"type\":\"String\"}",
-											"ActivityName": "{\"value\":\"Lookup_Gold_Current_Well_Count\",\"type\":\"String\"}",
-											"ErrorMessage": "{\"value\":{\"value\":\"@activity('Lookup_Gold_Current_Well_Count').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
-											"ErrorCode": "{\"value\":\"MASTER_GOLD_COUNT_FAILED\",\"type\":\"String\"}",
-											"BatchId": "{\"value\":{\"value\":\"@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))\",\"type\":\"Expression\"},\"type\":\"String\"}",
-											"WindowKey": "{\"value\":{\"value\":\"@variables('v_WindowKey')\",\"type\":\"Expression\"},\"type\":\"String\"}"
+											"PipelineName": {
+												"value": "@pipeline().Pipeline",
+												"type": "Expression"
+											},
+											"PipelineRunId": {
+												"value": "@pipeline().RunId",
+												"type": "Expression"
+											},
+											"ActivityName": "Lookup_Gold_Current_Well_Count",
+											"ErrorMessage": {
+												"value": "@activity('Lookup_Gold_Current_Well_Count').error.message",
+												"type": "Expression"
+											},
+											"ErrorCode": "MASTER_GOLD_COUNT_FAILED",
+											"BatchId": {
+												"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
+												"type": "Expression"
+											},
+											"WindowKey": {
+												"value": "@variables('v_WindowKey')",
+												"type": "Expression"
+											}
 										}
 									}
 								},
@@ -1918,7 +1972,8 @@
 			"NoNestedIf",
 			"TopLevelRouteSwitch",
 			"DataLoadStatusExplicit",
-			"PipelineControlErrorCode"
+			"PipelineControlErrorCode",
+			"CommonErrorHandlerCanonicalParams"
 		],
 		"lastPublishTime": "2026-04-20T02:12:31Z"
 	},
