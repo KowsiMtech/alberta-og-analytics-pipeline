@@ -617,6 +617,27 @@
 						"Status": {
 							"value": "failed",
 							"type": "String"
+						},
+						"BatchId": {
+							"value": {
+								"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"WindowKey": {
+							"value": {
+								"value": "@if(contains(activity('PLST37_to_Bronze').output,'pipelineReturnValue'),string(activity('PLST37_to_Bronze').output.pipelineReturnValue.WindowKey),'')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ErrorCode": {
+							"value": {
+								"value": "@activity('CheckIdempotency').error.errorCode",
+								"type": "Expression"
+							},
+							"type": "String"
 						}
 					}
 				},
