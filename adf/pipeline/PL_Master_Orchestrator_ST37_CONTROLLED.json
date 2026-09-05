@@ -1,7 +1,7 @@
 {
 	"name": "PL_Master_Orchestrator_ST37_CONTROLLED",
 	"properties": {
-		"description": "ST37-only controlled master for NORMAL/REPLAY/BACKFILL validation. EIA is intentionally excluded. Correlates BatchId/RunId, runs exact WindowKey downstream, logs DQ, and uses control.usp_StartPipelineRun/control.usp_EndPipelineRun. Lineage-hardened: BatchId and WindowKey are propagated to control logging. Adds Gold SCD2 single-current-record DQ gate before archival. Gold SCD2 DQ is implemented as a single Script (log + THROW) to avoid unsupported nested IfCondition. Idempotency guard updated to a 30-minute active-run window; stale RUNNING rows older than 30 minutes are ignored by the guard and can be closed with the companion SQL cleanup script.",
+		"description": "ST37-only controlled master for NORMAL/REPLAY/BACKFILL validation. EIA is intentionally excluded. Correlates BatchId/RunId, runs exact WindowKey downstream, logs DQ, and uses control.usp_StartPipelineRun/control.usp_EndPipelineRun. Lineage-hardened: BatchId and WindowKey are propagated to control logging. Adds Gold SCD2 single-current-record DQ gate before archival. Gold SCD2 DQ is implemented as a single Script (log + THROW) to avoid unsupported nested IfCondition. Idempotency guard updated to a 30-minute active-run window; stale RUNNING rows older than 30 minutes are ignored by the guard and can be closed with the companion SQL cleanup script. Idempotency decision is now SQL-derived via CanRun and skip logging records the actual ActiveCount/database/server instead of a hard-coded message.",
 		"activities": [
 			{
 				"name": "GetIdempotencyStatus",
@@ -19,7 +19,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "SELECT DB_NAME() AS DatabaseName, @@SERVERNAME AS ServerName, CAST(COUNT(*) AS INT) AS ActiveCount FROM control.PipelineControl WHERE PipelineName = 'PL_Master_Orchestrator_ST37_CONTROLLED' AND Status = 'RUNNING' AND RunStartTime >= DATEADD(MINUTE, -30, SYSUTCDATETIME())",
+							"value": "SELECT DB_NAME() AS DatabaseName, @@SERVERNAME AS ServerName, CAST(COUNT(*) AS INT) AS ActiveCount, CAST(CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END AS INT) AS CanRun FROM control.PipelineControl WHERE PipelineName = 'PL_Master_Orchestrator_ST37_CONTROLLED' AND Status = 'RUNNING' AND RunStartTime >= DATEADD(MINUTE, -30, SYSUTCDATETIME())",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
@@ -45,7 +45,7 @@
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
-						"value": "@or(not(equals(toLower(pipeline().parameters.RunMode),'normal')),equals(string(activity('GetIdempotencyStatus').output.firstRow.ActiveCount),'0'))",
+						"value": "@or(not(equals(toLower(trim(pipeline().parameters.RunMode)),'normal')),equals(int(activity('GetIdempotencyStatus').output.firstRow.CanRun),1))",
 						"type": "Expression"
 					},
 					"ifFalseActivities": [
@@ -69,7 +69,10 @@
 										"type": "String"
 									},
 									"ErrorMessage": {
-										"value": "A run for this pipeline is already RUNNING within the last 30 minutes - idempotency check prevented a concurrent run",
+										"value": {
+											"value": "@concat('Idempotency blocked this NORMAL run. ActiveCount=', string(activity('GetIdempotencyStatus').output.firstRow.ActiveCount), ', Database=', activity('GetIdempotencyStatus').output.firstRow.DatabaseName, ', Server=', activity('GetIdempotencyStatus').output.firstRow.ServerName, ', Window=last 30 minutes.')",
+											"type": "Expression"
+										},
 										"type": "String"
 									},
 									"PipelineName": {
@@ -723,7 +726,9 @@
 			"Retry",
 			"ControlFramework",
 			"GoldDQ",
-			"GoldSingleCurrentRecord"
+			"GoldSingleCurrentRecord",
+			"IdempotencyCanRun",
+			"DynamicSkipDiagnostics"
 		],
 		"lastPublishTime": "2026-04-20T02:12:31Z"
 	},
