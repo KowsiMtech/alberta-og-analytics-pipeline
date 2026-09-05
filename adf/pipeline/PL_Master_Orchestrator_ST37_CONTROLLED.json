@@ -19,7 +19,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "SELECT COUNT(*) AS ActiveCount FROM control.PipelineControl WHERE PipelineName = 'PL_Master_Orchestrator_ST37_CONTROLLED' AND Status = 'RUNNING' AND RunStartTime > DATEADD(HOUR, -6, GETUTCDATE())",
+							"value": "SELECT DB_NAME() AS DatabaseName, @@SERVERNAME AS ServerName, CAST(COUNT(*) AS INT) AS ActiveCount FROM control.PipelineControl WHERE PipelineName = 'PL_Master_Orchestrator_ST37_CONTROLLED' AND Status = 'RUNNING' AND RunStartTime > DATEADD(HOUR, -6, GETUTCDATE())",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
@@ -45,7 +45,7 @@
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
-						"value": "@or(not(equals(toLower(pipeline().parameters.RunMode),'normal')),equals(int(activity('GetIdempotencyStatus').output.firstRow.ActiveCount),0))",
+						"value": "@or(not(equals(toLower(pipeline().parameters.RunMode),'normal')),equals(string(activity('GetIdempotencyStatus').output.firstRow.ActiveCount),'0'))",
 						"type": "Expression"
 					},
 					"ifFalseActivities": [
@@ -587,7 +587,7 @@
 				},
 				"userProperties": [],
 				"typeProperties": {
-					"storedProcedureName": "[control].[Log_ADF_Failure]",
+					"storedProcedureName": "[dbo].[Log_ADF_Failure]",
 					"storedProcedureParameters": {
 						"ActivityName": {
 							"value": "master orchestrator run",
