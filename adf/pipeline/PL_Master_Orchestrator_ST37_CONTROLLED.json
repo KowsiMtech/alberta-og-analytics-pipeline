@@ -1,7 +1,7 @@
 {
 	"name": "PL_Master_Orchestrator_ST37_CONTROLLED",
 	"properties": {
-		"description": "ST37-only controlled master for NORMAL/REPLAY/BACKFILL validation. EIA is intentionally excluded. Correlates BatchId/RunId, runs exact WindowKey downstream, logs DQ, and uses control.usp_StartPipelineRun/control.usp_EndPipelineRun. Lineage-hardened: BatchId and WindowKey are propagated to control logging. Adds Gold SCD2 single-current-record DQ gate before archival. Gold SCD2 DQ is implemented as a single Script (log + THROW) to avoid unsupported nested IfCondition. Idempotency guard updated to a 30-minute active-run window; stale RUNNING rows older than 30 minutes are ignored by the guard and can be closed with the companion SQL cleanup script. Idempotency decision is now SQL-derived via CanRun and skip logging records the actual ActiveCount/database/server instead of a hard-coded message. Failure lifecycle hardened: each critical activity inside the NORMAL/REPLAY/BACKFILL branch now logs its own error, closes the matching PipelineControl BatchId via control.usp_EndPipelineRun, and explicitly fails the master so RUNNING rows do not remain stale. Idempotency uses a 60-minute active-run safety window as a secondary escape valve for cancelled/orphaned RUNNING rows; per-stage failure cleanup remains the primary lifecycle control.",
+		"description": "ST37-only controlled master for NORMAL/REPLAY/BACKFILL validation. EIA is intentionally excluded. Correlates BatchId/RunId, runs exact WindowKey downstream, logs DQ, and uses control.usp_StartPipelineRun/control.usp_EndPipelineRun. Lineage-hardened: BatchId and WindowKey are propagated to control logging. Adds Gold SCD2 single-current-record DQ gate before archival. Gold SCD2 DQ is implemented as a single Script (log + THROW) to avoid unsupported nested IfCondition. Idempotency guard updated to a 30-minute active-run window; stale RUNNING rows older than 30 minutes are ignored by the guard and can be closed with the companion SQL cleanup script. Idempotency decision is now SQL-derived via CanRun and skip logging records the actual ActiveCount/database/server instead of a hard-coded message. Failure lifecycle hardened: each critical activity inside the NORMAL/REPLAY/BACKFILL branch now logs its own error, closes the matching PipelineControl BatchId via control.usp_EndPipelineRun, and explicitly fails the master so RUNNING rows do not remain stale. Idempotency uses a 60-minute active-run safety window as a secondary escape valve for cancelled/orphaned RUNNING rows; per-stage failure cleanup remains the primary lifecycle control. Downstream Silver-to-Staging is gated by SilverHasRows returned by Bronze-to-Silver, not Bronze source HasRows.",
 		"activities": [
 			{
 				"name": "GetIdempotencyStatus",
@@ -302,7 +302,7 @@
 										"type": "Expression"
 									},
 									"HasRows": {
-										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.HasRows",
+										"value": "@activity('PL_Bronze_to_Silver').output.pipelineReturnValue.SilverHasRows",
 										"type": "Expression"
 									},
 									"ParentRunId": {
@@ -311,6 +311,10 @@
 									},
 									"BatchId": {
 										"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
+										"type": "Expression"
+									},
+									"SilverCount": {
+										"value": "@activity('PL_Bronze_to_Silver').output.pipelineReturnValue.SilverCount",
 										"type": "Expression"
 									}
 								}

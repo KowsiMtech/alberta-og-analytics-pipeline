@@ -1,7 +1,7 @@
 {
 	"name": "PL_Silver_to_Staging_SQL_INCREMENTAL",
 	"properties": {
-		"description": "Loads only the current ST37 Silver delta into staging.Silver_Wells. Staging is deliberately truncated each run. If there are no ST37 changes, staging is explicitly cleared so stale rows cannot be reprocessed. Adds run correlation and activity logging. Lineage-hardened: BatchId and WindowKey are propagated to control logging. Central ADF failure logging is also emitted before the child is explicitly failed.",
+		"description": "Loads the current Silver delta into staging.Silver_Wells and clears staging when SilverHasRows=false. SilverCount is supplied by the Bronze-to-Silver child, so this pipeline no longer probes a potentially non-existent Silver parquet folder with OPENROWSET. Keeps timing, staging row count, PipelineRunDetail logging, and child failure logging.",
 		"activities": [
 			{
 				"name": "Set_SilverStage_StartTime",
@@ -387,6 +387,30 @@
 				}
 			},
 			{
+				"name": "Set_SilverCount_FromParameter",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set_SilverStage_EndTime_Success",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_SilverCount",
+					"value": {
+						"value": "@string(pipeline().parameters.SilverCount)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
 				"name": "Set_SilverStage_EndTime_Failure",
 				"type": "SetVariable",
 				"dependsOn": [
@@ -411,47 +435,11 @@
 				}
 			},
 			{
-				"name": "Get_Silver_Window_RowCount",
-				"type": "Script",
-				"dependsOn": [
-					{
-						"activity": "Set_SilverStage_EndTime_Success",
-						"dependencyConditions": [
-							"Succeeded"
-						]
-					}
-				],
-				"policy": {
-					"timeout": "0.12:00:00",
-					"retry": 0,
-					"retryIntervalInSeconds": 30,
-					"secureOutput": false,
-					"secureInput": false
-				},
-				"userProperties": [],
-				"linkedServiceName": {
-					"referenceName": "LS_Synapse_Serverless",
-					"type": "LinkedServiceReference"
-				},
-				"typeProperties": {
-					"scripts": [
-						{
-							"type": "Query",
-							"text": {
-								"value": "@concat('DECLARE @Cnt BIGINT=0; BEGIN TRY SELECT @Cnt=COUNT(*) FROM OPENROWSET(BULK ''/silver/clean/window=', pipeline().parameters.WindowKey, '/*.parquet'', DATA_SOURCE=''aer_adls'', FORMAT=''PARQUET'') AS s; END TRY BEGIN CATCH SET @Cnt=0; END CATCH; SELECT @Cnt AS SilverCount;')",
-								"type": "Expression"
-							}
-						}
-					],
-					"scriptBlockExecutionTimeout": "02:00:00"
-				}
-			},
-			{
 				"name": "Get_Staging_RowCount",
 				"type": "Script",
 				"dependsOn": [
 					{
-						"activity": "Set_SilverStage_EndTime_Success",
+						"activity": "Set_SilverCount_FromParameter",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -480,17 +468,114 @@
 				}
 			},
 			{
+				"name": "Set_StagingCount_FromQuery",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Get_Staging_RowCount",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_StagingCount",
+					"value": {
+						"value": "@string(int(activity('Get_Staging_RowCount').output.resultSets[0].rows[0].StagingCount))",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Log_ADF_Failure_Get_Staging_RowCount",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Get_Staging_RowCount",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 1,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[control].[Log_ADF_Failure]",
+					"storedProcedureParameters": {
+						"ActivityName": {
+							"value": "Get_Staging_RowCount",
+							"type": "String"
+						},
+						"ErrorMessage": {
+							"value": {
+								"value": "@activity('Get_Staging_RowCount').error.message",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineRunId": {
+							"value": {
+								"value": "@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"Status": {
+							"value": "failed",
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Fail_Get_Staging_RowCount_After_Log",
+				"type": "Fail",
+				"dependsOn": [
+					{
+						"activity": "Log_ADF_Failure_Get_Staging_RowCount",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"message": {
+						"value": "@activity('Get_Staging_RowCount').error.message",
+						"type": "Expression"
+					},
+					"errorCode": "STAGING_ROWCOUNT_FAILED"
+				}
+			},
+			{
 				"name": "Log_SilverToStaging_Success",
 				"type": "SqlServerStoredProcedure",
 				"dependsOn": [
 					{
-						"activity": "Get_Silver_Window_RowCount",
-						"dependencyConditions": [
-							"Succeeded"
-						]
-					},
-					{
-						"activity": "Get_Staging_RowCount",
+						"activity": "Set_StagingCount_FromQuery",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -563,14 +648,14 @@
 						},
 						"RowsRead": {
 							"value": {
-								"value": "@int(activity('Get_Silver_Window_RowCount').output.resultSets[0].rows[0].SilverCount)",
+								"value": "@int(variables('v_SilverCount'))",
 								"type": "Expression"
 							},
 							"type": "Int64"
 						},
 						"RowsWritten": {
 							"value": {
-								"value": "@int(activity('Get_Staging_RowCount').output.resultSets[0].rows[0].StagingCount)",
+								"value": "@int(variables('v_StagingCount'))",
 								"type": "Expression"
 							},
 							"type": "Int64"
@@ -770,6 +855,10 @@
 			},
 			"BatchId": {
 				"type": "string"
+			},
+			"SilverCount": {
+				"type": "string",
+				"defaultValue": "0"
 			}
 		},
 		"variables": {
@@ -778,6 +867,14 @@
 			},
 			"v_StageEndTime": {
 				"type": "String"
+			},
+			"v_SilverCount": {
+				"type": "String",
+				"defaultValue": "0"
+			},
+			"v_StagingCount": {
+				"type": "String",
+				"defaultValue": "0"
 			}
 		},
 		"folder": {
@@ -785,7 +882,10 @@
 		},
 		"annotations": [
 			"Incremental",
-			"DeltaStaging"
+			"DeltaStaging",
+			"SilverHasRowsGated",
+			"NoSilverOpenRowsetCount",
+			"PerCountFailureLogging"
 		]
 	},
 	"type": "Microsoft.DataFactory/factories/pipelines"
