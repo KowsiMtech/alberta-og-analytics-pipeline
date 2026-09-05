@@ -1,0 +1,731 @@
+{
+	"name": "PL_Master_Orchestrator_ST37",
+	"properties": {
+		"description": "ST37-only controlled master for NORMAL/REPLAY/BACKFILL validation. EIA is intentionally excluded. Correlates BatchId/RunId, runs exact WindowKey downstream, logs DQ, and uses control.usp_StartPipelineRun/control.usp_EndPipelineRun. Lineage-hardened: BatchId and WindowKey are propagated to control logging. Adds Gold SCD2 single-current-record DQ gate before archival. Gold SCD2 DQ is implemented as a single Script (log + THROW) to avoid unsupported nested IfCondition.",
+		"activities": [
+			{
+				"name": "GetIdempotencyStatus",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 3,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT COUNT(*) AS ActiveCount FROM control.PipelineControl WHERE PipelineName = 'PL_Master_Orchestrator_ST37_CONTROLLED' AND Status = 'RUNNING' AND RunStartTime > DATEADD(HOUR, -6, GETUTCDATE())",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_AzureSQL_Generic",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "CheckIdempotency",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "GetIdempotencyStatus",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@or(not(equals(toLower(pipeline().parameters.RunMode),'normal')),equals(int(activity('GetIdempotencyStatus').output.firstRow.ActiveCount),0))",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
+						{
+							"name": "SkipRun_AlreadyProcessed",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[dbo].[Log_ADF_Failure]",
+								"storedProcedureParameters": {
+									"ActivityName": {
+										"value": "master orchestrator run - skipped, already processed",
+										"type": "String"
+									},
+									"ErrorMessage": {
+										"value": "A batch for this pipeline was already RUNNING within the last 6 hours - idempotency check prevented a concurrent run",
+										"type": "String"
+									},
+									"PipelineName": {
+										"value": {
+											"value": "@pipeline().Pipeline",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineRunId": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"Status": {
+										"value": "skipped",
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						}
+					],
+					"ifTrueActivities": [
+						{
+							"name": "Pipeline Start Script",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[control].[usp_StartPipelineRun]",
+								"storedProcedureParameters": {
+									"PipelineName": {
+										"value": "PL_Master_Orchestrator_ST37_CONTROLLED",
+										"type": "String"
+									},
+									"BatchId": {
+										"value": {
+											"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"RunDate": {
+										"value": {
+											"value": "@formatDateTime(pipeline().TriggerTime,'yyyy-MM-dd')",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineRunId": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "PLST37_to_Bronze",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "Pipeline Start Script",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_ST37_to_Bronze_INCREMENTAL",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"ST37_DefaultLookbackDays": {
+										"value": "@pipeline().parameters.ST37_DefaultLookbackDays",
+										"type": "Expression"
+									},
+									"RunMode": {
+										"value": "@pipeline().parameters.RunMode",
+										"type": "Expression"
+									},
+									"WindowStart": {
+										"value": "@pipeline().parameters.WindowStart",
+										"type": "Expression"
+									},
+									"WindowEnd": {
+										"value": "@pipeline().parameters.WindowEnd",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Update_Master_Run_Context",
+							"type": "Script",
+							"dependsOn": [
+								{
+									"activity": "PLST37_to_Bronze",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.00:05:00",
+								"retry": 2,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							},
+							"typeProperties": {
+								"scripts": [
+									{
+										"type": "NonQuery",
+										"text": {
+											"value": "@concat('UPDATE control.PipelineControl SET PipelineRunId = ''', pipeline().RunId, ''', WindowKey = ''', activity('PLST37_to_Bronze').output.pipelineReturnValue.WindowKey, ''', IsReplay = ', if(equals(toLower(pipeline().parameters.RunMode),'replay'),'1','0'), ', IsBackfill = ', if(equals(toLower(pipeline().parameters.RunMode),'backfill'),'1','0'), ' WHERE PipelineName = ''PL_Master_Orchestrator_ST37_CONTROLLED'' AND BatchId = ''', concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8)), ''';')",
+											"type": "Expression"
+										}
+									}
+								],
+								"scriptBlockExecutionTimeout": "02:00:00"
+							}
+						},
+						{
+							"name": "PL_Bronze_to_Silver",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "Update_Master_Run_Context",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_Bronze_to_Silver_quarantine_INCREMENTAL",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"WindowKey": {
+										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.WindowKey",
+										"type": "Expression"
+									},
+									"HasRows": {
+										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.HasRows",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "silver to staging sql",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "PL_Bronze_to_Silver",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_Silver_to_Staging_SQL_INCREMENTAL",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"WindowKey": {
+										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.WindowKey",
+										"type": "Expression"
+									},
+									"HasRows": {
+										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.HasRows",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "SCD2 for gold",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "silver to staging sql",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_SCD2_MERGE_INCREMENTAL_AWARE",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"ParentRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.WindowKey",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Check_And_Log_Gold_SCD2_DQ",
+							"type": "Script",
+							"dependsOn": [
+								{
+									"activity": "SCD2 for gold",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.00:05:00",
+								"retry": 1,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							},
+							"typeProperties": {
+								"scripts": [
+									{
+										"type": "NonQuery",
+										"text": {
+											"value": "@concat('DECLARE @FailedRowCount INT; SELECT @FailedRowCount = COUNT(*) FROM (SELECT WellID FROM gold.Dim_Well WHERE [Is_Current] = 1 GROUP BY WellID HAVING COUNT(*) > 1) x; INSERT INTO control.DataQualityResult (PipelineRunId, PipelineName, BatchId, WindowKey, DatasetName, RuleName, RuleResult, ExpectedValue, ActualValue, FailedRowCount, CheckTime) VALUES (''', pipeline().RunId, ''', ''PL_ST37_to_Bronze_INCREMENTAL'', ''', concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8)), ''', ''', activity('PLST37_to_Bronze').output.pipelineReturnValue.WindowKey, ''', ''Gold_Dim_Well'', ''GoldSingleCurrentRecord'', CASE WHEN @FailedRowCount = 0 THEN ''PASS'' ELSE ''FAIL'' END, ''0'', CAST(@FailedRowCount AS NVARCHAR(20)), @FailedRowCount, SYSUTCDATETIME()); IF @FailedRowCount > 0 BEGIN THROW 51001, ''Gold SCD2 DQ failed: duplicate Is_Current records detected.'', 1; END;')",
+											"type": "Expression"
+										}
+									}
+								],
+								"scriptBlockExecutionTimeout": "02:00:00"
+							}
+						},
+						{
+							"name": "Lookup_Gold_Current_Well_Count",
+							"type": "Lookup",
+							"dependsOn": [
+								{
+									"activity": "Check_And_Log_Gold_SCD2_DQ",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.00:05:00",
+								"retry": 2,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": "SELECT COUNT(*) AS GoldRowCount FROM gold.Dim_Well WHERE [Is_Current] = 1",
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "DS_AzureSQL_Generic",
+									"type": "DatasetReference"
+								},
+								"firstRowOnly": true
+							}
+						},
+						{
+							"name": "ADLS gold Archival Copy",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "Lookup_Gold_Current_Well_Count",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_Archive_Gold_to_ADLS",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true
+							}
+						},
+						{
+							"name": "Reconciliation",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "ADLS gold Archival Copy",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_ADLS_Reconciliation_INCREMENTAL",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"WindowKey": {
+										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.WindowKey",
+										"type": "Expression"
+									},
+									"HasRows": {
+										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.HasRows",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "EndPipelineRun_Success",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Reconciliation",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[control].[usp_EndPipelineRun]",
+								"storedProcedureParameters": {
+									"PipelineName": {
+										"value": "PL_Master_Orchestrator_ST37_CONTROLLED",
+										"type": "String"
+									},
+									"BatchId": {
+										"value": {
+											"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"SourceRowCount": {
+										"value": {
+											"value": "@activity('Reconciliation').output.pipelineReturnValue.SourceRowCount",
+											"type": "Expression"
+										},
+										"type": "Int32"
+									},
+									"SilverRowCount": {
+										"value": {
+											"value": "@activity('Reconciliation').output.pipelineReturnValue.SilverRowCount",
+											"type": "Expression"
+										},
+										"type": "Int32"
+									},
+									"QuarantineRowCount": {
+										"value": {
+											"value": "@activity('Reconciliation').output.pipelineReturnValue.QuarantineRowCount",
+											"type": "Expression"
+										},
+										"type": "Int32"
+									},
+									"GoldRowCount": {
+										"value": {
+											"value": "@int(activity('Lookup_Gold_Current_Well_Count').output.firstRow.GoldRowCount)",
+											"type": "Expression"
+										},
+										"type": "Int32"
+									},
+									"WindowKey": {
+										"value": {
+											"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.WindowKey",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineRunId": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "handling pipeline failure",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "CheckIdempotency",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[Log_ADF_Failure]",
+					"storedProcedureParameters": {
+						"ActivityName": {
+							"value": "master orchestrator run",
+							"type": "String"
+						},
+						"ErrorMessage": {
+							"value": {
+								"value": "@activity('CheckIdempotency').error.message",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineRunId": {
+							"value": {
+								"value": "@pipeline().RunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"Status": {
+							"value": "failed",
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "EndPipelineRun_Failure",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "handling pipeline failure",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[control].[usp_EndPipelineRun]",
+					"storedProcedureParameters": {
+						"PipelineName": {
+							"value": "PL_Master_Orchestrator_ST37_CONTROLLED",
+							"type": "String"
+						},
+						"BatchId": {
+							"value": {
+								"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ErrorMessage": {
+							"value": {
+								"value": "@coalesce(activity('CheckIdempotency').error.message, 'Pipeline failed - see activity run details for the specific failed step')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"SourceRowCount": {
+							"value": "0",
+							"type": "Int32"
+						},
+						"SilverRowCount": {
+							"value": "0",
+							"type": "Int32"
+						},
+						"QuarantineRowCount": {
+							"value": "0",
+							"type": "Int32"
+						},
+						"PipelineRunId": {
+							"value": {
+								"value": "@pipeline().RunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			}
+		],
+		"parameters": {
+			"ST37_DefaultLookbackDays": {
+				"type": "int",
+				"defaultValue": 7
+			},
+			"RunMode": {
+				"type": "string",
+				"defaultValue": "NORMAL"
+			},
+			"WindowStart": {
+				"type": "string"
+			},
+			"WindowEnd": {
+				"type": "string"
+			},
+			"WindowKey": {
+				"type": "string"
+			}
+		},
+		"folder": {
+			"name": "Incremental_Load"
+		},
+		"annotations": [
+			"ST37",
+			"Controlled",
+			"Replay",
+			"Backfill",
+			"Retry",
+			"ControlFramework",
+			"GoldDQ",
+			"GoldSingleCurrentRecord"
+		],
+		"lastPublishTime": "2026-04-20T02:12:31Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}
