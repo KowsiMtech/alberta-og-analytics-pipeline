@@ -128,7 +128,7 @@
 					"storedProcedureParameters": {
 						"PipelineRunId": {
 							"value": {
-								"value": "@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)",
+								"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
 								"type": "Expression"
 							},
 							"type": "String"
@@ -266,7 +266,7 @@
 					"storedProcedureParameters": {
 						"PipelineRunId": {
 							"value": {
-								"value": "@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)",
+								"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
 								"type": "Expression"
 							},
 							"type": "String"
@@ -370,7 +370,7 @@
 					"storedProcedureParameters": {
 						"PipelineRunId": {
 							"value": {
-								"value": "@if(equals(pipeline().parameters.ParentRunId,''),pipeline().RunId,pipeline().parameters.ParentRunId)",
+								"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
 								"type": "Expression"
 							},
 							"type": "String"
@@ -623,7 +623,8 @@
 			"UpstreamMetrics",
 			"NoStorageRecount",
 			"CommonErrorHandler",
-			"ExplicitTimingExpressionsV4"
+			"ExplicitTimingExpressionsV4",
+			"ParentRunIdNullSafeV5"
 		]
 	},
 	"type": "Microsoft.DataFactory/factories/pipelines"
