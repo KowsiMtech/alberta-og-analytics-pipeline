@@ -1,7 +1,7 @@
 {
 	"name": "PL_Master_Orchestrator_ST37_CONTROLLED",
 	"properties": {
-		"description": "ST37 controlled master orchestration. Industry-refactor v1: thin orchestration, ADF concurrency=1 plus existing SQL active-run guard, stage-produced row-count metadata propagation, and metadata-driven reconciliation. Master owns batch lifecycle; children own detailed stage failures. FINAL V2: thin-master ownership. Child pipelines own detailed stage failure logging; Master owns batch close/fail. Native Master failures use PL_Common_Error_Handler. Upstream row counts are propagated to reconciliation without ADLS recounts. FINAL V4: removed invalid nested IfCondition; uses a top-level Switch router after Bronze metadata is cached in pipeline variables.",
+		"description": "ST37 controlled master orchestration. Industry-refactor v1: thin orchestration, ADF concurrency=1 plus existing SQL active-run guard, stage-produced row-count metadata propagation, and metadata-driven reconciliation. Master owns batch lifecycle; children own detailed stage failures. FINAL V2: thin-master ownership. Child pipelines own detailed stage failure logging; Master owns batch close/fail. Native Master failures use PL_Common_Error_Handler. Upstream row counts are propagated to reconciliation without ADLS recounts. FINAL V4: removed invalid nested IfCondition; uses a top-level Switch router after Bronze metadata is cached in pipeline variables. FINAL V6: PipelineControl close calls now explicitly set DataLoadStatus and ErrorCode.",
 		"activities": [
 			{
 				"name": "GetIdempotencyStatus",
@@ -314,6 +314,14 @@
 											"type": "Expression"
 										},
 										"type": "String"
+									},
+									"DataLoadStatus": {
+										"value": "FAILED",
+										"type": "String"
+									},
+									"ErrorCode": {
+										"value": "MASTER_ST37_TO_BRONZE_FAILED",
+										"type": "String"
 									}
 								}
 							},
@@ -433,6 +441,14 @@
 											"value": "@pipeline().RunId",
 											"type": "Expression"
 										},
+										"type": "String"
+									},
+									"DataLoadStatus": {
+										"value": "FAILED",
+										"type": "String"
+									},
+									"ErrorCode": {
+										"value": "MASTER_UPDATE_MASTER_RUN_CONTEXT_FAILED",
 										"type": "String"
 									}
 								}
@@ -956,6 +972,17 @@
 													"type": "Expression"
 												},
 												"type": "String"
+											},
+											"DataLoadStatus": {
+												"value": "WITH_DATA",
+												"type": "String"
+											},
+											"ErrorCode": {
+												"value": {
+													"value": "@null",
+													"type": "Expression"
+												},
+												"type": "String"
 											}
 										}
 									},
@@ -1021,6 +1048,14 @@
 													"value": "@pipeline().RunId",
 													"type": "Expression"
 												},
+												"type": "String"
+											},
+											"DataLoadStatus": {
+												"value": "FAILED",
+												"type": "String"
+											},
+											"ErrorCode": {
+												"value": "MASTER_BRONZE_TO_SILVER_FAILED",
 												"type": "String"
 											}
 										}
@@ -1109,6 +1144,14 @@
 													"type": "Expression"
 												},
 												"type": "String"
+											},
+											"DataLoadStatus": {
+												"value": "FAILED",
+												"type": "String"
+											},
+											"ErrorCode": {
+												"value": "MASTER_SILVER_TO_STAGING_FAILED",
+												"type": "String"
 											}
 										}
 									},
@@ -1195,6 +1238,14 @@
 													"value": "@pipeline().RunId",
 													"type": "Expression"
 												},
+												"type": "String"
+											},
+											"DataLoadStatus": {
+												"value": "FAILED",
+												"type": "String"
+											},
+											"ErrorCode": {
+												"value": "MASTER_SCD2_GOLD_FAILED",
 												"type": "String"
 											}
 										}
@@ -1316,6 +1367,14 @@
 													"type": "Expression"
 												},
 												"type": "String"
+											},
+											"DataLoadStatus": {
+												"value": "FAILED",
+												"type": "String"
+											},
+											"ErrorCode": {
+												"value": "MASTER_GOLD_SCD2_DQ_FAILED",
+												"type": "String"
 											}
 										}
 									},
@@ -1436,6 +1495,14 @@
 													"type": "Expression"
 												},
 												"type": "String"
+											},
+											"DataLoadStatus": {
+												"value": "FAILED",
+												"type": "String"
+											},
+											"ErrorCode": {
+												"value": "MASTER_GOLD_CURRENT_COUNT_FAILED",
+												"type": "String"
 											}
 										}
 									},
@@ -1522,6 +1589,14 @@
 													"value": "@pipeline().RunId",
 													"type": "Expression"
 												},
+												"type": "String"
+											},
+											"DataLoadStatus": {
+												"value": "FAILED",
+												"type": "String"
+											},
+											"ErrorCode": {
+												"value": "MASTER_GOLD_ARCHIVE_FAILED",
 												"type": "String"
 											}
 										}
@@ -1610,6 +1685,14 @@
 													"type": "Expression"
 												},
 												"type": "String"
+											},
+											"DataLoadStatus": {
+												"value": "FAILED",
+												"type": "String"
+											},
+											"ErrorCode": {
+												"value": "MASTER_RECONCILIATION_FAILED",
+												"type": "String"
 											}
 										}
 									},
@@ -1696,6 +1779,17 @@
 											"PipelineRunId": {
 												"value": {
 													"value": "@pipeline().RunId",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"DataLoadStatus": {
+												"value": "NO_DATA",
+												"type": "String"
+											},
+											"ErrorCode": {
+												"value": {
+													"value": "@null",
 													"type": "Expression"
 												},
 												"type": "String"
@@ -1822,7 +1916,9 @@
 			"NoStaleRunningRows",
 			"SourceHasRowsGate",
 			"NoNestedIf",
-			"TopLevelRouteSwitch"
+			"TopLevelRouteSwitch",
+			"DataLoadStatusExplicit",
+			"PipelineControlErrorCode"
 		],
 		"lastPublishTime": "2026-04-20T02:12:31Z"
 	},
