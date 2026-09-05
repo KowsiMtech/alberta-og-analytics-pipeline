@@ -226,7 +226,11 @@
 					},
 					"dataset": {
 						"referenceName": "DS_Bronze_Well",
-						"type": "DatasetReference"
+						"type": "DatasetReference",
+						"parameters": {
+							"FolderPath": "@concat('bronze/well/window=', variables('v_WindowKey'))",
+							"FileName": "@concat(pipeline().parameters.SourceTable, '_', variables('v_WindowKey'), '.parquet')"
+						}
 					},
 					"firstRowOnly": true
 				},
