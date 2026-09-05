@@ -214,13 +214,19 @@
 				"userProperties": [],
 				"typeProperties": {
 					"source": {
-						"type": "AzureSqlSource",
-						"sqlReaderQuery": {
-							"value": "@concat('DECLARE @WindowKey NVARCHAR(200)=N''', pipeline().parameters.WindowKey, '''; DECLARE @RunStamp NVARCHAR(200)=REPLACE(REPLACE(@WindowKey,''_'',''''),''-'',''''); DECLARE @SilverTable NVARCHAR(300)=N''dbo.silver_clean_''+@RunStamp; DECLARE @QuarantineTable NVARCHAR(300)=N''dbo.quarantine_''+@RunStamp; DECLARE @SQL NVARCHAR(MAX)=N''SELECT ((SELECT COUNT(*) FROM ''+@SilverTable+'') + (SELECT COUNT(*) FROM ''+@QuarantineTable+'')) AS BronzeCount, (SELECT COUNT(*) FROM ''+@SilverTable+'') AS SilverCount, (SELECT COUNT(*) FROM ''+@QuarantineTable+'') AS QuarantineCount;''; EXEC sp_executesql @SQL;')",
-							"type": "Expression"
+						"type": "ParquetSource",
+						"storeSettings": {
+							"type": "AzureBlobFSReadSettings",
+							"recursive": true,
+							"enablePartitionDiscovery": false
 						},
-						"queryTimeout": "02:00:00",
-						"partitionOption": "None"
+						"formatSettings": {
+							"type": "ParquetReadSettings"
+						}
+					},
+					"dataset": {
+						"referenceName": "DS_Bronze_Well",
+						"type": "DatasetReference"
 					},
 					"firstRowOnly": true
 				},
