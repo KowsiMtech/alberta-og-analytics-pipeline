@@ -1,7 +1,6 @@
 {
 	"name": "PL_Common_Error_Handler",
 	"properties": {
-		"description": "Reusable failure handler. Persists the supplied activity failure to control.Log_ADF_Failure and then intentionally fails so the calling ExecutePipeline activity propagates failure to its parent pipeline.",
 		"activities": [
 			{
 				"name": "Log_ADF_Failure",
@@ -46,8 +45,29 @@
 							},
 							"type": "String"
 						},
+						"ErrorCode": {
+							"value": {
+								"value": "@pipeline().parameters.ErrorCode",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"BatchId": {
+							"value": {
+								"value": "@pipeline().parameters.BatchId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"WindowKey": {
+							"value": {
+								"value": "@pipeline().parameters.WindowKey",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
 						"Status": {
-							"value": "failed",
+							"value": "FAILED",
 							"type": "String"
 						}
 					}
@@ -58,7 +78,7 @@
 				}
 			},
 			{
-				"name": "Fail_After_Common_Error_Log",
+				"name": "Fail_After_Logging",
 				"type": "Fail",
 				"dependsOn": [
 					{
@@ -71,8 +91,11 @@
 				],
 				"userProperties": [],
 				"typeProperties": {
-					"message": "Child activity failed. Failure details were sent to control.Log_ADF_Failure.",
-					"errorCode": "COMMON_CHILD_ACTIVITY_FAILED"
+					"message": {
+						"value": "@concat('Pipeline=',pipeline().parameters.PipelineName,', Activity=',pipeline().parameters.ActivityName,', ErrorCode=',pipeline().parameters.ErrorCode,', Error=',pipeline().parameters.ErrorMessage)",
+						"type": "Expression"
+					},
+					"errorCode": "COMMON_ERROR_HANDLER"
 				}
 			}
 		],
@@ -90,8 +113,7 @@
 				"type": "string"
 			},
 			"ErrorCode": {
-				"type": "string",
-				"defaultValue": "ADF_STAGE_FAILED"
+				"type": "string"
 			},
 			"BatchId": {
 				"type": "string"
@@ -100,14 +122,6 @@
 				"type": "string"
 			}
 		},
-		"folder": {
-			"name": "Common"
-		},
-		"annotations": [
-			"ReusableErrorHandler",
-			"OperationalLogging",
-			"CallerOwnsFail"
-		]
-	},
-	"type": "Microsoft.DataFactory/factories/pipelines"
+		"annotations": []
+	}
 }
