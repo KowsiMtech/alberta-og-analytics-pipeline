@@ -411,11 +411,86 @@
 				}
 			},
 			{
+				"name": "Get_Silver_Window_RowCount",
+				"type": "Script",
+				"dependsOn": [
+					{
+						"activity": "Set_SilverStage_EndTime_Success",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "LS_Synapse_Serverless",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": {
+								"value": "@concat('DECLARE @Cnt BIGINT=0; BEGIN TRY SELECT @Cnt=COUNT(*) FROM OPENROWSET(BULK ''''/silver/clean/window=', pipeline().parameters.WindowKey, '/*.parquet'''', DATA_SOURCE=''''aer_adls'''', FORMAT=''''PARQUET'''') AS s; END TRY BEGIN CATCH SET @Cnt=0; END CATCH; SELECT @Cnt AS SilverCount;')",
+								"type": "Expression"
+							}
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			},
+			{
+				"name": "Get_Staging_RowCount",
+				"type": "Script",
+				"dependsOn": [
+					{
+						"activity": "Set_SilverStage_EndTime_Success",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": "SELECT COUNT_BIG(*) AS StagingCount FROM staging.Silver_Wells;"
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			},
+			{
 				"name": "Log_SilverToStaging_Success",
 				"type": "SqlServerStoredProcedure",
 				"dependsOn": [
 					{
-						"activity": "Set_SilverStage_EndTime_Success",
+						"activity": "Get_Silver_Window_RowCount",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Get_Staging_RowCount",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -485,6 +560,20 @@
 								"type": "Expression"
 							},
 							"type": "String"
+						},
+						"RowsRead": {
+							"value": {
+								"value": "@int(activity('Get_Silver_Window_RowCount').output.resultSets[0].rows[0].SilverCount)",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"RowsWritten": {
+							"value": {
+								"value": "@int(activity('Get_Staging_RowCount').output.resultSets[0].rows[0].StagingCount)",
+								"type": "Expression"
+							},
+							"type": "Int64"
 						}
 					}
 				},

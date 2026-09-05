@@ -194,11 +194,47 @@
 				}
 			},
 			{
+				"name": "Get_BronzeSilver_RowCounts",
+				"type": "Script",
+				"dependsOn": [
+					{
+						"activity": "Set_BronzeSilver_EndTime_Success",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "LS_Synapse_Serverless",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": {
+								"value": "@concat('DECLARE @BronzeCount BIGINT=0, @SilverCount BIGINT=0, @QuarantineCount BIGINT=0; BEGIN TRY SELECT @BronzeCount=COUNT(*) FROM OPENROWSET(BULK ''''/bronze/well/window=', pipeline().parameters.WindowKey, '/*.parquet'''', DATA_SOURCE=''''aer_adls'''', FORMAT=''''PARQUET'''') AS b; END TRY BEGIN CATCH SET @BronzeCount=0; END CATCH; BEGIN TRY SELECT @SilverCount=COUNT(*) FROM OPENROWSET(BULK ''''/silver/clean/window=', pipeline().parameters.WindowKey, '/*.parquet'''', DATA_SOURCE=''''aer_adls'''', FORMAT=''''PARQUET'''') AS s; END TRY BEGIN CATCH SET @SilverCount=0; END CATCH; BEGIN TRY SELECT @QuarantineCount=COUNT(*) FROM OPENROWSET(BULK ''''/quarantine/well_rejects/window=', pipeline().parameters.WindowKey, '/*.parquet'''', DATA_SOURCE=''''aer_adls'''', FORMAT=''''PARQUET'''') AS q; END TRY BEGIN CATCH SET @QuarantineCount=0; END CATCH; SELECT @BronzeCount AS BronzeCount, @SilverCount AS SilverCount, @QuarantineCount AS QuarantineCount;')",
+								"type": "Expression"
+							}
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			},
+			{
 				"name": "Log_BronzeToSilver_Success",
 				"type": "SqlServerStoredProcedure",
 				"dependsOn": [
 					{
-						"activity": "Set_BronzeSilver_EndTime_Success",
+						"activity": "Get_BronzeSilver_RowCounts",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -268,6 +304,20 @@
 								"type": "Expression"
 							},
 							"type": "DateTime"
+						},
+						"RowsRead": {
+							"value": {
+								"value": "@int(activity('Get_BronzeSilver_RowCounts').output.resultSets[0].rows[0].BronzeCount)",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"RowsWritten": {
+							"value": {
+								"value": "@add(int(activity('Get_BronzeSilver_RowCounts').output.resultSets[0].rows[0].SilverCount),int(activity('Get_BronzeSilver_RowCounts').output.resultSets[0].rows[0].QuarantineCount))",
+								"type": "Expression"
+							},
+							"type": "Int64"
 						}
 					}
 				},

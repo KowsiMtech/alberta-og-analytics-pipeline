@@ -333,7 +333,21 @@
 									"referenceName": "PL_SCD2_MERGE_INCREMENTAL_AWARE",
 									"type": "PipelineReference"
 								},
-								"waitOnCompletion": true
+								"waitOnCompletion": true,
+								"parameters": {
+									"ParentRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@concat('BATCH_', formatDateTime(pipeline().TriggerTime,'yyyyMMdd_HHmmss'), '_', substring(pipeline().RunId,0,8))",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.WindowKey",
+										"type": "Expression"
+									}
+								}
 							}
 						},
 						{
