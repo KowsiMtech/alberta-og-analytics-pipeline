@@ -1,7 +1,7 @@
 {
 	"name": "PL_Silver_to_Staging_SQL_INCREMENTAL",
 	"properties": {
-		"description": "Loads only the actual Silver delta into staging.Silver_Wells. HasRows now means SilverHasRows supplied by Bronze-to-Silver, not Bronze source HasRows. SilverCount is supplied upstream; no Silver OPENROWSET count/rescan is performed. StagingCount is measured after copy/clear. Existing timing and failure logging are preserved. Industry-refactor v1. FINAL V2: consumes upstream SilverCount/SilverHasRows and avoids re-opening Silver storage for recount. Coordinated Instrumentation V3: existing StartTime/EndTime/RowsRead/RowsWritten instrumentation retained. V4: explicit StartTime, EndTime and DurationSeconds expressions passed to usp_LogPipelineRunDetail. V5: consumes upstream SilverCount; no Get_Silver_Window_RowCount recount. ParentRunId fallback is null-safe.",
+		"description": "Loads only the actual Silver delta into staging.Silver_Wells. HasRows now means SilverHasRows supplied by Bronze-to-Silver, not Bronze source HasRows. SilverCount is supplied upstream; no Silver OPENROWSET count/rescan is performed. StagingCount is measured after copy/clear. Existing timing and failure logging are preserved. Industry-refactor v1. FINAL V2: consumes upstream SilverCount/SilverHasRows and avoids re-opening Silver storage for recount. Coordinated Instrumentation V3: existing StartTime/EndTime/RowsRead/RowsWritten instrumentation retained. V4: explicit StartTime, EndTime and DurationSeconds expressions passed to usp_LogPipelineRunDetail. V5: consumes upstream SilverCount; no Get_Silver_Window_RowCount recount. ParentRunId fallback is null-safe. V6: failure path hardened; common error handler runs even when PipelineRunDetail failure logging fails; ParentRunId null-safe throughout.",
 		"activities": [
 			{
 				"name": "Set_SilverStage_StartTime",
@@ -759,7 +759,8 @@
 					{
 						"activity": "Log_SilverToStaging_Failure",
 						"dependencyConditions": [
-							"Succeeded"
+							"Succeeded",
+							"Failed"
 						]
 					}
 				],
@@ -849,7 +850,10 @@
 			"PerCountFailureLogging",
 			"ExplicitTimingExpressionsV4",
 			"NoSilverRecount",
-			"ParentRunIdNullSafe"
+			"ParentRunIdNullSafe",
+			"FailurePathHardened",
+			"NullSafeParentRunId",
+			"IndependentCommonErrorHandler"
 		]
 	},
 	"type": "Microsoft.DataFactory/factories/pipelines"

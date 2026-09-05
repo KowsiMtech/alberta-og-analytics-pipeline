@@ -1,6 +1,7 @@
 {
 	"name": "PL_Common_Error_Handler",
 	"properties": {
+		"description": "Reusable operational failure logger. Logs to control.Log_ADF_Failure and returns success so the caller retains ownership of Fail/cleanup behavior. V3: full failure context logging (ErrorCode, BatchId, WindowKey) and PipelineRunId fallback added.",
 		"activities": [
 			{
 				"name": "Log_ADF_Failure",
@@ -26,7 +27,7 @@
 						},
 						"PipelineRunId": {
 							"value": {
-								"value": "@pipeline().parameters.PipelineRunId",
+								"value": "@if(empty(pipeline().parameters.PipelineRunId),pipeline().RunId,pipeline().parameters.PipelineRunId)",
 								"type": "Expression"
 							},
 							"type": "String"
@@ -43,6 +44,10 @@
 								"value": "@pipeline().parameters.ErrorMessage",
 								"type": "Expression"
 							},
+							"type": "String"
+						},
+						"Status": {
+							"value": "failed",
 							"type": "String"
 						},
 						"ErrorCode": {
@@ -65,37 +70,12 @@
 								"type": "Expression"
 							},
 							"type": "String"
-						},
-						"Status": {
-							"value": "FAILED",
-							"type": "String"
 						}
 					}
 				},
 				"linkedServiceName": {
 					"referenceName": "LS_AzureSQL",
 					"type": "LinkedServiceReference"
-				}
-			},
-			{
-				"name": "Fail_After_Logging",
-				"type": "Fail",
-				"dependsOn": [
-					{
-						"activity": "Log_ADF_Failure",
-						"dependencyConditions": [
-							"Succeeded",
-							"Failed"
-						]
-					}
-				],
-				"userProperties": [],
-				"typeProperties": {
-					"message": {
-						"value": "@concat('Pipeline=',pipeline().parameters.PipelineName,', Activity=',pipeline().parameters.ActivityName,', ErrorCode=',pipeline().parameters.ErrorCode,', Error=',pipeline().parameters.ErrorMessage)",
-						"type": "Expression"
-					},
-					"errorCode": "COMMON_ERROR_HANDLER"
 				}
 			}
 		],
@@ -113,7 +93,8 @@
 				"type": "string"
 			},
 			"ErrorCode": {
-				"type": "string"
+				"type": "string",
+				"defaultValue": "ADF_STAGE_FAILED"
 			},
 			"BatchId": {
 				"type": "string"
@@ -122,6 +103,16 @@
 				"type": "string"
 			}
 		},
-		"annotations": []
-	}
+		"folder": {
+			"name": "Common"
+		},
+		"annotations": [
+			"ReusableErrorHandler",
+			"OperationalLogging",
+			"CallerOwnsFail",
+			"FailurePathHardened",
+			"FullFailureContext"
+		]
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
 }
