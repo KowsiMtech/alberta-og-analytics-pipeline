@@ -775,13 +775,28 @@
 					},
 					"waitOnCompletion": true,
 					"parameters": {
-						"PipelineName": "{\"value\":{\"value\":\"@pipeline().Pipeline\",\"type\":\"Expression\"},\"type\":\"String\"}",
-						"PipelineRunId": "{\"value\":{\"value\":\"@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"PipelineRunId": {
+							"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
+							"type": "Expression"
+						},
 						"ActivityName": "{\"value\":\"Silver window to staging.Silver_Wells\",\"type\":\"String\"}",
-						"ErrorMessage": "{\"value\":{\"value\":\"@activity('Load_Or_Clear_ST37_Delta').error.message\",\"type\":\"Expression\"},\"type\":\"String\"}",
+						"ErrorMessage": {
+							"value": "@activity('Load_Or_Clear_ST37_Delta').error.message",
+							"type": "Expression"
+						},
 						"ErrorCode": "{\"value\":\"ST37_SILVER_TO_STAGING_FAILED\",\"type\":\"String\"}",
-						"BatchId": "{\"value\":{\"value\":\"@pipeline().parameters.BatchId\",\"type\":\"Expression\"},\"type\":\"String\"}",
-						"WindowKey": "{\"value\":{\"value\":\"@pipeline().parameters.WindowKey\",\"type\":\"Expression\"},\"type\":\"String\"}"
+						"BatchId": {
+							"value": "@pipeline().parameters.BatchId",
+							"type": "Expression"
+						},
+						"WindowKey": {
+							"value": "@pipeline().parameters.WindowKey",
+							"type": "Expression"
+						}
 					}
 				}
 			},
