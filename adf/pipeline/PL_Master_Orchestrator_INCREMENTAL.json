@@ -9,7 +9,7 @@
 				"dependsOn": [],
 				"policy": {
 					"timeout": "0.12:00:00",
-					"retry": 0,
+					"retry": 3,
 					"retryIntervalInSeconds": 30,
 					"secureOutput": false,
 					"secureInput": false
@@ -19,7 +19,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "SELECT COUNT(*) AS ActiveCount FROM dbo.PipelineControl WHERE PipelineName = 'PL_Master_Orchestrator_INCREMENTAL' AND Status = 'RUNNING' AND RunStartTime > DATEADD(HOUR, -6, GETUTCDATE())",
+							"value": "SELECT COUNT(*) AS ActiveCount FROM control.PipelineControl WHERE PipelineName = 'PL_Master_Orchestrator_INCREMENTAL' AND Status = 'RUNNING' AND RunStartTime > DATEADD(HOUR, -6, GETUTCDATE())",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
@@ -112,7 +112,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "[dbo].[usp_StartPipelineRun]",
+								"storedProcedureName": "[control].[usp_StartPipelineRun]",
 								"storedProcedureParameters": {
 									"PipelineName": {
 										"value": "PL_Master_Orchestrator_INCREMENTAL",
@@ -185,7 +185,7 @@
 							"userProperties": [],
 							"typeProperties": {
 								"pipeline": {
-									"referenceName": "PL_EIA_IncrementalIngestion",
+									"referenceName": "PL_EIA_IncrementalIngestion_old",
 									"type": "PipelineReference"
 								},
 								"waitOnCompletion": true
@@ -343,6 +343,39 @@
 							}
 						},
 						{
+							"name": "Reconciliation",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "ADLS gold Archival Copy",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_ADLS_Reconciliation_INCREMENTAL",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"WindowKey": {
+										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.WindowKey",
+										"type": "Expression"
+									},
+									"HasRows": {
+										"value": "@activity('PLST37_to_Bronze').output.pipelineReturnValue.HasRows",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
 							"name": "EndPipelineRun_Success",
 							"type": "SqlServerStoredProcedure",
 							"dependsOn": [
@@ -362,7 +395,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "[dbo].[usp_EndPipelineRun]",
+								"storedProcedureName": "[control].[usp_EndPipelineRun]",
 								"storedProcedureParameters": {
 									"PipelineName": {
 										"value": "PL_Master_Orchestrator_INCREMENTAL",
@@ -401,29 +434,6 @@
 							"linkedServiceName": {
 								"referenceName": "LS_AzureSQL",
 								"type": "LinkedServiceReference"
-							}
-						},
-						{
-							"name": "Reconciliation",
-							"type": "ExecutePipeline",
-							"dependsOn": [
-								{
-									"activity": "ADLS gold Archival Copy",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"policy": {
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"pipeline": {
-									"referenceName": "PL_ADLS_Reconciliation_INCREMENTAL",
-									"type": "PipelineReference"
-								},
-								"waitOnCompletion": true
 							}
 						}
 					]

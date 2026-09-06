@@ -1,0 +1,418 @@
+{
+	"name": "PL_EIA_Ingestion_INCREMENTAL",
+	"properties": {
+		"description": "EIA incremental controller. Reads the date watermark, probes source availability, creates no files and advances no watermark when zero rows are returned, and calls PL_EIA_ProcessData_INCREMENTAL only when data exists. Returns StartDate, EndDate, HasRows, and RowsFetched to the master.",
+		"activities": [
+			{
+				"name": "Lookup_Watermark",
+				"description": "Read last successful source date from control.PipelineWatermark.",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 2,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('SELECT LastSuccessfulLoadDate FROM control.PipelineWatermark WHERE PipelineName = ''', pipeline().Pipeline, '''')",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_AzureSQL_Generic",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "Set_StartDate",
+				"description": "Use watermark + 1 day when available, first-run lookback otherwise, and clamp StartDate to TriggerDate to avoid StartDate > EndDate on same-day reruns.",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Lookup_Watermark",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_StartDate",
+					"value": {
+						"value": "@if(equals(length(activity('Lookup_Watermark').output.value), 0), formatDateTime(addDays(pipeline().TriggerTime, mul(pipeline().parameters.EIA_DefaultLookbackDays, -1)), 'yyyy-MM-dd'), if(greater(formatDateTime(addDays(activity('Lookup_Watermark').output.value[0].LastSuccessfulLoadDate, 1), 'yyyy-MM-dd'), formatDateTime(pipeline().TriggerTime, 'yyyy-MM-dd')), formatDateTime(pipeline().TriggerTime, 'yyyy-MM-dd'), formatDateTime(addDays(activity('Lookup_Watermark').output.value[0].LastSuccessfulLoadDate, 1), 'yyyy-MM-dd')))",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_EndDate",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_EndDate",
+					"value": {
+						"value": "@formatDateTime(pipeline().TriggerTime,'yyyy-MM-dd')",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Init_PageOffset",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_PageOffset",
+					"value": 0
+				}
+			},
+			{
+				"name": "Init_RetryCount",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_RetryCount",
+					"value": 0
+				}
+			},
+			{
+				"name": "Init_DelaySeconds",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_DelaySeconds",
+					"value": 30
+				}
+			},
+			{
+				"name": "Set_BronzeFolderPath",
+				"description": "Create deterministic Bronze folder using extraction start/end dates.",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set_StartDate",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set_EndDate",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_BronzeFolderPath",
+					"value": {
+						"value": "@concat('bronze/oilprice/start_date=', variables('v_StartDate'), '/end_date=', variables('v_EndDate'))",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Get_EIAKey",
+				"description": "Fetch EIA API key from Key Vault.",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "Init_PageOffset",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Init_RetryCount",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Init_DelaySeconds",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set_BronzeFolderPath",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.00:01:00",
+					"retry": 2,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": true
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"method": "GET",
+					"url": {
+						"value": "@concat('https://aer-oilgas-kv.vault.azure.net/secrets/eia-api-key?api-version=7.0')",
+						"type": "Expression"
+					},
+					"authentication": {
+						"type": "MSI",
+						"resource": "https://vault.azure.net"
+					}
+				}
+			},
+			{
+				"name": "Get_EIATotal",
+				"description": "Probe EIA API to obtain total rows for extraction window.",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "Get_EIAKey",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.00:01:00",
+					"retry": 2,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"method": "GET",
+					"url": {
+						"value": "@concat('https://api.eia.gov/v2/petroleum/pri/spt/data/?api_key=', activity('Get_EIAKey').output.value, '&frequency=daily&data[0]=value&facets[series][]=RWTC&start=', variables('v_StartDate'), '&end=', variables('v_EndDate'), '&offset=0&length=1')",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_ResponseTotal",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Get_EIATotal",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_ResponseTotal",
+					"value": {
+						"value": "@int(activity('Get_EIATotal').output.response.total)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Check_DataAvailability",
+				"description": "If EIA returned rows, execute the child processing pipeline. If zero rows, do not create Parquet, do not load staging, and do not advance the data watermark.",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Set_ResponseTotal",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@greater(variables('v_ResponseTotal'), 0)",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Process_EIA_Data",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_EIA_ProcessData_INCREMENTAL",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"StartDate": {
+										"value": "@variables('v_StartDate')",
+										"type": "Expression"
+									},
+									"EndDate": {
+										"value": "@variables('v_EndDate')",
+										"type": "Expression"
+									},
+									"ResponseTotal": {
+										"value": "@variables('v_ResponseTotal')",
+										"type": "Expression"
+									},
+									"EIA_PageSize": {
+										"value": "@pipeline().parameters.EIA_PageSize",
+										"type": "Expression"
+									},
+									"WatermarkPipelineName": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									}
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Set_PipelineReturnValue",
+				"description": "Return extraction window plus explicit HasRows/RowsFetched metadata to the master.",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Check_DataAvailability",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "pipelineReturnValue",
+					"value": [
+						{
+							"key": "StartDate",
+							"value": {
+								"type": "Expression",
+								"content": "@variables('v_StartDate')"
+							}
+						},
+						{
+							"key": "EndDate",
+							"value": {
+								"type": "Expression",
+								"content": "@variables('v_EndDate')"
+							}
+						},
+						{
+							"key": "HasRows",
+							"value": {
+								"type": "Expression",
+								"content": "@string(greater(variables('v_ResponseTotal'),0))"
+							}
+						},
+						{
+							"key": "RowsFetched",
+							"value": {
+								"type": "Expression",
+								"content": "@string(variables('v_ResponseTotal'))"
+							}
+						}
+					],
+					"setSystemVariable": true
+				}
+			}
+		],
+		"parameters": {
+			"EIA_PageSize": {
+				"type": "int",
+				"defaultValue": 5000
+			},
+			"EIA_DefaultLookbackDays": {
+				"type": "int",
+				"defaultValue": 7
+			}
+		},
+		"variables": {
+			"v_StartDate": {
+				"type": "String"
+			},
+			"v_EndDate": {
+				"type": "String"
+			},
+			"v_ResponseTotal": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_PageOffset": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_RetryCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_DelaySeconds": {
+				"type": "Integer",
+				"defaultValue": 30
+			},
+			"v_BronzeFolderPath": {
+				"type": "String"
+			}
+		},
+		"folder": {
+			"name": "Incremental_Load"
+		},
+		"annotations": [
+			"EIA",
+			"WTI",
+			"OilPrice",
+			"REST",
+			"Watermark",
+			"NoDataGuard",
+			"PipelineReturnValue"
+		]
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

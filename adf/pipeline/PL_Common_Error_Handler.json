@@ -1,0 +1,118 @@
+{
+	"name": "PL_Common_Error_Handler",
+	"properties": {
+		"description": "Reusable operational failure logger. Logs to control.Log_ADF_Failure and returns success so the caller retains ownership of Fail/cleanup behavior. V3: full failure context logging (ErrorCode, BatchId, WindowKey) and PipelineRunId fallback added.",
+		"activities": [
+			{
+				"name": "Log_ADF_Failure",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 1,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[control].[Log_ADF_Failure]",
+					"storedProcedureParameters": {
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().parameters.PipelineName",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineRunId": {
+							"value": {
+								"value": "@if(empty(pipeline().parameters.PipelineRunId),pipeline().RunId,pipeline().parameters.PipelineRunId)",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ActivityName": {
+							"value": {
+								"value": "@pipeline().parameters.ActivityName",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ErrorMessage": {
+							"value": {
+								"value": "@pipeline().parameters.ErrorMessage",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"Status": {
+							"value": "failed",
+							"type": "String"
+						},
+						"ErrorCode": {
+							"value": {
+								"value": "@pipeline().parameters.ErrorCode",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"BatchId": {
+							"value": {
+								"value": "@pipeline().parameters.BatchId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"WindowKey": {
+							"value": {
+								"value": "@pipeline().parameters.WindowKey",
+								"type": "Expression"
+							},
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			}
+		],
+		"parameters": {
+			"PipelineName": {
+				"type": "string"
+			},
+			"PipelineRunId": {
+				"type": "string"
+			},
+			"ActivityName": {
+				"type": "string"
+			},
+			"ErrorMessage": {
+				"type": "string"
+			},
+			"ErrorCode": {
+				"type": "string",
+				"defaultValue": "ADF_STAGE_FAILED"
+			},
+			"BatchId": {
+				"type": "string"
+			},
+			"WindowKey": {
+				"type": "string"
+			}
+		},
+		"folder": {
+			"name": "Common"
+		},
+		"annotations": [
+			"ReusableErrorHandler",
+			"OperationalLogging",
+			"CallerOwnsFail",
+			"FailurePathHardened",
+			"FullFailureContext"
+		]
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

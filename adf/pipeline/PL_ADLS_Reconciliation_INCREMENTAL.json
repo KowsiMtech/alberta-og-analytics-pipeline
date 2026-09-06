@@ -1,179 +1,467 @@
 {
 	"name": "PL_ADLS_Reconciliation_INCREMENTAL",
 	"properties": {
-		"description": "Incremental reconciliation for the exact ST37 WindowKey. Returns current-batch Bronze/Silver/Quarantine counts; zero when ST37 has no rows.",
+		"description": "FINAL V2 reconciliation consumes upstream counts only; no Bronze/Silver/Quarantine ADLS rescans. DQ logging failure is persisted by the common error handler. Instrumentation V3: reconciliation timing and PipelineRunDetail success/failure rows added; no ADLS recount introduced. V4: explicit StartTime, EndTime and DurationSeconds expressions passed to usp_LogPipelineRunDetail. V6: reconciliation failure path hardened; common error handler remains reachable even if detail logging fails; ParentRunId null-safe throughout. Canonicalized ExecutePipeline parameters for PL_Common_Error_Handler; null-safe ParentRunId; resilient failure-handler dependency where applicable.",
 		"activities": [
 			{
-				"name": "Reconcile_When_HasRows",
-				"type": "IfCondition",
+				"name": "Set_Reconciliation_StartTime",
+				"type": "SetVariable",
 				"dependsOn": [],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
 				"userProperties": [],
 				"typeProperties": {
-					"expression": {
-						"value": "@equals(toLower(pipeline().parameters.HasRows),'true')",
+					"variableName": "v_ReconciliationStartTime",
+					"value": {
+						"value": "@utcNow()",
 						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_SourceRowCount_FromParameter",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set_Reconciliation_StartTime",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_BronzeCount",
+					"value": {
+						"value": "@int(pipeline().parameters.SourceRowCount)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_SilverRowCount_FromParameter",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set_Reconciliation_StartTime",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_SilverCount",
+					"value": {
+						"value": "@int(pipeline().parameters.SilverRowCount)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_QuarantineRowCount_FromParameter",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set_Reconciliation_StartTime",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_QuarantineCount",
+					"value": {
+						"value": "@int(pipeline().parameters.QuarantineRowCount)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Log_DQ_BronzeEqualsSilverPlusQuarantine",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Set_SourceRowCount_FromParameter",
+						"dependencyConditions": [
+							"Succeeded"
+						]
 					},
-					"ifTrueActivities": [
-						{
-							"name": "GetRowCount_Bronze",
-							"type": "Script",
-							"dependsOn": [],
-							"policy": {
-								"timeout": "0.12:00:00",
-								"retry": 0,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
+					{
+						"activity": "Set_SilverRowCount_FromParameter",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set_QuarantineRowCount_FromParameter",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 1,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[control].[usp_LogDataQualityResult]",
+					"storedProcedureParameters": {
+						"PipelineRunId": {
+							"value": {
+								"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
+								"type": "Expression"
 							},
-							"userProperties": [],
-							"linkedServiceName": {
-								"referenceName": "LS_Synapse_Serverless",
-								"type": "LinkedServiceReference"
-							},
-							"typeProperties": {
-								"scripts": [
-									{
-										"type": "Query",
-										"text": {
-											"value": "@concat('SELECT COUNT(*) AS BronzeCount FROM OPENROWSET(BULK ''''/bronze/well/window=', pipeline().parameters.WindowKey, '/*.parquet'''', DATA_SOURCE = ''''aer_adls'''', FORMAT = ''''PARQUET'''') AS b;')",
-											"type": "Expression"
-										}
-									}
-								],
-								"scriptBlockExecutionTimeout": "02:00:00"
-							}
+							"type": "String"
 						},
-						{
-							"name": "GetRowCount_Silver",
-							"type": "Script",
-							"dependsOn": [],
-							"policy": {
-								"timeout": "0.12:00:00",
-								"retry": 0,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"linkedServiceName": {
-								"referenceName": "LS_Synapse_Serverless",
-								"type": "LinkedServiceReference"
-							},
-							"typeProperties": {
-								"scripts": [
-									{
-										"type": "Query",
-										"text": {
-											"value": "@concat('SELECT COUNT(*) AS SilverCount FROM OPENROWSET(BULK ''''/silver/clean/window=', pipeline().parameters.WindowKey, '/*.parquet'''', DATA_SOURCE = ''''aer_adls'''', FORMAT = ''''PARQUET'''') AS b;')",
-											"type": "Expression"
-										}
-									}
-								],
-								"scriptBlockExecutionTimeout": "02:00:00"
-							}
+						"PipelineName": {
+							"value": "PL_ST37_to_Bronze_INCREMENTAL",
+							"type": "String"
 						},
-						{
-							"name": "GetRowCount_Quarantine",
-							"type": "Script",
-							"dependsOn": [],
-							"policy": {
-								"timeout": "0.12:00:00",
-								"retry": 0,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
+						"BatchId": {
+							"value": {
+								"value": "@pipeline().parameters.BatchId",
+								"type": "Expression"
 							},
-							"userProperties": [],
-							"linkedServiceName": {
-								"referenceName": "LS_Synapse_Serverless",
-								"type": "LinkedServiceReference"
-							},
-							"typeProperties": {
-								"scripts": [
-									{
-										"type": "Query",
-										"text": {
-											"value": "@concat('SELECT COUNT(*) AS QuarantineCount FROM OPENROWSET(BULK ''''/quarantine/well_rejects/window=', pipeline().parameters.WindowKey, '/*.parquet'''', DATA_SOURCE = ''''aer_adls'''', FORMAT = ''''PARQUET'''') AS b;')",
-											"type": "Expression"
-										}
-									}
-								],
-								"scriptBlockExecutionTimeout": "02:00:00"
-							}
+							"type": "String"
 						},
-						{
-							"name": "Set_BronzeCount",
-							"type": "SetVariable",
-							"dependsOn": [
-								{
-									"activity": "GetRowCount_Bronze",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"policy": {
-								"secureOutput": false,
-								"secureInput": false
+						"WindowKey": {
+							"value": {
+								"value": "@pipeline().parameters.WindowKey",
+								"type": "Expression"
 							},
-							"userProperties": [],
-							"typeProperties": {
-								"variableName": "v_BronzeCount",
-								"value": {
-									"value": "@int(activity('GetRowCount_Bronze').output.resultSets[0].rows[0].BronzeCount)",
-									"type": "Expression"
-								}
-							}
+							"type": "String"
 						},
-						{
-							"name": "Set_SilverCount",
-							"type": "SetVariable",
-							"dependsOn": [
-								{
-									"activity": "GetRowCount_Silver",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"policy": {
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"variableName": "v_SilverCount",
-								"value": {
-									"value": "@int(activity('GetRowCount_Silver').output.resultSets[0].rows[0].SilverCount)",
-									"type": "Expression"
-								}
-							}
+						"DatasetName": {
+							"value": "ST37_WellList",
+							"type": "String"
 						},
-						{
-							"name": "Set_QuarantineCount",
-							"type": "SetVariable",
-							"dependsOn": [
-								{
-									"activity": "GetRowCount_Quarantine",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"policy": {
-								"secureOutput": false,
-								"secureInput": false
+						"RuleName": {
+							"value": "BronzeEqualsSilverPlusQuarantine",
+							"type": "String"
+						},
+						"RuleResult": {
+							"value": {
+								"value": "@if(equals(variables('v_BronzeCount'),add(variables('v_SilverCount'),variables('v_QuarantineCount'))),'PASS','FAIL')",
+								"type": "Expression"
 							},
-							"userProperties": [],
-							"typeProperties": {
-								"variableName": "v_QuarantineCount",
-								"value": {
-									"value": "@int(activity('GetRowCount_Quarantine').output.resultSets[0].rows[0].QuarantineCount)",
-									"type": "Expression"
-								}
-							}
+							"type": "String"
+						},
+						"ExpectedValue": {
+							"value": {
+								"value": "@string(variables('v_BronzeCount'))",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ActualValue": {
+							"value": {
+								"value": "@string(add(variables('v_SilverCount'),variables('v_QuarantineCount')))",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"FailedRowCount": {
+							"value": {
+								"value": "@if(equals(variables('v_BronzeCount'),add(variables('v_SilverCount'),variables('v_QuarantineCount'))),0,if(greater(variables('v_BronzeCount'),add(variables('v_SilverCount'),variables('v_QuarantineCount'))),sub(variables('v_BronzeCount'),add(variables('v_SilverCount'),variables('v_QuarantineCount'))),sub(add(variables('v_SilverCount'),variables('v_QuarantineCount')),variables('v_BronzeCount'))))",
+								"type": "Expression"
+							},
+							"type": "Int64"
 						}
-					]
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Set_Reconciliation_EndTime_Success",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Log_DQ_BronzeEqualsSilverPlusQuarantine",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_ReconciliationEndTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_Reconciliation_EndTime_Failure",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Log_DQ_BronzeEqualsSilverPlusQuarantine",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_ReconciliationEndTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Log_Reconciliation_Success",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Set_Reconciliation_EndTime_Success",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 1,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[control].[usp_LogPipelineRunDetail]",
+					"storedProcedureParameters": {
+						"PipelineRunId": {
+							"value": {
+								"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"BatchId": {
+							"value": {
+								"value": "@pipeline().parameters.BatchId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"WindowKey": {
+							"value": {
+								"value": "@pipeline().parameters.WindowKey",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ActivityName": {
+							"value": "Bronze = Silver + Quarantine Reconciliation",
+							"type": "String"
+						},
+						"ActivityType": {
+							"value": "Reconciliation",
+							"type": "String"
+						},
+						"Status": {
+							"value": "SUCCESS",
+							"type": "String"
+						},
+						"RowsRead": {
+							"value": {
+								"value": "@int(variables('v_BronzeCount'))",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"RowsWritten": {
+							"value": {
+								"value": "@add(int(variables('v_SilverCount')),int(variables('v_QuarantineCount')))",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"StartTime": {
+							"value": {
+								"value": "@variables('v_ReconciliationStartTime')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"EndTime": {
+							"value": {
+								"value": "@variables('v_ReconciliationEndTime')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"DurationSeconds": {
+							"value": {
+								"value": "@int(div(sub(ticks(variables('v_ReconciliationEndTime')),ticks(variables('v_ReconciliationStartTime'))),10000000))",
+								"type": "Expression"
+							},
+							"type": "Int32"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Log_Reconciliation_Failure",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Set_Reconciliation_EndTime_Failure",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 1,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[control].[usp_LogPipelineRunDetail]",
+					"storedProcedureParameters": {
+						"PipelineRunId": {
+							"value": {
+								"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"BatchId": {
+							"value": {
+								"value": "@pipeline().parameters.BatchId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"WindowKey": {
+							"value": {
+								"value": "@pipeline().parameters.WindowKey",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ActivityName": {
+							"value": "Bronze = Silver + Quarantine Reconciliation",
+							"type": "String"
+						},
+						"ActivityType": {
+							"value": "Reconciliation",
+							"type": "String"
+						},
+						"Status": {
+							"value": "FAILED",
+							"type": "String"
+						},
+						"RowsRead": {
+							"value": {
+								"value": "@int(variables('v_BronzeCount'))",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"RowsWritten": {
+							"value": {
+								"value": "@add(int(variables('v_SilverCount')),int(variables('v_QuarantineCount')))",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"StartTime": {
+							"value": {
+								"value": "@variables('v_ReconciliationStartTime')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"EndTime": {
+							"value": {
+								"value": "@variables('v_ReconciliationEndTime')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ErrorCode": {
+							"value": {
+								"value": "@activity('Log_DQ_BronzeEqualsSilverPlusQuarantine').error.errorCode",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ErrorMessage": {
+							"value": {
+								"value": "@activity('Log_DQ_BronzeEqualsSilverPlusQuarantine').error.message",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"DurationSeconds": {
+							"value": {
+								"value": "@int(div(sub(ticks(variables('v_ReconciliationEndTime')),ticks(variables('v_ReconciliationStartTime'))),10000000))",
+								"type": "Expression"
+							},
+							"type": "Int32"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
 				}
 			},
 			{
@@ -181,7 +469,7 @@
 				"type": "SetVariable",
 				"dependsOn": [
 					{
-						"activity": "Reconcile_When_HasRows",
+						"activity": "Log_Reconciliation_Success",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -226,15 +514,98 @@
 					],
 					"setSystemVariable": true
 				}
+			},
+			{
+				"name": "Handle_Reconciliation_DQ_Failure",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Log_Reconciliation_Failure",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_Common_Error_Handler",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"PipelineRunId": {
+							"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
+							"type": "Expression"
+						},
+						"ActivityName": "BronzeEqualsSilverPlusQuarantine",
+						"ErrorMessage": {
+							"value": "@activity('Log_DQ_BronzeEqualsSilverPlusQuarantine').error.message",
+							"type": "Expression"
+						},
+						"ErrorCode": "ST37_RECONCILIATION_FAILED",
+						"BatchId": {
+							"value": "@pipeline().parameters.BatchId",
+							"type": "Expression"
+						},
+						"WindowKey": {
+							"value": "@pipeline().parameters.WindowKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Fail_Reconciliation_After_Handler",
+				"type": "Fail",
+				"dependsOn": [
+					{
+						"activity": "Handle_Reconciliation_DQ_Failure",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"message": {
+						"value": "@activity('Log_DQ_BronzeEqualsSilverPlusQuarantine').error.message",
+						"type": "Expression"
+					},
+					"errorCode": "ST37_RECONCILIATION_FAILED"
+				}
 			}
 		],
 		"parameters": {
 			"WindowKey": {
 				"type": "string"
 			},
-			"HasRows": {
+			"ParentRunId": {
+				"type": "string"
+			},
+			"BatchId": {
+				"type": "string"
+			},
+			"SourceRowCount": {
 				"type": "string",
-				"defaultValue": "false"
+				"defaultValue": "0"
+			},
+			"SilverRowCount": {
+				"type": "string",
+				"defaultValue": "0"
+			},
+			"QuarantineRowCount": {
+				"type": "string",
+				"defaultValue": "0"
 			}
 		},
 		"variables": {
@@ -249,6 +620,12 @@
 			"v_QuarantineCount": {
 				"type": "Integer",
 				"defaultValue": 0
+			},
+			"v_ReconciliationStartTime": {
+				"type": "String"
+			},
+			"v_ReconciliationEndTime": {
+				"type": "String"
 			}
 		},
 		"folder": {
@@ -257,7 +634,16 @@
 		"annotations": [
 			"Incremental",
 			"WindowKey",
-			"Reconciliation"
+			"Reconciliation",
+			"UpstreamMetrics",
+			"NoStorageRecount",
+			"CommonErrorHandler",
+			"ExplicitTimingExpressionsV4",
+			"ParentRunIdNullSafeV5",
+			"FailurePathHardened",
+			"NullSafeParentRunId",
+			"IndependentCommonErrorHandler",
+			"CommonErrorHandlerCanonicalParams"
 		]
 	},
 	"type": "Microsoft.DataFactory/factories/pipelines"

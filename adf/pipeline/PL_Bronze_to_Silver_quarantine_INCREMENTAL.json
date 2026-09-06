@@ -1,18 +1,72 @@
 {
 	"name": "PL_Bronze_to_Silver_quarantine_INCREMENTAL",
 	"properties": {
-		"description": "Processes only the ST37 incremental Bronze window. If ST37 copied zero rows, this pipeline succeeds as a no-op.",
+		"description": "Processes the current ST37 Bronze WindowKey into Silver and Quarantine. Industry-refactor v1: classification predicates are defined once inside the transform Script and reused for both CETAS writes and returned counts; SilverCount/QuarantineCount/SilverHasRows are propagated downstream without rescanning Silver/Quarantine storage. Existing child-level failure logging and lineage are preserved. FINAL V2: returns SilverCount/QuarantineCount/SilverHasRows and centralizes operational failure logging through PL_Common_Error_Handler. Instrumentation V3: transformation StartTime/EndTime persisted; existing single-pass Silver/Quarantine counts retained. V4: explicit StartTime, EndTime and DurationSeconds expressions passed to usp_LogPipelineRunDetail. Canonicalized ExecutePipeline parameters for PL_Common_Error_Handler; null-safe ParentRunId; resilient failure-handler dependency where applicable.",
 		"activities": [
+			{
+				"name": "Set_BronzeSilver_StartTime",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_BronzeSilverStartTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
 			{
 				"name": "Process_When_HasRows",
 				"type": "IfCondition",
-				"dependsOn": [],
+				"dependsOn": [
+					{
+						"activity": "Set_BronzeSilver_StartTime",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
 						"value": "@equals(toLower(pipeline().parameters.HasRows),'true')",
 						"type": "Expression"
 					},
+					"ifFalseActivities": [
+						{
+							"name": "Set_SilverCount_Zero",
+							"type": "SetVariable",
+							"dependsOn": [],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_SilverCount",
+								"value": 0
+							}
+						},
+						{
+							"name": "Set_QuarantineCount_Zero",
+							"type": "SetVariable",
+							"dependsOn": [],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_QuarantineCount",
+								"value": 0
+							}
+						}
+					],
 					"ifTrueActivities": [
 						{
 							"name": "Delete Silver Clean Window",
@@ -108,17 +162,506 @@
 							"typeProperties": {
 								"scripts": [
 									{
-										"type": "NonQuery",
+										"type": "Query",
 										"text": {
-											"value": "USE aer_synapse_db;\nDECLARE @WindowKey NVARCHAR(40) = '@{pipeline().parameters.WindowKey}';\nDECLARE @RunStamp NVARCHAR(20) = REPLACE(REPLACE(@WindowKey, '_', ''), '-', '');\nDECLARE @BronzePath NVARCHAR(400) = '/bronze/well/window=' + @WindowKey + '/*.parquet';\nDECLARE @QuarantineLocation NVARCHAR(400) = '/quarantine/well_rejects/window=' + @WindowKey + '/';\nDECLARE @SilverLocation NVARCHAR(400) = '/silver/clean/window=' + @WindowKey + '/';\nDECLARE @QuarantineTable NVARCHAR(200) = 'dbo.quarantine_' + @RunStamp;\nDECLARE @SilverTable NVARCHAR(200) = 'dbo.silver_clean_' + @RunStamp;\n\nDECLARE @DropSQL NVARCHAR(MAX) = N'IF OBJECT_ID(''' + @QuarantineTable + N''') IS NOT NULL DROP EXTERNAL TABLE ' + @QuarantineTable + N'; IF OBJECT_ID(''' + @SilverTable + N''') IS NOT NULL DROP EXTERNAL TABLE ' + @SilverTable + N';';\nEXEC sp_executesql @DropSQL;\n\nDECLARE @QuarantineSQL NVARCHAR(MAX) = N'CREATE EXTERNAL TABLE ' + @QuarantineTable + N' WITH (LOCATION = ''' + @QuarantineLocation + N''', DATA_SOURCE = aer_adls, FILE_FORMAT = parquet_format) AS SELECT UWI_DISPLAY_FORMAT AS WellID, WELL_NAME AS WellName, LICENSE_NO AS LicenceNumber, LICENCE_STATUS AS LicenceStatus, LICENSE_ISSUE_DATE AS LicenceIssueDate, OPERATOR_CODE AS OperatorCode, WELL_TOTAL_DEPTH AS WellTotalDepth, CASE WHEN UWI_DISPLAY_FORMAT IS NULL OR UWI_DISPLAY_FORMAT = '''' THEN ''NULL_UWI'' WHEN LEN(LICENSE_ISSUE_DATE) <> 8 THEN ''INVALID_DATE'' WHEN TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2)) < 0 THEN ''NEGATIVE_DEPTH'' ELSE ''OTHER'' END AS RejectReason, GETDATE() AS QuarantineDate FROM OPENROWSET(BULK ''' + @BronzePath + N''', DATA_SOURCE = ''aer_adls'', FORMAT = ''PARQUET'') AS b WHERE UWI_DISPLAY_FORMAT IS NULL OR UWI_DISPLAY_FORMAT = '''' OR LEN(LICENSE_ISSUE_DATE) <> 8 OR TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2)) < 0;';\nEXEC sp_executesql @QuarantineSQL;\n\nDECLARE @SilverSQL NVARCHAR(MAX) = N'CREATE EXTERNAL TABLE ' + @SilverTable + N' WITH (LOCATION = ''' + @SilverLocation + N''', DATA_SOURCE = aer_adls, FILE_FORMAT = parquet_format) AS SELECT UWI_DISPLAY_FORMAT AS WellID, KEY_LIST_OF_WELLS AS WellKeyID, LTRIM(RTRIM(WELL_NAME)) AS WellName, FIELD_CODE AS FieldCode, POOL_CODE AS PoolCode, LICENSE_NO AS LicenceNumber, LICENCE_STATUS AS LicenceStatus, TRY_CONVERT(DATE, LICENSE_ISSUE_DATE, 112) AS LicenceIssueDate, LICENSEE_CODE AS LicenseeCode, OPERATOR_CODE AS OperatorCode, TRY_CONVERT(DATE, FIN_DRL_DATE, 112) AS FinDrlDate, TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2)) AS WellTotalDepth, WELL_STAT_CODE AS WellStatCode, TRY_CONVERT(DATE, WELL_STAT_DATE, 112) AS WellStatDate, CASE WHEN FLUID_SHORT_DESC = ''N/A'' THEN NULL ELSE LTRIM(RTRIM(FLUID_SHORT_DESC)) END AS FluidDesc, CASE WHEN MODE_SHORT_DESC = ''N/A'' THEN NULL ELSE LTRIM(RTRIM(MODE_SHORT_DESC)) END AS ModeDesc, CASE WHEN TYPE_SHORT_DESC = ''N/A'' THEN NULL ELSE LTRIM(RTRIM(TYPE_SHORT_DESC)) END AS TypeDesc, CASE WHEN STRUCTURE_SHORT_DESC = ''N/A'' THEN NULL ELSE LTRIM(RTRIM(STRUCTURE_SHORT_DESC)) END AS StructureDesc, ''BATCH_' + @WindowKey + N''' AS BatchID, GETDATE() AS IngestionDate, ''WellList_incremental'' AS SourceFile FROM OPENROWSET(BULK ''' + @BronzePath + N''', DATA_SOURCE = ''aer_adls'', FORMAT = ''PARQUET'') AS b WHERE UWI_DISPLAY_FORMAT IS NOT NULL AND UWI_DISPLAY_FORMAT <> '''' AND LEN(LICENSE_ISSUE_DATE) = 8 AND TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2)) >= 0;';\nEXEC sp_executesql @SilverSQL;",
+											"value": "USE aer_synapse_db;\nDECLARE @WindowKey NVARCHAR(40) = '@{pipeline().parameters.WindowKey}';\nDECLARE @RunStamp NVARCHAR(20) = REPLACE(REPLACE(@WindowKey, '_', ''), '-', '');\nDECLARE @BronzePath NVARCHAR(400) = '/bronze/well/window=' + @WindowKey + '/*.parquet';\nDECLARE @QuarantineLocation NVARCHAR(400) = '/quarantine/well_rejects/window=' + @WindowKey + '/';\nDECLARE @SilverLocation NVARCHAR(400) = '/silver/clean/window=' + @WindowKey + '/';\nDECLARE @QuarantineTable NVARCHAR(200) = 'dbo.quarantine_' + @RunStamp;\nDECLARE @SilverTable NVARCHAR(200) = 'dbo.silver_clean_' + @RunStamp;\n\n-- Classification rules are defined ONCE and reused by both writes and metric calculation.\nDECLARE @RejectPredicate NVARCHAR(MAX) = N'UWI_DISPLAY_FORMAT IS NULL OR UWI_DISPLAY_FORMAT = '''' OR LEN(LICENSE_ISSUE_DATE) <> 8 OR TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2)) < 0';\nDECLARE @SilverPredicate NVARCHAR(MAX) = N'UWI_DISPLAY_FORMAT IS NOT NULL AND UWI_DISPLAY_FORMAT <> '''' AND LEN(LICENSE_ISSUE_DATE) = 8 AND TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2)) >= 0';\n\nDECLARE @DropSQL NVARCHAR(MAX) = N'IF OBJECT_ID(''' + @QuarantineTable + N''') IS NOT NULL DROP EXTERNAL TABLE ' + @QuarantineTable + N'; IF OBJECT_ID(''' + @SilverTable + N''') IS NOT NULL DROP EXTERNAL TABLE ' + @SilverTable + N';';\nEXEC sp_executesql @DropSQL;\n\nDECLARE @QuarantineSQL NVARCHAR(MAX) = N'CREATE EXTERNAL TABLE ' + @QuarantineTable + N' WITH (LOCATION = ''' + @QuarantineLocation + N''', DATA_SOURCE = aer_adls, FILE_FORMAT = parquet_format) AS SELECT UWI_DISPLAY_FORMAT AS WellID, WELL_NAME AS WellName, LICENSE_NO AS LicenceNumber, LICENCE_STATUS AS LicenceStatus, LICENSE_ISSUE_DATE AS LicenceIssueDate, OPERATOR_CODE AS OperatorCode, WELL_TOTAL_DEPTH AS WellTotalDepth, CASE WHEN UWI_DISPLAY_FORMAT IS NULL OR UWI_DISPLAY_FORMAT = '''' THEN ''NULL_UWI'' WHEN LEN(LICENSE_ISSUE_DATE) <> 8 THEN ''INVALID_DATE'' WHEN TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2)) < 0 THEN ''NEGATIVE_DEPTH'' ELSE ''OTHER'' END AS RejectReason, GETDATE() AS QuarantineDate FROM OPENROWSET(BULK ''' + @BronzePath + N''', DATA_SOURCE = ''aer_adls'', FORMAT = ''PARQUET'') AS b WHERE ' + @RejectPredicate + N';';\nEXEC sp_executesql @QuarantineSQL;\n\nDECLARE @SilverSQL NVARCHAR(MAX) = N'CREATE EXTERNAL TABLE ' + @SilverTable + N' WITH (LOCATION = ''' + @SilverLocation + N''', DATA_SOURCE = aer_adls, FILE_FORMAT = parquet_format) AS SELECT UWI_DISPLAY_FORMAT AS WellID, KEY_LIST_OF_WELLS AS WellKeyID, LTRIM(RTRIM(WELL_NAME)) AS WellName, FIELD_CODE AS FieldCode, POOL_CODE AS PoolCode, LICENSE_NO AS LicenceNumber, LICENCE_STATUS AS LicenceStatus, TRY_CONVERT(DATE, LICENSE_ISSUE_DATE, 112) AS LicenceIssueDate, LICENSEE_CODE AS LicenseeCode, OPERATOR_CODE AS OperatorCode, TRY_CONVERT(DATE, FIN_DRL_DATE, 112) AS FinDrlDate, TRY_CAST(WELL_TOTAL_DEPTH AS DECIMAL(10,2)) AS WellTotalDepth, WELL_STAT_CODE AS WellStatCode, TRY_CONVERT(DATE, WELL_STAT_DATE, 112) AS WellStatDate, CASE WHEN FLUID_SHORT_DESC = ''N/A'' THEN NULL ELSE LTRIM(RTRIM(FLUID_SHORT_DESC)) END AS FluidDesc, CASE WHEN MODE_SHORT_DESC = ''N/A'' THEN NULL ELSE LTRIM(RTRIM(MODE_SHORT_DESC)) END AS ModeDesc, CASE WHEN TYPE_SHORT_DESC = ''N/A'' THEN NULL ELSE LTRIM(RTRIM(TYPE_SHORT_DESC)) END AS TypeDesc, CASE WHEN STRUCTURE_SHORT_DESC = ''N/A'' THEN NULL ELSE LTRIM(RTRIM(STRUCTURE_SHORT_DESC)) END AS StructureDesc, ''BATCH_' + @WindowKey + N''' AS BatchID, GETDATE() AS IngestionDate, ''WellList_incremental'' AS SourceFile FROM OPENROWSET(BULK ''' + @BronzePath + N''', DATA_SOURCE = ''aer_adls'', FORMAT = ''PARQUET'') AS b WHERE ' + @SilverPredicate + N';';\nEXEC sp_executesql @SilverSQL;\n\n-- Reuse the SAME predicates for metrics. No second ADF activity and no duplicated rule text.\nDECLARE @CountSQL NVARCHAR(MAX) = N'SELECT CAST(COALESCE(SUM(CASE WHEN ' + @SilverPredicate + N' THEN 1 ELSE 0 END),0) AS BIGINT) AS SilverCount, CAST(COALESCE(SUM(CASE WHEN ' + @RejectPredicate + N' THEN 1 ELSE 0 END),0) AS BIGINT) AS QuarantineCount FROM OPENROWSET(BULK ''' + @BronzePath + N''', DATA_SOURCE = ''aer_adls'', FORMAT = ''PARQUET'') AS b;';\nEXEC sp_executesql @CountSQL;",
 											"type": "Expression"
 										}
 									}
 								],
 								"scriptBlockExecutionTimeout": "02:00:00"
 							}
+						},
+						{
+							"name": "Handle_BronzeToSilver_Transform_Failure",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "Bronze delta to Silver and Quarantine",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_Common_Error_Handler",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"PipelineName": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"PipelineRunId": {
+										"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
+										"type": "Expression"
+									},
+									"ActivityName": "Bronze delta to Silver and Quarantine",
+									"ErrorMessage": {
+										"value": "@activity('Bronze delta to Silver and Quarantine').error.message",
+										"type": "Expression"
+									},
+									"ErrorCode": "BRONZE_TO_SILVER_TRANSFORM_FAILED",
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Fail_BronzeToSilver_Transform_After_ADF_Log",
+							"type": "Fail",
+							"dependsOn": [
+								{
+									"activity": "Handle_BronzeToSilver_Transform_Failure",
+									"dependencyConditions": [
+										"Succeeded",
+										"Failed"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"message": {
+									"value": "@activity('Bronze delta to Silver and Quarantine').error.message",
+									"type": "Expression"
+								},
+								"errorCode": "BRONZE_TO_SILVER_TRANSFORM_FAILED"
+							}
+						},
+						{
+							"name": "Set_SilverCount_FromBronze",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Bronze delta to Silver and Quarantine",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_SilverCount",
+								"value": {
+									"value": "@int(activity('Bronze delta to Silver and Quarantine').output.resultSets[0].rows[0].SilverCount)",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Set_QuarantineCount_FromBronze",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Bronze delta to Silver and Quarantine",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_QuarantineCount",
+								"value": {
+									"value": "@int(activity('Bronze delta to Silver and Quarantine').output.resultSets[0].rows[0].QuarantineCount)",
+									"type": "Expression"
+								}
+							}
 						}
 					]
+				}
+			},
+			{
+				"name": "Set_BronzeSilver_EndTime_Success",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Process_When_HasRows",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_BronzeSilverEndTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_BronzeSilver_EndTime_Failure",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Process_When_HasRows",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_BronzeSilverEndTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_BronzeToSilver_ReturnValues",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set_BronzeSilver_EndTime_Success",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "pipelineReturnValue",
+					"value": [
+						{
+							"key": "SilverCount",
+							"value": {
+								"type": "Expression",
+								"content": "@string(variables('v_SilverCount'))"
+							}
+						},
+						{
+							"key": "QuarantineCount",
+							"value": {
+								"type": "Expression",
+								"content": "@string(variables('v_QuarantineCount'))"
+							}
+						},
+						{
+							"key": "SilverHasRows",
+							"value": {
+								"type": "Expression",
+								"content": "@string(greater(variables('v_SilverCount'),0))"
+							}
+						},
+						{
+							"key": "WindowKey",
+							"value": {
+								"type": "Expression",
+								"content": "@pipeline().parameters.WindowKey"
+							}
+						}
+					],
+					"setSystemVariable": true
+				}
+			},
+			{
+				"name": "Log_BronzeToSilver_Success",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Set_BronzeToSilver_ReturnValues",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 1,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[control].[usp_LogPipelineRunDetail]",
+					"storedProcedureParameters": {
+						"PipelineRunId": {
+							"value": {
+								"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"BatchId": {
+							"value": {
+								"value": "@pipeline().parameters.BatchId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"WindowKey": {
+							"value": {
+								"value": "@pipeline().parameters.WindowKey",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ActivityName": {
+							"value": "Bronze to Silver and Quarantine",
+							"type": "String"
+						},
+						"ActivityType": {
+							"value": "Transformation",
+							"type": "String"
+						},
+						"Status": {
+							"value": "SUCCESS",
+							"type": "String"
+						},
+						"RowsRead": {
+							"value": {
+								"value": "@add(variables('v_SilverCount'),variables('v_QuarantineCount'))",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"RowsWritten": {
+							"value": {
+								"value": "@add(variables('v_SilverCount'),variables('v_QuarantineCount'))",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"StartTime": {
+							"value": {
+								"value": "@variables('v_BronzeSilverStartTime')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"EndTime": {
+							"value": {
+								"value": "@variables('v_BronzeSilverEndTime')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"DurationSeconds": {
+							"value": {
+								"value": "@int(div(sub(ticks(variables('v_BronzeSilverEndTime')),ticks(variables('v_BronzeSilverStartTime'))),10000000))",
+								"type": "Expression"
+							},
+							"type": "Int32"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Log_BronzeToSilver_Failure",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Set_BronzeSilver_EndTime_Failure",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 1,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[control].[usp_LogPipelineRunDetail]",
+					"storedProcedureParameters": {
+						"PipelineRunId": {
+							"value": {
+								"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"BatchId": {
+							"value": {
+								"value": "@pipeline().parameters.BatchId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"WindowKey": {
+							"value": {
+								"value": "@pipeline().parameters.WindowKey",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ActivityName": {
+							"value": "Bronze to Silver and Quarantine",
+							"type": "String"
+						},
+						"ActivityType": {
+							"value": "Transformation",
+							"type": "String"
+						},
+						"Status": {
+							"value": "FAILED",
+							"type": "String"
+						},
+						"ErrorCode": {
+							"value": {
+								"value": "@activity('Process_When_HasRows').error.errorCode",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ErrorMessage": {
+							"value": {
+								"value": "@activity('Process_When_HasRows').error.message",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"StartTime": {
+							"value": {
+								"value": "@variables('v_BronzeSilverStartTime')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"EndTime": {
+							"value": {
+								"value": "@variables('v_BronzeSilverEndTime')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"DurationSeconds": {
+							"value": {
+								"value": "@int(div(sub(ticks(variables('v_BronzeSilverEndTime')),ticks(variables('v_BronzeSilverStartTime'))),10000000))",
+								"type": "Expression"
+							},
+							"type": "Int32"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Handle_BronzeToSilver_Failure",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Log_BronzeToSilver_Failure",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_Common_Error_Handler",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"PipelineRunId": {
+							"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
+							"type": "Expression"
+						},
+						"ActivityName": "Bronze to Silver and Quarantine",
+						"ErrorMessage": {
+							"value": "@activity('Process_When_HasRows').error.message",
+							"type": "Expression"
+						},
+						"ErrorCode": "ST37_BRONZE_TO_SILVER_FAILED",
+						"BatchId": {
+							"value": "@pipeline().parameters.BatchId",
+							"type": "Expression"
+						},
+						"WindowKey": {
+							"value": "@pipeline().parameters.WindowKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Fail_BronzeToSilver_After_Log",
+				"type": "Fail",
+				"dependsOn": [
+					{
+						"activity": "Handle_BronzeToSilver_Failure",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"message": "ST37 Bronze-to-Silver processing failed. See control.PipelineRunDetail.",
+					"errorCode": "ST37_BRONZE_TO_SILVER_FAILED"
 				}
 			}
 		],
@@ -129,6 +672,28 @@
 			"HasRows": {
 				"type": "string",
 				"defaultValue": "false"
+			},
+			"ParentRunId": {
+				"type": "string"
+			},
+			"BatchId": {
+				"type": "string"
+			}
+		},
+		"variables": {
+			"v_SilverCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_QuarantineCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_BronzeSilverStartTime": {
+				"type": "String"
+			},
+			"v_BronzeSilverEndTime": {
+				"type": "String"
 			}
 		},
 		"folder": {
@@ -138,7 +703,9 @@
 			"Incremental",
 			"Delta",
 			"DataQuality",
-			"Quarantine"
+			"Quarantine",
+			"ExplicitTimingExpressionsV4",
+			"CommonErrorHandlerCanonicalParams"
 		]
 	},
 	"type": "Microsoft.DataFactory/factories/pipelines"

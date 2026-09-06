@@ -1,14 +1,15 @@
 {
 	"name": "PL_Archive_Gold_to_ADLS",
 	"properties": {
+		"description": "Gold daily snapshot archive guarded to run at most once per UTC day. Existing full-current Gold snapshot queries are preserved; repeated incremental Master runs on the same UTC day skip the heavy archive copy. Failure handling and aggregate PipelineRunDetail logging are preserved inside the archive branch.",
 		"activities": [
 			{
-				"name": "Archive_DimOperator",
-				"type": "Copy",
+				"name": "Check_Archive_Already_Done_Today",
+				"type": "Lookup",
 				"dependsOn": [],
 				"policy": {
-					"timeout": "0.12:00:00",
-					"retry": 0,
+					"timeout": "0.00:05:00",
+					"retry": 2,
 					"retryIntervalInSeconds": 30,
 					"secureOutput": false,
 					"secureInput": false
@@ -17,339 +18,914 @@
 				"typeProperties": {
 					"source": {
 						"type": "AzureSqlSource",
-						"sqlReaderQuery": "SELECT * FROM gold.Dim_Operator WHERE Is_Current=1",
-						"queryTimeout": "02:00:00",
+						"sqlReaderQuery": {
+							"value": "SELECT CAST(CASE WHEN EXISTS (SELECT 1 FROM control.PipelineRunDetail WHERE PipelineName = 'PL_Archive_Gold_to_ADLS' AND ActivityName = 'Archive Gold to ADLS' AND Status = 'SUCCESS' AND CreatedAt >= CONVERT(date, SYSUTCDATETIME()) AND CreatedAt < DATEADD(day,1,CONVERT(date,SYSUTCDATETIME()))) THEN 1 ELSE 0 END AS INT) AS AlreadyArchivedToday",
+							"type": "Expression"
+						},
 						"partitionOption": "None"
 					},
-					"sink": {
-						"type": "ParquetSink",
-						"storeSettings": {
-							"type": "AzureBlobFSWriteSettings"
-						},
-						"formatSettings": {
-							"type": "ParquetWriteSettings"
-						}
-					},
-					"enableStaging": false,
-					"translator": {
-						"type": "TabularTranslator",
-						"typeConversion": true,
-						"typeConversionSettings": {
-							"allowDataTruncation": true,
-							"treatBooleanAsNumber": false
-						}
-					}
-				},
-				"inputs": [
-					{
-						"referenceName": "DS_AzureSQL_Gold",
+					"dataset": {
+						"referenceName": "DS_AzureSQL_Generic",
 						"type": "DatasetReference"
-					}
-				],
-				"outputs": [
-					{
-						"referenceName": "DS_ADLS_Archive_Parquet",
-						"type": "DatasetReference",
-						"parameters": {
-							"FolderPath": {
-								"value": "gold/dim_operator/@{formatDateTime(utcNow(), 'yyyy-MM-dd')}/",
-								"type": "Expression"
-							}
-						}
-					}
-				]
+					},
+					"firstRowOnly": true
+				}
 			},
 			{
-				"name": "Archive_DimWell",
-				"type": "Copy",
-				"dependsOn": [],
-				"policy": {
-					"timeout": "0.12:00:00",
-					"retry": 0,
-					"retryIntervalInSeconds": 30,
-					"secureOutput": false,
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"source": {
-						"type": "AzureSqlSource",
-						"sqlReaderQuery": "SELECT * FROM gold.Dim_Well WHERE Is_Current=1",
-						"queryTimeout": "02:00:00",
-						"partitionOption": "None"
-					},
-					"sink": {
-						"type": "ParquetSink",
-						"storeSettings": {
-							"type": "AzureBlobFSWriteSettings"
-						},
-						"formatSettings": {
-							"type": "ParquetWriteSettings"
-						}
-					},
-					"enableStaging": false,
-					"translator": {
-						"type": "TabularTranslator",
-						"typeConversion": true,
-						"typeConversionSettings": {
-							"allowDataTruncation": true,
-							"treatBooleanAsNumber": false
-						}
-					}
-				},
-				"inputs": [
+				"name": "Run_Archive_Only_Once_Per_UTC_Day",
+				"type": "IfCondition",
+				"dependsOn": [
 					{
-						"referenceName": "DS_AzureSQL_Gold",
-						"type": "DatasetReference"
+						"activity": "Check_Archive_Already_Done_Today",
+						"dependencyConditions": [
+							"Succeeded"
+						]
 					}
 				],
-				"outputs": [
-					{
-						"referenceName": "DS_ADLS_Archive_Parquet",
-						"type": "DatasetReference",
-						"parameters": {
-							"FolderPath": {
-								"value": "gold/dim_well/@{formatDateTime(utcNow(), 'yyyy-MM-dd')}/",
-								"type": "Expression"
-							}
-						}
-					}
-				]
-			},
-			{
-				"name": "Archive_FactWellSnapshot",
-				"type": "Copy",
-				"dependsOn": [],
-				"policy": {
-					"timeout": "0.12:00:00",
-					"retry": 0,
-					"retryIntervalInSeconds": 30,
-					"secureOutput": false,
-					"secureInput": false
-				},
 				"userProperties": [],
 				"typeProperties": {
-					"source": {
-						"type": "AzureSqlSource",
-						"sqlReaderQuery": "SELECT * FROM gold.Fact_WellSnapshot WHERE SnapshotDate=CAST(GETDATE() AS DATE)",
-						"queryTimeout": "02:00:00",
-						"partitionOption": "None"
+					"expression": {
+						"value": "@equals(int(activity('Check_Archive_Already_Done_Today').output.firstRow.AlreadyArchivedToday),0)",
+						"type": "Expression"
 					},
-					"sink": {
-						"type": "ParquetSink",
-						"storeSettings": {
-							"type": "AzureBlobFSWriteSettings"
+					"ifTrueActivities": [
+						{
+							"name": "Set_Archive_StartTime",
+							"type": "SetVariable",
+							"dependsOn": [],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_ArchiveStartTime",
+								"value": {
+									"value": "@utcNow()",
+									"type": "Expression"
+								}
+							}
 						},
-						"formatSettings": {
-							"type": "ParquetWriteSettings"
-						}
-					},
-					"enableStaging": false,
-					"translator": {
-						"type": "TabularTranslator",
-						"typeConversion": true,
-						"typeConversionSettings": {
-							"allowDataTruncation": true,
-							"treatBooleanAsNumber": false
-						}
-					}
-				},
-				"inputs": [
-					{
-						"referenceName": "DS_AzureSQL_Gold",
-						"type": "DatasetReference"
-					}
-				],
-				"outputs": [
-					{
-						"referenceName": "DS_ADLS_Archive_Parquet",
-						"type": "DatasetReference",
-						"parameters": {
-							"FolderPath": {
-								"value": "gold/fact_wellsnapshot/@{formatDateTime(utcNow(), 'yyyy-MM-dd')}/",
-								"type": "Expression"
+						{
+							"name": "Archive_DimOperator",
+							"type": "Copy",
+							"dependsOn": [
+								{
+									"activity": "Set_Archive_StartTime",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": "SELECT * FROM gold.Dim_Operator WHERE Is_Current=1",
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"sink": {
+									"type": "ParquetSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									},
+									"formatSettings": {
+										"type": "ParquetWriteSettings"
+									}
+								},
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"typeConversion": true,
+									"typeConversionSettings": {
+										"allowDataTruncation": true,
+										"treatBooleanAsNumber": false
+									}
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "DS_AzureSQL_Gold",
+									"type": "DatasetReference"
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "DS_ADLS_Archive_Parquet",
+									"type": "DatasetReference",
+									"parameters": {
+										"FolderPath": {
+											"value": "gold/dim_operator/@{formatDateTime(utcNow(), 'yyyy-MM-dd')}/",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						},
+						{
+							"name": "Handle_Failure_Archive_DimOperator",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "Archive_DimOperator",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_Common_Error_Handler",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"PipelineName": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"PipelineRunId": {
+										"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
+										"type": "Expression"
+									},
+									"ActivityName": "Archive_DimOperator",
+									"ErrorMessage": {
+										"value": "@activity('Archive_DimOperator').error.message",
+										"type": "Expression"
+									},
+									"ErrorCode": "GOLD_ARCHIVE_ARCHIVE_DIMOPERATOR_FAILED",
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Archive_DimWell",
+							"type": "Copy",
+							"dependsOn": [
+								{
+									"activity": "Set_Archive_StartTime",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": "SELECT * FROM gold.Dim_Well WHERE Is_Current=1",
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"sink": {
+									"type": "ParquetSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									},
+									"formatSettings": {
+										"type": "ParquetWriteSettings"
+									}
+								},
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"typeConversion": true,
+									"typeConversionSettings": {
+										"allowDataTruncation": true,
+										"treatBooleanAsNumber": false
+									}
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "DS_AzureSQL_Gold",
+									"type": "DatasetReference"
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "DS_ADLS_Archive_Parquet",
+									"type": "DatasetReference",
+									"parameters": {
+										"FolderPath": {
+											"value": "gold/dim_well/@{formatDateTime(utcNow(), 'yyyy-MM-dd')}/",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						},
+						{
+							"name": "Handle_Failure_Archive_DimWell",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "Archive_DimWell",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_Common_Error_Handler",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"PipelineName": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"PipelineRunId": {
+										"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
+										"type": "Expression"
+									},
+									"ActivityName": "Archive_DimWell",
+									"ErrorMessage": {
+										"value": "@activity('Archive_DimWell').error.message",
+										"type": "Expression"
+									},
+									"ErrorCode": "GOLD_ARCHIVE_ARCHIVE_DIMWELL_FAILED",
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Archive_FactWellSnapshot",
+							"type": "Copy",
+							"dependsOn": [
+								{
+									"activity": "Set_Archive_StartTime",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": "SELECT * FROM gold.Fact_WellSnapshot WHERE SnapshotDate=CAST(GETDATE() AS DATE)",
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"sink": {
+									"type": "ParquetSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									},
+									"formatSettings": {
+										"type": "ParquetWriteSettings"
+									}
+								},
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"typeConversion": true,
+									"typeConversionSettings": {
+										"allowDataTruncation": true,
+										"treatBooleanAsNumber": false
+									}
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "DS_AzureSQL_Gold",
+									"type": "DatasetReference"
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "DS_ADLS_Archive_Parquet",
+									"type": "DatasetReference",
+									"parameters": {
+										"FolderPath": {
+											"value": "gold/fact_wellsnapshot/@{formatDateTime(utcNow(), 'yyyy-MM-dd')}/",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						},
+						{
+							"name": "Handle_Failure_Archive_FactWellSnapshot",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "Archive_FactWellSnapshot",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_Common_Error_Handler",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"PipelineName": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"PipelineRunId": {
+										"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
+										"type": "Expression"
+									},
+									"ActivityName": "Archive_FactWellSnapshot",
+									"ErrorMessage": {
+										"value": "@activity('Archive_FactWellSnapshot').error.message",
+										"type": "Expression"
+									},
+									"ErrorCode": "GOLD_ARCHIVE_ARCHIVE_FACTWELLSNAPSHOT_FAILED",
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Archive_DimLicenceStatus",
+							"description": "SELECT * FROM gold.Dim_LicenceStatus",
+							"type": "Copy",
+							"dependsOn": [
+								{
+									"activity": "Set_Archive_StartTime",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": "SELECT * FROM gold.Dim_LicenceStatus",
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"sink": {
+									"type": "ParquetSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									},
+									"formatSettings": {
+										"type": "ParquetWriteSettings"
+									}
+								},
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"typeConversion": true,
+									"typeConversionSettings": {
+										"allowDataTruncation": true,
+										"treatBooleanAsNumber": false
+									}
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "DS_AzureSQL_Gold",
+									"type": "DatasetReference"
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "DS_ADLS_Archive_Parquet",
+									"type": "DatasetReference",
+									"parameters": {
+										"FolderPath": {
+											"value": "gold/dim_licencestatus/@{formatDateTime(utcNow(), 'yyyy-MM-dd')}/",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						},
+						{
+							"name": "Handle_Failure_Archive_DimLicenceStatus",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "Archive_DimLicenceStatus",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_Common_Error_Handler",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"PipelineName": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"PipelineRunId": {
+										"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
+										"type": "Expression"
+									},
+									"ActivityName": "Archive_DimLicenceStatus",
+									"ErrorMessage": {
+										"value": "@activity('Archive_DimLicenceStatus').error.message",
+										"type": "Expression"
+									},
+									"ErrorCode": "GOLD_ARCHIVE_ARCHIVE_DIMLICENCESTATUS_FAILED",
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Archive_DimWellType",
+							"type": "Copy",
+							"dependsOn": [
+								{
+									"activity": "Set_Archive_StartTime",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": "SELECT * FROM gold.Dim_WellType",
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"sink": {
+									"type": "ParquetSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									},
+									"formatSettings": {
+										"type": "ParquetWriteSettings"
+									}
+								},
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"typeConversion": true,
+									"typeConversionSettings": {
+										"allowDataTruncation": true,
+										"treatBooleanAsNumber": false
+									}
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "DS_AzureSQL_Gold",
+									"type": "DatasetReference"
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "DS_ADLS_Archive_Parquet",
+									"type": "DatasetReference",
+									"parameters": {
+										"FolderPath": {
+											"value": "gold/dim_welltype/@{formatDateTime(utcNow(), 'yyyy-MM-dd')}/",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						},
+						{
+							"name": "Handle_Failure_Archive_DimWellType",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "Archive_DimWellType",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_Common_Error_Handler",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"PipelineName": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"PipelineRunId": {
+										"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
+										"type": "Expression"
+									},
+									"ActivityName": "Archive_DimWellType",
+									"ErrorMessage": {
+										"value": "@activity('Archive_DimWellType').error.message",
+										"type": "Expression"
+									},
+									"ErrorCode": "GOLD_ARCHIVE_ARCHIVE_DIMWELLTYPE_FAILED",
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "vw_WellMarketTrend",
+							"type": "Copy",
+							"dependsOn": [
+								{
+									"activity": "Set_Archive_StartTime",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": "SELECT * FROM gold.vw_WellMarketTrend",
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"sink": {
+									"type": "ParquetSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									},
+									"formatSettings": {
+										"type": "ParquetWriteSettings"
+									}
+								},
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"typeConversion": true,
+									"typeConversionSettings": {
+										"allowDataTruncation": true,
+										"treatBooleanAsNumber": false
+									}
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "DS_AzureSQL_Gold",
+									"type": "DatasetReference"
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "DS_ADLS_Archive_Parquet",
+									"type": "DatasetReference",
+									"parameters": {
+										"FolderPath": {
+											"value": "gold/vw_WellMarketTrend/@{formatDateTime(utcNow(), 'yyyy-MM-dd')}/",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						},
+						{
+							"name": "Handle_Failure_vw_WellMarketTrend",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "vw_WellMarketTrend",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_Common_Error_Handler",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"PipelineName": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"PipelineRunId": {
+										"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
+										"type": "Expression"
+									},
+									"ActivityName": "vw_WellMarketTrend",
+									"ErrorMessage": {
+										"value": "@activity('vw_WellMarketTrend').error.message",
+										"type": "Expression"
+									},
+									"ErrorCode": "GOLD_ARCHIVE_VW_WELLMARKETTREND_FAILED",
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Set_Archive_EndTime_Success",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Archive_DimOperator",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Archive_DimWell",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Archive_FactWellSnapshot",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Archive_DimLicenceStatus",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Archive_DimWellType",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "vw_WellMarketTrend",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_ArchiveEndTime",
+								"value": {
+									"value": "@utcNow()",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Log_Archive_Success",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Set_Archive_EndTime_Success",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.00:05:00",
+								"retry": 1,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "[control].[usp_LogPipelineRunDetail]",
+								"storedProcedureParameters": {
+									"PipelineRunId": {
+										"value": {
+											"value": "@if(empty(pipeline().parameters.ParentRunId),pipeline().RunId,pipeline().parameters.ParentRunId)",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineName": {
+										"value": {
+											"value": "@pipeline().Pipeline",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BatchId": {
+										"value": {
+											"value": "@pipeline().parameters.BatchId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"WindowKey": {
+										"value": {
+											"value": "@pipeline().parameters.WindowKey",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"ActivityName": {
+										"value": "Archive Gold to ADLS",
+										"type": "String"
+									},
+									"ActivityType": {
+										"value": "Archive",
+										"type": "String"
+									},
+									"Status": {
+										"value": "SUCCESS",
+										"type": "String"
+									},
+									"RowsRead": {
+										"value": {
+											"value": "@add(add(add(int(activity('Archive_DimOperator').output.rowsRead),int(activity('Archive_DimWell').output.rowsRead)),add(int(activity('Archive_FactWellSnapshot').output.rowsRead),int(activity('Archive_DimLicenceStatus').output.rowsRead))),add(int(activity('Archive_DimWellType').output.rowsRead),int(activity('vw_WellMarketTrend').output.rowsRead)))",
+											"type": "Expression"
+										},
+										"type": "Int64"
+									},
+									"RowsWritten": {
+										"value": {
+											"value": "@add(add(add(int(activity('Archive_DimOperator').output.rowsCopied),int(activity('Archive_DimWell').output.rowsCopied)),add(int(activity('Archive_FactWellSnapshot').output.rowsCopied),int(activity('Archive_DimLicenceStatus').output.rowsCopied))),add(int(activity('Archive_DimWellType').output.rowsCopied),int(activity('vw_WellMarketTrend').output.rowsCopied)))",
+											"type": "Expression"
+										},
+										"type": "Int64"
+									},
+									"StartTime": {
+										"value": {
+											"value": "@variables('v_ArchiveStartTime')",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"EndTime": {
+										"value": {
+											"value": "@variables('v_ArchiveEndTime')",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"DurationSeconds": {
+										"value": {
+											"value": "@int(div(sub(ticks(variables('v_ArchiveEndTime')),ticks(variables('v_ArchiveStartTime'))),10000000))",
+											"type": "Expression"
+										},
+										"type": "Int32"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
 							}
 						}
-					}
-				]
-			},
-			{
-				"name": "Archive_DimLicenceStatus",
-				"description": "SELECT * FROM gold.Dim_LicenceStatus",
-				"type": "Copy",
-				"dependsOn": [],
-				"policy": {
-					"timeout": "0.12:00:00",
-					"retry": 0,
-					"retryIntervalInSeconds": 30,
-					"secureOutput": false,
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"source": {
-						"type": "AzureSqlSource",
-						"sqlReaderQuery": "SELECT * FROM gold.Dim_LicenceStatus",
-						"queryTimeout": "02:00:00",
-						"partitionOption": "None"
-					},
-					"sink": {
-						"type": "ParquetSink",
-						"storeSettings": {
-							"type": "AzureBlobFSWriteSettings"
-						},
-						"formatSettings": {
-							"type": "ParquetWriteSettings"
-						}
-					},
-					"enableStaging": false,
-					"translator": {
-						"type": "TabularTranslator",
-						"typeConversion": true,
-						"typeConversionSettings": {
-							"allowDataTruncation": true,
-							"treatBooleanAsNumber": false
-						}
-					}
-				},
-				"inputs": [
-					{
-						"referenceName": "DS_AzureSQL_Gold",
-						"type": "DatasetReference"
-					}
-				],
-				"outputs": [
-					{
-						"referenceName": "DS_ADLS_Archive_Parquet",
-						"type": "DatasetReference",
-						"parameters": {
-							"FolderPath": {
-								"value": "gold/dim_licencestatus/@{formatDateTime(utcNow(), 'yyyy-MM-dd')}/",
-								"type": "Expression"
-							}
-						}
-					}
-				]
-			},
-			{
-				"name": "Archive_DimWellType",
-				"type": "Copy",
-				"dependsOn": [],
-				"policy": {
-					"timeout": "0.12:00:00",
-					"retry": 0,
-					"retryIntervalInSeconds": 30,
-					"secureOutput": false,
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"source": {
-						"type": "AzureSqlSource",
-						"sqlReaderQuery": "SELECT * FROM gold.Dim_WellType",
-						"queryTimeout": "02:00:00",
-						"partitionOption": "None"
-					},
-					"sink": {
-						"type": "ParquetSink",
-						"storeSettings": {
-							"type": "AzureBlobFSWriteSettings"
-						},
-						"formatSettings": {
-							"type": "ParquetWriteSettings"
-						}
-					},
-					"enableStaging": false,
-					"translator": {
-						"type": "TabularTranslator",
-						"typeConversion": true,
-						"typeConversionSettings": {
-							"allowDataTruncation": true,
-							"treatBooleanAsNumber": false
-						}
-					}
-				},
-				"inputs": [
-					{
-						"referenceName": "DS_AzureSQL_Gold",
-						"type": "DatasetReference"
-					}
-				],
-				"outputs": [
-					{
-						"referenceName": "DS_ADLS_Archive_Parquet",
-						"type": "DatasetReference",
-						"parameters": {
-							"FolderPath": {
-								"value": "gold/dim_welltype/@{formatDateTime(utcNow(), 'yyyy-MM-dd')}/",
-								"type": "Expression"
-							}
-						}
-					}
-				]
-			},
-			{
-				"name": "vw_WellMarketTrend",
-				"type": "Copy",
-				"dependsOn": [],
-				"policy": {
-					"timeout": "0.12:00:00",
-					"retry": 0,
-					"retryIntervalInSeconds": 30,
-					"secureOutput": false,
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"source": {
-						"type": "AzureSqlSource",
-						"sqlReaderQuery": "SELECT * FROM gold.vw_WellMarketTrend",
-						"queryTimeout": "02:00:00",
-						"partitionOption": "None"
-					},
-					"sink": {
-						"type": "ParquetSink",
-						"storeSettings": {
-							"type": "AzureBlobFSWriteSettings"
-						},
-						"formatSettings": {
-							"type": "ParquetWriteSettings"
-						}
-					},
-					"enableStaging": false,
-					"translator": {
-						"type": "TabularTranslator",
-						"typeConversion": true,
-						"typeConversionSettings": {
-							"allowDataTruncation": true,
-							"treatBooleanAsNumber": false
-						}
-					}
-				},
-				"inputs": [
-					{
-						"referenceName": "DS_AzureSQL_Gold",
-						"type": "DatasetReference"
-					}
-				],
-				"outputs": [
-					{
-						"referenceName": "DS_ADLS_Archive_Parquet",
-						"type": "DatasetReference",
-						"parameters": {
-							"FolderPath": {
-								"value": "gold/vw_WellMarketTrend/@{formatDateTime(utcNow(), 'yyyy-MM-dd')}/",
-								"type": "Expression"
-							}
-						}
-					}
-				]
+					]
+				}
 			}
 		],
+		"parameters": {
+			"ParentRunId": {
+				"type": "string"
+			},
+			"BatchId": {
+				"type": "string"
+			},
+			"WindowKey": {
+				"type": "string"
+			}
+		},
+		"variables": {
+			"v_ArchiveStartTime": {
+				"type": "String"
+			},
+			"v_ArchiveEndTime": {
+				"type": "String"
+			}
+		},
 		"folder": {
 			"name": "Incremental_Load"
 		},
-		"annotations": [],
+		"annotations": [
+			"GoldArchive",
+			"CommonErrorHandler",
+			"ParallelCopies",
+			"ExplicitTimingExpressionsV4",
+			"CommonErrorHandlerCanonicalParams",
+			"DailyArchiveGuard",
+			"SkipIfAlreadyArchivedToday"
+		],
 		"lastPublishTime": "2026-04-20T02:12:31Z"
 	},
 	"type": "Microsoft.DataFactory/factories/pipelines"

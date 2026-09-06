@@ -1,7 +1,7 @@
 {
 	"name": "PL_ST37_to_Bronze_INCREMENTAL",
 	"properties": {
-		"description": "Incremental SQL Server WellList ingestion using a datetime watermark. First run uses ST37_DefaultLookbackDays. On every successful extract the timestamp watermark advances to the extraction end time, even when zero rows are returned. Returns WindowKey/HasRows to the master for downstream delta processing.",
+		"description": "ST37 WellList ingestion with NORMAL, REPLAY and BACKFILL modes. NORMAL uses control.PipelineWatermark plus control.PipelineConfig lookback and commits the watermark/window after successful copy and control logging. REPLAY/BACKFILL require explicit WindowStart/WindowEnd, reuse deterministic Bronze paths, and never advance the operational watermark. Copy activity is logged to control.PipelineRunDetail. WindowKey propagation hardened: empty keys fail fast and successful NORMAL runs persist LastSuccessfulWindowKey. Child owns exact ST37 copy failure logging in both PipelineRunDetail and ADF_Pipeline_Log before explicit Fail. Industry-refactor v1: returns SourceRowCount from the physical Copy output so downstream reconciliation consumes stage-produced metadata instead of rescanning ADLS. FINAL V2: common operational error handler used for copy failures. Instrumentation V3: copy StartTime/EndTime persisted; DurationSeconds derived by usp_LogPipelineRunDetail. V4: explicit StartTime, EndTime and DurationSeconds expressions passed to usp_LogPipelineRunDetail. Canonicalized ExecutePipeline parameters for PL_Common_Error_Handler; null-safe ParentRunId; resilient failure-handler dependency where applicable.",
 		"activities": [
 			{
 				"name": "Lookup_Watermark",
@@ -19,7 +19,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "@concat('SELECT LastSuccessfulLoadTimestamp FROM control.PipelineWatermark WHERE PipelineName = ''', pipeline().Pipeline, '''')",
+							"value": "@concat('SELECT LastSuccessfulLoadTimestamp, LastSuccessfulWindowKey FROM control.PipelineWatermark WHERE PipelineName = ''', pipeline().Pipeline, '''')",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
@@ -32,11 +32,76 @@
 				}
 			},
 			{
+				"name": "Lookup_ST37_Config",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 2,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT DefaultLookbackDays, RetryCount, RetryIntervalSeconds, FreshnessThresholdHours FROM control.PipelineConfig WHERE PipelineName = 'PL_ST37_to_Bronze_INCREMENTAL' AND IsActive = 1",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_AzureSQL_Generic",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "Validate_RunMode",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Lookup_Watermark",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Lookup_ST37_Config",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@or(not(or(equals(toLower(pipeline().parameters.RunMode),'normal'),or(equals(toLower(pipeline().parameters.RunMode),'replay'),equals(toLower(pipeline().parameters.RunMode),'backfill')))),and(not(equals(toLower(pipeline().parameters.RunMode),'normal')),or(equals(pipeline().parameters.WindowStart,''),equals(pipeline().parameters.WindowEnd,''))))",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Fail_Invalid_RunMode_Or_Window",
+							"type": "Fail",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"message": "RunMode must be NORMAL, REPLAY, or BACKFILL. REPLAY/BACKFILL require WindowStart and WindowEnd.",
+								"errorCode": "ST37_INVALID_RUN_MODE_OR_WINDOW"
+							}
+						}
+					]
+				}
+			},
+			{
 				"name": "Set_StartWatermark",
 				"type": "SetVariable",
 				"dependsOn": [
 					{
-						"activity": "Lookup_Watermark",
+						"activity": "Validate_RunMode",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -50,7 +115,7 @@
 				"typeProperties": {
 					"variableName": "v_StartWatermark",
 					"value": {
-						"value": "@if(or(equals(length(activity('Lookup_Watermark').output.value),0), equals(activity('Lookup_Watermark').output.value[0].LastSuccessfulLoadTimestamp,null)), formatDateTime(addDays(pipeline().TriggerTime, mul(pipeline().parameters.ST37_DefaultLookbackDays,-1)),'yyyy-MM-ddTHH:mm:ss'), formatDateTime(activity('Lookup_Watermark').output.value[0].LastSuccessfulLoadTimestamp,'yyyy-MM-ddTHH:mm:ss'))",
+						"value": "@if(equals(toLower(pipeline().parameters.RunMode),'normal'),if(or(equals(length(activity('Lookup_Watermark').output.value),0),equals(activity('Lookup_Watermark').output.value[0].LastSuccessfulLoadTimestamp,null)),formatDateTime(addDays(pipeline().TriggerTime,mul(if(equals(length(activity('Lookup_ST37_Config').output.value),0),pipeline().parameters.ST37_DefaultLookbackDays,int(activity('Lookup_ST37_Config').output.value[0].DefaultLookbackDays)),-1)),'yyyy-MM-ddTHH:mm:ss'),formatDateTime(activity('Lookup_Watermark').output.value[0].LastSuccessfulLoadTimestamp,'yyyy-MM-ddTHH:mm:ss')),formatDateTime(pipeline().parameters.WindowStart,'yyyy-MM-ddTHH:mm:ss'))",
 						"type": "Expression"
 					}
 				}
@@ -58,7 +123,14 @@
 			{
 				"name": "Set_EndWatermark",
 				"type": "SetVariable",
-				"dependsOn": [],
+				"dependsOn": [
+					{
+						"activity": "Validate_RunMode",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"policy": {
 					"secureOutput": false,
 					"secureInput": false
@@ -67,7 +139,7 @@
 				"typeProperties": {
 					"variableName": "v_EndWatermark",
 					"value": {
-						"value": "@formatDateTime(pipeline().TriggerTime,'yyyy-MM-ddTHH:mm:ss')",
+						"value": "@if(equals(toLower(pipeline().parameters.RunMode),'normal'),formatDateTime(pipeline().TriggerTime,'yyyy-MM-ddTHH:mm:ss'),formatDateTime(pipeline().parameters.WindowEnd,'yyyy-MM-ddTHH:mm:ss'))",
 						"type": "Expression"
 					}
 				}
@@ -97,7 +169,62 @@
 				"typeProperties": {
 					"variableName": "v_WindowKey",
 					"value": {
-						"value": "@concat(formatDateTime(variables('v_StartWatermark'),'yyyyMMddHHmmss'),'_',formatDateTime(variables('v_EndWatermark'),'yyyyMMddHHmmss'))",
+						"value": "@if(empty(pipeline().parameters.WindowKey),concat(formatDateTime(variables('v_StartWatermark'),'yyyyMMddHHmmss'),'_',formatDateTime(variables('v_EndWatermark'),'yyyyMMddHHmmss')),pipeline().parameters.WindowKey)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Validate_WindowKey_NotEmpty",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Set_WindowKey",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@empty(variables('v_WindowKey'))",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Fail_Empty_WindowKey",
+							"type": "Fail",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"message": "ST37 WindowKey resolved to empty. Extraction stopped to prevent non-deterministic paths and missing lineage.",
+								"errorCode": "ST37_EMPTY_WINDOWKEY"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Set_ST37_Copy_StartTime",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Validate_WindowKey_NotEmpty",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_CopyStartTime",
+					"value": {
+						"value": "@utcNow()",
 						"type": "Expression"
 					}
 				}
@@ -107,7 +234,7 @@
 				"type": "Copy",
 				"dependsOn": [
 					{
-						"activity": "Set_WindowKey",
+						"activity": "Set_ST37_Copy_StartTime",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -174,11 +301,59 @@
 				]
 			},
 			{
-				"name": "Update_Watermark",
-				"type": "Script",
+				"name": "Set_ST37_Copy_EndTime_Success",
+				"type": "SetVariable",
 				"dependsOn": [
 					{
 						"activity": "Copy OnPremData Incremental",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_CopyEndTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_ST37_Copy_EndTime_Failure",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Copy OnPremData Incremental",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_CopyEndTime",
+					"value": {
+						"value": "@utcNow()",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Log_ST37_Copy_Success",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Set_ST37_Copy_EndTime_Success",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -192,21 +367,139 @@
 					"secureInput": false
 				},
 				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[control].[usp_LogPipelineRunDetail]",
+					"storedProcedureParameters": {
+						"PipelineRunId": {
+							"value": {
+								"value": "@pipeline().RunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"BatchId": {
+							"value": {
+								"value": "@pipeline().parameters.BatchId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"WindowKey": {
+							"value": {
+								"value": "@string(variables('v_WindowKey'))",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ActivityName": {
+							"value": "Copy OnPremData Incremental",
+							"type": "String"
+						},
+						"ActivityType": {
+							"value": "Copy",
+							"type": "String"
+						},
+						"Status": {
+							"value": "SUCCESS",
+							"type": "String"
+						},
+						"RowsRead": {
+							"value": {
+								"value": "@activity('Copy OnPremData Incremental').output.rowsRead",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"RowsWritten": {
+							"value": {
+								"value": "@activity('Copy OnPremData Incremental').output.rowsCopied",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"StartTime": {
+							"value": {
+								"value": "@variables('v_CopyStartTime')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"EndTime": {
+							"value": {
+								"value": "@variables('v_CopyEndTime')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"DurationSeconds": {
+							"value": {
+								"value": "@int(div(sub(ticks(variables('v_CopyEndTime')),ticks(variables('v_CopyStartTime'))),10000000))",
+								"type": "Expression"
+							},
+							"type": "Int32"
+						}
+					}
+				},
 				"linkedServiceName": {
 					"referenceName": "LS_AzureSQL",
 					"type": "LinkedServiceReference"
-				},
+				}
+			},
+			{
+				"name": "Commit_Watermark_If_Normal",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Log_ST37_Copy_Success",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
 				"typeProperties": {
-					"scripts": [
+					"expression": {
+						"value": "@equals(toLower(pipeline().parameters.RunMode),'normal')",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
 						{
-							"type": "Query",
-							"text": {
-								"value": "@concat('MERGE control.PipelineWatermark AS target USING (SELECT ''', pipeline().Pipeline, ''' AS PipelineName) AS src ON target.PipelineName = src.PipelineName WHEN MATCHED THEN UPDATE SET LastSuccessfulLoadTimestamp = CONVERT(datetime2(7), ''', variables('v_EndWatermark'), ''', 126), LastSuccessfulRunTime = SYSUTCDATETIME(), LastSuccessfulRunId = ''', pipeline().RunId, ''', LastUpdatedTime = SYSUTCDATETIME() WHEN NOT MATCHED THEN INSERT (PipelineName, LastSuccessfulLoadTimestamp, LastSuccessfulRunTime, LastSuccessfulRunId, LastUpdatedTime) VALUES (''', pipeline().Pipeline, ''', CONVERT(datetime2(7), ''', variables('v_EndWatermark'), ''', 126), SYSUTCDATETIME(), ''', pipeline().RunId, ''', SYSUTCDATETIME());')",
-								"type": "Expression"
+							"name": "Update_Watermark",
+							"type": "Script",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.00:05:00",
+								"retry": 2,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							},
+							"typeProperties": {
+								"scripts": [
+									{
+										"type": "Query",
+										"text": {
+											"value": "@concat('MERGE control.PipelineWatermark AS target USING (SELECT ''', pipeline().Pipeline, ''' AS PipelineName) AS src ON target.PipelineName = src.PipelineName WHEN MATCHED THEN UPDATE SET LastSuccessfulLoadTimestamp = CONVERT(datetime2(7), ''', variables('v_EndWatermark'), ''', 126), LastSuccessfulLoadDate = CAST(CONVERT(datetime2(7), ''', variables('v_EndWatermark'), ''', 126) AS date), LastSuccessfulWindowKey = ''', string(variables('v_WindowKey')), ''', LastSuccessfulRunTime = SYSUTCDATETIME(), LastSuccessfulRunId = ''', pipeline().RunId, ''', LastUpdatedTime = SYSUTCDATETIME() WHEN NOT MATCHED THEN INSERT (PipelineName, LastSuccessfulLoadDate, LastSuccessfulLoadTimestamp, LastSuccessfulWindowKey, LastSuccessfulRunTime, LastSuccessfulRunId, LastUpdatedTime) VALUES (''', pipeline().Pipeline, ''', CAST(CONVERT(datetime2(7), ''', variables('v_EndWatermark'), ''', 126) AS date), CONVERT(datetime2(7), ''', variables('v_EndWatermark'), ''', 126), ''', string(variables('v_WindowKey')), ''', SYSUTCDATETIME(), ''', pipeline().RunId, ''', SYSUTCDATETIME());')",
+											"type": "Expression"
+										}
+									}
+								],
+								"scriptBlockExecutionTimeout": "02:00:00"
 							}
 						}
-					],
-					"scriptBlockExecutionTimeout": "02:00:00"
+					]
 				}
 			},
 			{
@@ -214,7 +507,7 @@
 				"type": "SetVariable",
 				"dependsOn": [
 					{
-						"activity": "Update_Watermark",
+						"activity": "Commit_Watermark_If_Normal",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -250,14 +543,215 @@
 							}
 						},
 						{
+							"key": "SourceRowCount",
+							"value": {
+								"type": "Expression",
+								"content": "@string(activity('Copy OnPremData Incremental').output.rowsCopied)"
+							}
+						},
+						{
 							"key": "HasRows",
 							"value": {
 								"type": "Expression",
 								"content": "@string(greater(activity('Copy OnPremData Incremental').output.rowsCopied,0))"
 							}
+						},
+						{
+							"key": "RunMode",
+							"value": {
+								"type": "Expression",
+								"content": "@pipeline().parameters.RunMode"
+							}
+						},
+						{
+							"key": "PipelineRunId",
+							"value": {
+								"type": "Expression",
+								"content": "@pipeline().RunId"
+							}
+						},
+						{
+							"key": "WatermarkCommitted",
+							"value": {
+								"type": "Expression",
+								"content": "@string(equals(toLower(pipeline().parameters.RunMode),'normal'))"
+							}
 						}
 					],
 					"setSystemVariable": true
+				}
+			},
+			{
+				"name": "Log_ST37_Copy_Failure",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Set_ST37_Copy_EndTime_Failure",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 1,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[control].[usp_LogPipelineRunDetail]",
+					"storedProcedureParameters": {
+						"PipelineRunId": {
+							"value": {
+								"value": "@pipeline().RunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"BatchId": {
+							"value": {
+								"value": "@pipeline().parameters.BatchId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"WindowKey": {
+							"value": {
+								"value": "@string(variables('v_WindowKey'))",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ActivityName": {
+							"value": "Copy OnPremData Incremental",
+							"type": "String"
+						},
+						"ActivityType": {
+							"value": "Copy",
+							"type": "String"
+						},
+						"Status": {
+							"value": "FAILED",
+							"type": "String"
+						},
+						"ErrorCode": {
+							"value": {
+								"value": "@activity('Copy OnPremData Incremental').error.errorCode",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ErrorMessage": {
+							"value": {
+								"value": "@activity('Copy OnPremData Incremental').error.message",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"StartTime": {
+							"value": {
+								"value": "@variables('v_CopyStartTime')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"EndTime": {
+							"value": {
+								"value": "@variables('v_CopyEndTime')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"DurationSeconds": {
+							"value": {
+								"value": "@int(div(sub(ticks(variables('v_CopyEndTime')),ticks(variables('v_CopyStartTime'))),10000000))",
+								"type": "Expression"
+							},
+							"type": "Int32"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Handle_ST37_Copy_Failure",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Log_ST37_Copy_Failure",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_Common_Error_Handler",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"PipelineName": {
+							"value": "@pipeline().Pipeline",
+							"type": "Expression"
+						},
+						"PipelineRunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"ActivityName": "Copy OnPremData Incremental",
+						"ErrorMessage": {
+							"value": "@activity('Copy OnPremData Incremental').error.message",
+							"type": "Expression"
+						},
+						"ErrorCode": "ST37_COPY_FAILED",
+						"BatchId": {
+							"value": "@pipeline().parameters.BatchId",
+							"type": "Expression"
+						},
+						"WindowKey": {
+							"value": "@pipeline().parameters.WindowKey",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Fail_ST37_Copy_After_Log",
+				"type": "Fail",
+				"dependsOn": [
+					{
+						"activity": "Handle_ST37_Copy_Failure",
+						"dependencyConditions": [
+							"Succeeded",
+							"Failed"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"message": {
+						"value": "@activity('Copy OnPremData Incremental').error.message",
+						"type": "Expression"
+					},
+					"errorCode": "ST37_COPY_FAILED"
 				}
 			}
 		],
@@ -273,6 +767,22 @@
 			"ST37_DefaultLookbackDays": {
 				"type": "int",
 				"defaultValue": 7
+			},
+			"RunMode": {
+				"type": "string",
+				"defaultValue": "NORMAL"
+			},
+			"WindowStart": {
+				"type": "string"
+			},
+			"WindowEnd": {
+				"type": "string"
+			},
+			"WindowKey": {
+				"type": "string"
+			},
+			"BatchId": {
+				"type": "string"
 			}
 		},
 		"variables": {
@@ -284,6 +794,12 @@
 			},
 			"v_WindowKey": {
 				"type": "String"
+			},
+			"v_CopyStartTime": {
+				"type": "String"
+			},
+			"v_CopyEndTime": {
+				"type": "String"
 			}
 		},
 		"folder": {
@@ -293,9 +809,16 @@
 			"ST37",
 			"WellList",
 			"Incremental",
+			"Replay",
+			"Backfill",
 			"Watermark",
+			"PipelineRunDetail",
 			"DeterministicBronzePath",
-			"PipelineReturnValue"
+			"PipelineReturnValue",
+			"WindowKeyValidated",
+			"WindowKeyPersisted",
+			"ExplicitTimingExpressionsV4",
+			"CommonErrorHandlerCanonicalParams"
 		]
 	},
 	"type": "Microsoft.DataFactory/factories/pipelines"

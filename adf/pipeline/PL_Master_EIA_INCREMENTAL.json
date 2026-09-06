@@ -1,92 +1,39 @@
 {
-	"name": "PL_EIA_IncrementalIngestion",
+	"name": "PL_Master_EIA_INCREMENTAL",
 	"properties": {
-		"description": "Fetches WTI oil prices from EIA REST API using watermark-driven incremental loading, first-run lookback, manual pagination, retry/backoff, late-arriving-data handling, and pipeline return values for downstream Gold processing.",
+		"description": "EIA data-processing child. Called only by PL_EIA_IncrementalIngestion after a positive source-availability check. Handles pagination, Bronze parquet writes, staging load, and watermark commit to the MAX actual EIA period. Fails fast if invoked directly without required parameters.",
 		"activities": [
 			{
-				"name": "Lookup_Watermark",
-				"description": "Read last successful source date from control.PipelineWatermark.",
-				"type": "Lookup",
+				"name": "Validate_RequiredParameters",
+				"description": "Fail fast with a clear message if this processing child is run directly without controller-supplied parameters.",
+				"type": "IfCondition",
 				"dependsOn": [],
-				"policy": {
-					"timeout": "0.00:05:00",
-					"retry": 2,
-					"retryIntervalInSeconds": 30,
-					"secureOutput": false,
-					"secureInput": false
-				},
 				"userProperties": [],
 				"typeProperties": {
-					"source": {
-						"type": "AzureSqlSource",
-						"sqlReaderQuery": {
-							"value": "@concat('SELECT LastSuccessfulLoadDate FROM control.PipelineWatermark WHERE PipelineName = ''', pipeline().Pipeline, '''')",
-							"type": "Expression"
-						},
-						"partitionOption": "None"
-					},
-					"dataset": {
-						"referenceName": "DS_AzureSQL_Generic",
-						"type": "DatasetReference"
-					},
-					"firstRowOnly": false
-				}
-			},
-			{
-				"name": "Set_StartDate",
-				"description": "Use watermark + 1 day when available, first-run lookback otherwise, and clamp StartDate to TriggerDate to avoid StartDate > EndDate on same-day reruns.",
-				"type": "SetVariable",
-				"dependsOn": [
-					{
-						"activity": "Lookup_Watermark",
-						"dependencyConditions": [
-							"Succeeded"
-						]
-					}
-				],
-				"policy": {
-					"secureOutput": false,
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"variableName": "v_StartDate",
-					"value": {
-						"value": "@if(equals(length(activity('Lookup_Watermark').output.value), 0), formatDateTime(addDays(pipeline().TriggerTime, mul(pipeline().parameters.EIA_DefaultLookbackDays, -1)), 'yyyy-MM-dd'), if(greater(formatDateTime(addDays(activity('Lookup_Watermark').output.value[0].LastSuccessfulLoadDate, 1), 'yyyy-MM-dd'), formatDateTime(pipeline().TriggerTime, 'yyyy-MM-dd')), formatDateTime(pipeline().TriggerTime, 'yyyy-MM-dd'), formatDateTime(addDays(activity('Lookup_Watermark').output.value[0].LastSuccessfulLoadDate, 1), 'yyyy-MM-dd')))",
+					"expression": {
+						"value": "@and(and(and(not(empty(pipeline().parameters.StartDate)),not(empty(pipeline().parameters.EndDate))),greater(pipeline().parameters.ResponseTotal,0)),and(not(empty(pipeline().parameters.WatermarkPipelineName)),not(empty(pipeline().parameters.ParentRunId))))",
 						"type": "Expression"
-					}
-				}
-			},
-			{
-				"name": "Set_EndDate",
-				"type": "SetVariable",
-				"dependsOn": [],
-				"policy": {
-					"secureOutput": false,
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"variableName": "v_EndDate",
-					"value": {
-						"value": "@formatDateTime(pipeline().TriggerTime,'yyyy-MM-dd')",
-						"type": "Expression"
-					}
+					},
+					"ifFalseActivities": [
+						{
+							"name": "Fail_Missing_Controller_Parameters",
+							"type": "Fail",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"message": "PL_EIA_ProcessData_INCREMENTAL must be called by PL_EIA_IncrementalIngestion with non-empty StartDate, EndDate, ResponseTotal, WatermarkPipelineName, and ParentRunId. Do not run this child directly.",
+								"errorCode": "EIA_CHILD_MISSING_PARAMETERS"
+							}
+						}
+					]
 				}
 			},
 			{
 				"name": "Set_BronzeFolderPath",
-				"description": "Create deterministic Bronze folder using extraction start/end dates.",
 				"type": "SetVariable",
 				"dependsOn": [
 					{
-						"activity": "Set_StartDate",
-						"dependencyConditions": [
-							"Succeeded"
-						]
-					},
-					{
-						"activity": "Set_EndDate",
+						"activity": "Validate_RequiredParameters",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -100,7 +47,7 @@
 				"typeProperties": {
 					"variableName": "v_BronzeFolderPath",
 					"value": {
-						"value": "@concat('bronze/oilprice/start_date=', variables('v_StartDate'), '/end_date=', variables('v_EndDate'))",
+						"value": "@concat('bronze/oilprice/start_date=', pipeline().parameters.StartDate, '/end_date=', pipeline().parameters.EndDate)",
 						"type": "Expression"
 					}
 				}
@@ -108,7 +55,14 @@
 			{
 				"name": "Init_PageOffset",
 				"type": "SetVariable",
-				"dependsOn": [],
+				"dependsOn": [
+					{
+						"activity": "Validate_RequiredParameters",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"policy": {
 					"secureOutput": false,
 					"secureInput": false
@@ -122,7 +76,14 @@
 			{
 				"name": "Init_RetryCount",
 				"type": "SetVariable",
-				"dependsOn": [],
+				"dependsOn": [
+					{
+						"activity": "Validate_RequiredParameters",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"policy": {
 					"secureOutput": false,
 					"secureInput": false
@@ -136,7 +97,14 @@
 			{
 				"name": "Init_DelaySeconds",
 				"type": "SetVariable",
-				"dependsOn": [],
+				"dependsOn": [
+					{
+						"activity": "Validate_RequiredParameters",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"policy": {
 					"secureOutput": false,
 					"secureInput": false
@@ -197,9 +165,9 @@
 				}
 			},
 			{
-				"name": "Get_EIATotal",
-				"description": "Probe EIA API to obtain total rows for extraction window.",
-				"type": "WebActivity",
+				"name": "Until_AllPagesFetched",
+				"description": "Manual offset pagination with retry handling.",
+				"type": "Until",
 				"dependsOn": [
 					{
 						"activity": "Get_EIAKey",
@@ -208,61 +176,10 @@
 						]
 					}
 				],
-				"policy": {
-					"timeout": "0.00:01:00",
-					"retry": 2,
-					"retryIntervalInSeconds": 30,
-					"secureOutput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"method": "GET",
-					"url": {
-						"value": "@concat('https://api.eia.gov/v2/petroleum/pri/spt/data/?api_key=', activity('Get_EIAKey').output.value, '&frequency=daily&data[0]=value&facets[series][]=RWTC&start=', variables('v_StartDate'), '&end=', variables('v_EndDate'), '&offset=0&length=1')",
-						"type": "Expression"
-					}
-				}
-			},
-			{
-				"name": "Set_ResponseTotal",
-				"type": "SetVariable",
-				"dependsOn": [
-					{
-						"activity": "Get_EIATotal",
-						"dependencyConditions": [
-							"Succeeded"
-						]
-					}
-				],
-				"policy": {
-					"secureOutput": false,
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"variableName": "v_ResponseTotal",
-					"value": {
-						"value": "@int(activity('Get_EIATotal').output.response.total)",
-						"type": "Expression"
-					}
-				}
-			},
-			{
-				"name": "Until_AllPagesFetched",
-				"description": "Manual offset pagination with retry handling.",
-				"type": "Until",
-				"dependsOn": [
-					{
-						"activity": "Set_ResponseTotal",
-						"dependencyConditions": [
-							"Succeeded"
-						]
-					}
-				],
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
-						"value": "@or(greaterOrEquals(variables('v_PageOffset'), variables('v_ResponseTotal')), greaterOrEquals(variables('v_RetryCount'), 5))",
+						"value": "@or(greaterOrEquals(variables('v_PageOffset'), pipeline().parameters.ResponseTotal), greaterOrEquals(variables('v_RetryCount'), 5))",
 						"type": "Expression"
 					},
 					"activities": [
@@ -299,14 +216,14 @@
 										{
 											"name": "SourceStartDate",
 											"value": {
-												"value": "@variables('v_StartDate')",
+												"value": "@pipeline().parameters.StartDate",
 												"type": "Expression"
 											}
 										},
 										{
 											"name": "SourceEndDate",
 											"value": {
-												"value": "@variables('v_EndDate')",
+												"value": "@pipeline().parameters.EndDate",
 												"type": "Expression"
 											}
 										}
@@ -418,7 +335,7 @@
 									"referenceName": "DS_EIA_REST_Source",
 									"type": "DatasetReference",
 									"parameters": {
-										"relativeUrl": "@concat('v2/petroleum/pri/spt/data/?api_key=', activity('Get_EIAKey').output.value, '&frequency=daily&data[0]=value&facets[series][]=RWTC&sort[0][column]=period&sort[0][direction]=desc&start=', variables('v_StartDate'), '&end=', variables('v_EndDate'), '&offset=', string(variables('v_PageOffset')), '&length=', string(pipeline().parameters.EIA_PageSize))"
+										"relativeUrl": "@concat('v2/petroleum/pri/spt/data/?api_key=', activity('Get_EIAKey').output.value, '&frequency=daily&data[0]=value&facets[series][]=RWTC&sort[0][column]=period&sort[0][direction]=desc&start=', pipeline().parameters.StartDate, '&end=', pipeline().parameters.EndDate, '&offset=', string(variables('v_PageOffset')), '&length=', string(pipeline().parameters.EIA_PageSize))"
 									}
 								}
 							],
@@ -662,7 +579,7 @@
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
-						"value": "@less(variables('v_PageOffset'), variables('v_ResponseTotal'))",
+						"value": "@less(variables('v_PageOffset'), pipeline().parameters.ResponseTotal)",
 						"type": "Expression"
 					},
 					"ifTrueActivities": [
@@ -791,7 +708,8 @@
 							"FolderPath": {
 								"value": "@variables('v_BronzeFolderPath')",
 								"type": "Expression"
-							}
+							},
+							"FileName": "OilPrice.parquet"
 						}
 					}
 				],
@@ -803,9 +721,9 @@
 				]
 			},
 			{
-				"name": "Check_DataAvailability",
-				"description": "Update watermark only if EIA actually returned rows.",
-				"type": "IfCondition",
+				"name": "Update_Watermark",
+				"description": "Advance watermark to MAX actual EIA period successfully loaded into staging.",
+				"type": "Script",
 				"dependsOn": [
 					{
 						"activity": "Copy_Bronze_To_SQL",
@@ -814,106 +732,55 @@
 						]
 					}
 				],
-				"userProperties": [],
-				"typeProperties": {
-					"expression": {
-						"value": "@greater(variables('v_ResponseTotal'), 0)",
-						"type": "Expression"
-					},
-					"ifTrueActivities": [
-						{
-							"name": "Update_Watermark",
-							"description": "Advance watermark only when data was returned and loaded successfully.",
-							"type": "Script",
-							"dependsOn": [],
-							"policy": {
-								"timeout": "0.00:05:00",
-								"retry": 2,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"linkedServiceName": {
-								"referenceName": "LS_AzureSQL",
-								"type": "LinkedServiceReference"
-							},
-							"typeProperties": {
-								"scripts": [
-									{
-										"type": "Query",
-										"text": {
-											"value": "@concat('MERGE control.PipelineWatermark AS target USING (SELECT ''', pipeline().Pipeline, ''' AS PipelineName) AS src ON target.PipelineName = src.PipelineName WHEN MATCHED THEN UPDATE SET LastSuccessfulLoadDate = ''', variables('v_EndDate'), ''', LastSuccessfulRunTime = SYSUTCDATETIME(), LastSuccessfulRunId = ''', pipeline().RunId, ''', LastUpdatedTime = SYSUTCDATETIME() WHEN NOT MATCHED THEN INSERT (PipelineName, LastSuccessfulLoadDate, LastSuccessfulRunTime, LastSuccessfulRunId, LastUpdatedTime) VALUES (''', pipeline().Pipeline, ''', ''', variables('v_EndDate'), ''', SYSUTCDATETIME(), ''', pipeline().RunId, ''', SYSUTCDATETIME());')",
-											"type": "Expression"
-										}
-									}
-								],
-								"scriptBlockExecutionTimeout": "02:00:00"
-							}
-						}
-					]
-				}
-			},
-			{
-				"name": "Set_PipelineReturnValue",
-				"description": "Return the exact EIA extraction window to the master orchestrator.",
-				"type": "SetVariable",
-				"dependsOn": [
-					{
-						"activity": "Check_DataAvailability",
-						"dependencyConditions": [
-							"Succeeded"
-						]
-					}
-				],
 				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 2,
+					"retryIntervalInSeconds": 30,
 					"secureOutput": false,
 					"secureInput": false
 				},
 				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				},
 				"typeProperties": {
-					"variableName": "pipelineReturnValue",
-					"value": [
+					"scripts": [
 						{
-							"key": "StartDate",
-							"value": {
-								"type": "Expression",
-								"content": "@variables('v_StartDate')"
-							}
-						},
-						{
-							"key": "EndDate",
-							"value": {
-								"type": "Expression",
-								"content": "@variables('v_EndDate')"
+							"type": "Query",
+							"text": {
+								"value": "@concat('DECLARE @MaxPriceDate date = (SELECT MAX(TRY_CONVERT(date, [period])) FROM staging.OilPrice); IF @MaxPriceDate IS NULL THROW 50001, ''EIA returned rows but staging contains no valid period'', 1; MERGE control.PipelineWatermark AS target USING (SELECT ''', pipeline().parameters.WatermarkPipelineName, ''' AS PipelineName) AS src ON target.PipelineName = src.PipelineName WHEN MATCHED THEN UPDATE SET LastSuccessfulLoadDate = @MaxPriceDate, LastSuccessfulRunTime = SYSUTCDATETIME(), LastSuccessfulRunId = ''', pipeline().parameters.ParentRunId, ''', LastUpdatedTime = SYSUTCDATETIME() WHEN NOT MATCHED THEN INSERT (PipelineName, LastSuccessfulLoadDate, LastSuccessfulRunTime, LastSuccessfulRunId, LastUpdatedTime) VALUES (''', pipeline().parameters.WatermarkPipelineName, ''', @MaxPriceDate, SYSUTCDATETIME(), ''', pipeline().parameters.ParentRunId, ''', SYSUTCDATETIME());')",
+								"type": "Expression"
 							}
 						}
 					],
-					"setSystemVariable": true
+					"scriptBlockExecutionTimeout": "02:00:00"
 				}
 			}
 		],
 		"parameters": {
+			"StartDate": {
+				"type": "string"
+			},
+			"EndDate": {
+				"type": "string"
+			},
+			"ResponseTotal": {
+				"type": "int",
+				"defaultValue": 0
+			},
 			"EIA_PageSize": {
 				"type": "int",
 				"defaultValue": 5000
 			},
-			"EIA_DefaultLookbackDays": {
-				"type": "int",
-				"defaultValue": 7
+			"WatermarkPipelineName": {
+				"type": "string"
+			},
+			"ParentRunId": {
+				"type": "string"
 			}
 		},
 		"variables": {
-			"v_StartDate": {
-				"type": "String"
-			},
-			"v_EndDate": {
-				"type": "String"
-			},
-			"v_ResponseTotal": {
-				"type": "Integer",
-				"defaultValue": 0
-			},
 			"v_PageOffset": {
 				"type": "Integer",
 				"defaultValue": 0
@@ -952,18 +819,9 @@
 		"annotations": [
 			"EIA",
 			"WTI",
-			"OilPrice",
-			"REST",
-			"KeyVault",
-			"ManualPagination",
-			"ExponentialBackoff",
-			"Watermark",
-			"IdempotentRerun",
-			"DeterministicBronzePath",
-			"Replayable",
-			"LateArrivingData",
-			"SelfHealingWatermark",
-			"PipelineReturnValue"
+			"PositiveDataOnly",
+			"Pagination",
+			"WatermarkCommit"
 		]
 	},
 	"type": "Microsoft.DataFactory/factories/pipelines"
