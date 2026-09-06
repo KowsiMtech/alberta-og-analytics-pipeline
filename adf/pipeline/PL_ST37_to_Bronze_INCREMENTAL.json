@@ -1,7 +1,7 @@
 {
 	"name": "PL_ST37_to_Bronze_INCREMENTAL",
 	"properties": {
-		"description": "ST37 WellList ingestion with NORMAL, REPLAY and BACKFILL modes. NORMAL uses control.PipelineWatermark plus control.PipelineConfig lookback and commits the watermark/window after successful copy and control logging. REPLAY/BACKFILL require explicit WindowStart/WindowEnd, reuse deterministic Bronze paths, and never advance the operational watermark. Copy activity is logged to control.PipelineRunDetail. WindowKey propagation hardened: empty keys fail fast and successful NORMAL runs persist LastSuccessfulWindowKey. Child owns exact ST37 copy failure logging in both PipelineRunDetail and ADF_Pipeline_Log before explicit Fail. Industry-refactor v1: returns SourceRowCount from the physical Copy output so downstream reconciliation consumes stage-produced metadata instead of rescanning ADLS. FINAL V2: common operational error handler used for copy failures. Instrumentation V3: copy StartTime/EndTime persisted; DurationSeconds derived by usp_LogPipelineRunDetail. V4: explicit StartTime, EndTime and DurationSeconds expressions passed to usp_LogPipelineRunDetail. Canonicalized ExecutePipeline parameters for PL_Common_Error_Handler; null-safe ParentRunId; resilient failure-handler dependency where applicable.",
+		"description": "ST37 WellList ingestion with NORMAL, REPLAY and BACKFILL modes. NORMAL uses control.PipelineWatermark plus control.PipelineConfig lookback and commits the watermark/window after successful copy and control logging. REPLAY/BACKFILL require explicit WindowStart/WindowEnd, reuse deterministic Bronze paths, and never advance the operational watermark. Copy activity is logged to control.PipelineRunDetail. WindowKey propagation hardened: empty keys fail fast and successful NORMAL runs persist LastSuccessfulWindowKey. Child owns exact ST37 copy failure logging in both PipelineRunDetail and ADF_Pipeline_Log before explicit Fail. Industry-refactor v1: returns SourceRowCount from the physical Copy output so downstream reconciliation consumes stage-produced metadata instead of rescanning ADLS. FINAL V2: common operational error handler used for copy failures. Instrumentation V3: copy StartTime/EndTime persisted; DurationSeconds derived by usp_LogPipelineRunDetail. V4: explicit StartTime, EndTime and DurationSeconds expressions passed to usp_LogPipelineRunDetail. Canonicalized ExecutePipeline parameters for PL_Common_Error_Handler; null-safe ParentRunId; resilient failure-handler dependency where applicable. V6: adds non-transforming ST37 source-freshness capture using MAX(LastModifiedDateTime) from the on-prem source and logs FRESH/STALE/UNKNOWN to control.SourceFreshness using PipelineConfig.FreshnessThresholdHours.",
 		"activities": [
 			{
 				"name": "Lookup_Watermark",
@@ -582,6 +582,85 @@
 				}
 			},
 			{
+				"name": "Lookup_ST37_SourceFreshness",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Set_PipelineReturnValue",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 2,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlServerSource",
+						"sqlReaderQuery": {
+							"value": "@concat('SELECT MAX([LastModifiedDateTime]) AS ActualLatestDateTime FROM [', pipeline().parameters.SourceSchema, '].[', pipeline().parameters.SourceTable, ']')",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_OnPrem_WellList",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Log_ST37_SourceFreshness",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Lookup_ST37_SourceFreshness",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.00:05:00",
+					"retry": 2,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[control].[usp_Log_ST37_SourceFreshness]",
+					"storedProcedureParameters": {
+						"PipelineRunId": {
+							"value": {
+								"value": "@pipeline().RunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ActualLatestDateTime": {
+							"value": {
+								"value": "@activity('Lookup_ST37_SourceFreshness').output.firstRow.ActualLatestDateTime",
+								"type": "Expression"
+							},
+							"type": "DateTime"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
 				"name": "Log_ST37_Copy_Failure",
 				"type": "SqlServerStoredProcedure",
 				"dependsOn": [
@@ -818,7 +897,10 @@
 			"WindowKeyValidated",
 			"WindowKeyPersisted",
 			"ExplicitTimingExpressionsV4",
-			"CommonErrorHandlerCanonicalParams"
+			"CommonErrorHandlerCanonicalParams",
+			"SourceFreshness",
+			"FreshnessThresholdHours24",
+			"LastModifiedDateTime"
 		]
 	},
 	"type": "Microsoft.DataFactory/factories/pipelines"
