@@ -16,7 +16,20 @@
 				},
 				"userProperties": [],
 				"typeProperties": {
-					"storedProcedureName": "[control].[usp_Close_Stale_PipelineRuns]"
+					"storedProcedureName": "[control].[usp_Close_Stale_PipelineRuns]",
+					"storedProcedureParameters": {
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"StaleAfterMinutes": {
+							"value": 60,
+							"type": "Int32"
+						}
+					}
 				},
 				"linkedServiceName": {
 					"referenceName": "LS_AzureSQL",
