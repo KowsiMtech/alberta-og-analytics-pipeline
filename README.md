@@ -10,48 +10,7 @@ The solution implements Azure data engineering patterns including **timestamp-ba
 
 ![Architecture Diagram](architecture/aer_architecture.png?v=2)
 
-### High-Level Architecture
-
-```text
-AER ST37 / On-Prem SQL Server              EIA REST API
-        |                                      |
-        | Self-Hosted Integration Runtime      | HTTPS / REST
-        +------------------+-------------------+
-                           |
-                           v
-                  Azure Data Factory
-        |
-        v
-ADLS Gen2 Bronze
-        |
-        | Incremental Window
-        v
-Synapse Serverless SQL / CETAS
-        |
-        +-------------------------+
-        |                         |
-        v                         v
-ADLS Silver Clean          ADLS Quarantine
-        |
-        v
-Azure SQL Staging
-        |
-        v
-Azure SQL Gold
-  - SCD Type 2 Dimensions
-  - SCD Type 1 Dimensions
-  - Facts
-  - Analytical View
-        |
-        +--> Gold Data Quality
-        +--> ADLS Gold Archive
-        +--> Reconciliation
-        |
-        v
-Power BI
-```
-
-**Pattern:** Batch Medallion Architecture with incremental ST37 processing, dimensional modeling, operational controls, and analytical delivery.
+**Pattern:** Batch Medallion Architecture with incremental ST37 processing, dimensional modeling, operational controls and analytical delivery.
 
 ---
 
