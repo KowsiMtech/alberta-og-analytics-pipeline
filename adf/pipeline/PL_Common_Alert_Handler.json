@@ -21,13 +21,13 @@
 					},
 					"url": "https://prod-09.canadacentral.logic.azure.com:443/workflows/0f30fd3ce8244e6ca35e26975a75b78b/triggers/When_an_HTTP_request_is_received/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2FWhen_an_HTTP_request_is_received%2Frun&sv=1.0&sig=MYvYiov1r2xdZ0YhffPIZ4VuKD38t7M8Yil53oKQOHU",
 					"body": {
-						"PipelineName": "@{pipeline().Pipeline}",
-						"PipelineRunId": "@{pipeline().RunId}",
-						"BatchId": "BATCH_ADF_TEST_001",
-						"WindowKey": "WINDOW_ADF_TEST_001",
-						"ActivityName": "InvokeLogicApp",
+						"PipelineName": "@{pipeline().parameters.PipelineName}",
+						"PipelineRunId": "@{pipeline().parameters.PipelineRunId}",
+						"BatchId": "@{pipeline().parameters.BatchId}",
+						"WindowKey": "@{pipeline().parameters.WindowKey}",
+						"ActivityName": "@{pipeline().parameters.ActivityName}",
 						"Status": "FAILED",
-						"ErrorMessage": "Testing ADF to Logic App integration"
+						"ErrorMessage": "@{pipeline().parameters.ErrorMessage}"
 					}
 				}
 			}
