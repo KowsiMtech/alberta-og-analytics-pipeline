@@ -1,0 +1,40 @@
+{
+	"name": "PL_Common_Alert_Handler",
+	"properties": {
+		"activities": [
+			{
+				"name": "InvokeLogicApp",
+				"type": "WebActivity",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"method": "POST",
+					"headers": {
+						"Content-Type": "application/json"
+					},
+					"url": "https://prod-09.canadacentral.logic.azure.com:443/workflows/0f30fd3ce8244e6ca35e26975a75b78b/triggers/When_an_HTTP_request_is_received/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2FWhen_an_HTTP_request_is_received%2Frun&sv=1.0&sig=MYvYiov1r2xdZ0YhffPIZ4VuKD38t7M8Yil53oKQOHU",
+					"body": {
+						"PipelineName": "@{pipeline().Pipeline}",
+						"PipelineRunId": "@{pipeline().RunId}",
+						"BatchId": "BATCH_ADF_TEST_001",
+						"WindowKey": "WINDOW_ADF_TEST_001",
+						"ActivityName": "InvokeLogicApp",
+						"Status": "FAILED",
+						"ErrorMessage": "Testing ADF to Logic App integration"
+					}
+				}
+			}
+		],
+		"folder": {
+			"name": "Common"
+		},
+		"annotations": []
+	}
+}
