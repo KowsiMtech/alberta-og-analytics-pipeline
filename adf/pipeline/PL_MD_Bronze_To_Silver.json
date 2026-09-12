@@ -180,6 +180,9 @@
 				"defaultValue": 0
 			}
 		},
+		"folder": {
+			"name": "Metadata_Driven_Pipeline"
+		},
 		"annotations": [
 			"ENTITY_DRIVEN",
 			"ST37_SEEDED"
