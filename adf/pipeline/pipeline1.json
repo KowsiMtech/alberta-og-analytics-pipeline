@@ -2,7 +2,7 @@
 	"name": "pipeline1",
 	"properties": {
 		"folder": {
-			"name": "Metadata_DRiven_Generic"
+			"name": "Metadata_Driven_Generic"
 		},
 		"annotations": []
 	}
