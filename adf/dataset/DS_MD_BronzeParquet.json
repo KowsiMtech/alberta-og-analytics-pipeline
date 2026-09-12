@@ -1,0 +1,35 @@
+{
+	"name": "DS_MD_BronzeParquet",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_ADLS_Gen2",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"EntityFolder": {
+				"type": "String"
+			},
+			"WindowKey": {
+				"type": "String"
+			}
+		},
+		"folder": {
+			"name": "Metadata_Driven_DS"
+		},
+		"annotations": [],
+		"type": "Parquet",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"fileName": "part.parquet",
+				"folderPath": {
+					"value": "@concat(dataset().EntityFolder,'/window=',dataset().WindowKey)",
+					"type": "Expression"
+				},
+				"fileSystem": "aer"
+			},
+			"compressionCodec": "snappy"
+		},
+		"schema": []
+	}
+}

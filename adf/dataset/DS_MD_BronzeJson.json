@@ -1,0 +1,41 @@
+{
+	"name": "DS_MD_BronzeJson",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_ADLS_Gen2",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"EntityFolder": {
+				"type": "String"
+			},
+			"WindowKey": {
+				"type": "String"
+			},
+			"FileName": {
+				"type": "String",
+				"defaultValue": "response.json"
+			}
+		},
+		"folder": {
+			"name": "Metadata_Driven_DS"
+		},
+		"annotations": [],
+		"type": "Json",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"fileName": {
+					"value": "@dataset().FileName",
+					"type": "Expression"
+				},
+				"folderPath": {
+					"value": "@concat(dataset().EntityFolder,'/window=',dataset().WindowKey)",
+					"type": "Expression"
+				},
+				"fileSystem": "aer"
+			}
+		},
+		"schema": {}
+	}
+}
