@@ -1,0 +1,217 @@
+{
+	"name": "PL_MD_Silver_To_Staging",
+	"properties": {
+		"activities": [
+			{
+				"name": "Lookup_Config",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('EXEC control.usp_GetEntityConfig @EntityName=''',pipeline().parameters.EntityName,'''')",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Copy_Silver_To_Staging",
+				"type": "Copy",
+				"dependsOn": [
+					{
+						"activity": "Lookup_Config",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "ParquetSource",
+						"storeSettings": {
+							"type": "AzureBlobFSReadSettings",
+							"recursive": true
+						},
+						"formatSettings": {
+							"type": "ParquetReadSettings"
+						}
+					},
+					"sink": {
+						"type": "AzureSqlSink",
+						"preCopyScript": {
+							"value": "@concat('TRUNCATE TABLE [',activity('Lookup_Config').output.firstRow.StagingSchema,'].[',activity('Lookup_Config').output.firstRow.StagingTable,']')",
+							"type": "Expression"
+						},
+						"writeBehavior": "insert"
+					},
+					"enableStaging": false
+				},
+				"inputs": [
+					{
+						"referenceName": "DS_MD_SilverParquet",
+						"type": "DatasetReference",
+						"parameters": {
+							"SilverFolder": {
+								"value": "@activity('Lookup_Config').output.firstRow.SilverFolder",
+								"type": "Expression"
+							},
+							"WindowKey": {
+								"value": "@pipeline().parameters.WindowKey",
+								"type": "Expression"
+							}
+						}
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "DS_MD_AzureSqlTable",
+						"type": "DatasetReference",
+						"parameters": {
+							"SchemaName": {
+								"value": "@activity('Lookup_Config').output.firstRow.StagingSchema",
+								"type": "Expression"
+							},
+							"TableName": {
+								"value": "@activity('Lookup_Config').output.firstRow.StagingTable",
+								"type": "Expression"
+							}
+						}
+					}
+				]
+			},
+			{
+				"name": "Get_Staging_Count",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Copy_Silver_To_Staging",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('SELECT COUNT_BIG(*) StagingCount FROM [',activity('Lookup_Config').output.firstRow.StagingSchema,'].[',activity('Lookup_Config').output.firstRow.StagingTable,']')",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Set_StagingCount",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Get_Staging_Count",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_StagingCount",
+					"value": {
+						"value": "@int(activity('Get_Staging_Count').output.firstRow.StagingCount)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Return_StagingCount",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set_StagingCount",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "pipelineReturnValue",
+					"value": [
+						{
+							"key": "StagingCount",
+							"value": {
+								"type": "Expression",
+								"content": "@string(variables('v_StagingCount'))"
+							}
+						}
+					],
+					"setSystemVariable": true
+				}
+			}
+		],
+		"parameters": {
+			"EntityName": {
+				"type": "String"
+			},
+			"BatchId": {
+				"type": "String"
+			},
+			"ParentRunId": {
+				"type": "String"
+			},
+			"WindowKey": {
+				"type": "String"
+			}
+		},
+		"variables": {
+			"v_StagingCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			}
+		},
+		"annotations": [
+			"ENTITY_DRIVEN",
+			"ST37_SEEDED"
+		]
+	}
+}

@@ -1,9 +1,9 @@
 {
-	"name": "PL_MD_Anomaly_Check",
+	"name": "PL_MD_Reconciliation",
 	"properties": {
 		"activities": [
 			{
-				"name": "Run_Anomaly",
+				"name": "Lookup_Run_Counts",
 				"type": "Lookup",
 				"dependsOn": [],
 				"policy": {
@@ -17,7 +17,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "@concat('EXEC control.usp_CheckAnomalies @EntityName=''',pipeline().parameters.EntityName,''', @PipelineRunId=''',pipeline().parameters.ParentRunId,''', @BatchId=''',pipeline().parameters.BatchId,''', @WindowKey=''',pipeline().parameters.WindowKey,'''')",
+							"value": "@concat('SELECT TOP 1 COALESCE(SourceRowCount,0) SourceCount,COALESCE(SilverRowCount,0) SilverCount,COALESCE(QuarantineRowCount,0) QuarantineCount,COALESCE(StagingRowCount,0) StagingCount FROM control.PipelineControl WHERE EntityName=''',pipeline().parameters.EntityName,''' AND PipelineRunId=''',pipeline().parameters.ParentRunId,''' AND BatchId=''',pipeline().parameters.BatchId,''' ORDER BY PipelineControlId DESC')",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
@@ -26,15 +26,15 @@
 						"referenceName": "DS_MD_Control",
 						"type": "DatasetReference"
 					},
-					"firstRowOnly": false
+					"firstRowOnly": true
 				}
 			},
 			{
-				"name": "Count_Alerts",
+				"name": "Reconcile",
 				"type": "Lookup",
 				"dependsOn": [
 					{
-						"activity": "Run_Anomaly",
+						"activity": "Lookup_Run_Counts",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -51,7 +51,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "@concat('SELECT COUNT(*) AlertCount FROM control.AnomalyResult WHERE EntityName=''',pipeline().parameters.EntityName,''' AND PipelineRunId=''',pipeline().parameters.ParentRunId,''' AND Severity IN (''WARNING'',''CRITICAL'')')",
+							"value": "@concat('EXEC control.usp_ReconcileCounts @EntityName=''',pipeline().parameters.EntityName,''', @PipelineRunId=''',pipeline().parameters.ParentRunId,''', @BatchId=''',pipeline().parameters.BatchId,''', @WindowKey=''',pipeline().parameters.WindowKey,''', @SourceCount=',string(activity('Lookup_Run_Counts').output.firstRow.SourceCount),', @SilverCount=',string(activity('Lookup_Run_Counts').output.firstRow.SilverCount),', @QuarantineCount=',string(activity('Lookup_Run_Counts').output.firstRow.QuarantineCount),', @StagingCount=',string(activity('Lookup_Run_Counts').output.firstRow.StagingCount))",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
@@ -64,11 +64,11 @@
 				}
 			},
 			{
-				"name": "If_Anomaly",
+				"name": "If_Reconciliation_Failed",
 				"type": "IfCondition",
 				"dependsOn": [
 					{
-						"activity": "Count_Alerts",
+						"activity": "Reconcile",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -77,12 +77,12 @@
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
-						"value": "@greater(int(activity('Count_Alerts').output.firstRow.AlertCount),0)",
+						"value": "@equals(activity('Reconcile').output.firstRow.ReconciliationStatus,'FAIL')",
 						"type": "Expression"
 					},
 					"ifTrueActivities": [
 						{
-							"name": "Alert_Anomaly",
+							"name": "Alert_Reconciliation",
 							"type": "ExecutePipeline",
 							"dependsOn": [],
 							"policy": {
@@ -90,6 +90,10 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Common_Alert_Handler",
+									"type": "PipelineReference"
+								},
 								"waitOnCompletion": true,
 								"parameters": {
 									"EntityName": {
@@ -108,11 +112,29 @@
 										"value": "@pipeline().parameters.WindowKey",
 										"type": "Expression"
 									},
-									"AlertType": "PERFORMANCE_ANOMALY",
-									"Severity": "WARNING",
-									"ActivityName": "AnomalyCheck",
-									"Message": "Historical duration/throughput/row-count anomaly detected"
+									"AlertType": "RECONCILIATION_FAILURE",
+									"Severity": "CRITICAL",
+									"ActivityName": "Reconciliation",
+									"Message": "Source/Silver/Quarantine/Staging count mismatch"
 								}
+							}
+						},
+						{
+							"name": "Fail_Reconciliation",
+							"type": "Fail",
+							"dependsOn": [
+								{
+									"activity": "Alert_Reconciliation",
+									"dependencyConditions": [
+										"Succeeded",
+										"Failed"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"message": "Reconciliation failed",
+								"errorCode": "RECONCILIATION_FAILED"
 							}
 						}
 					]

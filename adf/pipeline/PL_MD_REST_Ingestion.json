@@ -1,0 +1,341 @@
+{
+	"name": "PL_MD_REST_Ingestion",
+	"properties": {
+		"activities": [
+			{
+				"name": "Lookup_Config",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('EXEC control.usp_GetEntityConfig @EntityName=''',pipeline().parameters.EntityName,'''')",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Switch_Pagination",
+				"type": "Switch",
+				"dependsOn": [
+					{
+						"activity": "Lookup_Config",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"on": {
+						"value": "@coalesce(activity('Lookup_Config').output.firstRow.PaginationType,'NONE')",
+						"type": "Expression"
+					},
+					"cases": [
+						{
+							"value": "NONE",
+							"activities": [
+								{
+									"name": "Copy_REST_To_Bronze",
+									"type": "Copy",
+									"dependsOn": [],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"source": {
+											"type": "RestSource",
+											"httpRequestTimeout": "00:02:00",
+											"requestInterval": "00.00:00:00.010",
+											"requestMethod": "GET"
+										},
+										"sink": {
+											"type": "JsonSink",
+											"storeSettings": {
+												"type": "AzureBlobFSWriteSettings"
+											},
+											"formatSettings": {
+												"type": "JsonWriteSettings"
+											}
+										},
+										"enableStaging": false
+									},
+									"inputs": [
+										{
+											"referenceName": "DS_MD_REST",
+											"type": "DatasetReference",
+											"parameters": {
+												"RelativeUrl": {
+													"value": "@activity('Lookup_Config').output.firstRow.ApiRelativeUrl",
+													"type": "Expression"
+												}
+											}
+										}
+									],
+									"outputs": [
+										{
+											"referenceName": "DS_MD_BronzeJson",
+											"type": "DatasetReference",
+											"parameters": {
+												"EntityFolder": {
+													"value": "@activity('Lookup_Config').output.firstRow.BronzeFolder",
+													"type": "Expression"
+												},
+												"WindowKey": {
+													"value": "@pipeline().parameters.WindowKey",
+													"type": "Expression"
+												},
+												"FileName": "response.json"
+											}
+										}
+									]
+								}
+							]
+						},
+						{
+							"value": "PAGE_NUMBER",
+							"activities": [
+								{
+									"name": "Until_Pages_Done",
+									"type": "Until",
+									"dependsOn": [],
+									"userProperties": [],
+									"typeProperties": {
+										"expression": {
+											"value": "@equals(variables('v_HasMore'),false)",
+											"type": "Expression"
+										},
+										"activities": [
+											{
+												"name": "Get_Page",
+												"type": "WebActivity",
+												"dependsOn": [],
+												"policy": {
+													"retry": 0,
+													"retryIntervalInSeconds": 30,
+													"secureOutput": false,
+													"secureInput": false
+												},
+												"userProperties": [],
+												"typeProperties": {
+													"method": "GET",
+													"url": {
+														"value": "@concat(activity('Lookup_Config').output.firstRow.ApiBaseUrl,activity('Lookup_Config').output.firstRow.ApiRelativeUrl,'?',activity('Lookup_Config').output.firstRow.PageNumberParameter,'=',string(variables('v_Page')),'&',activity('Lookup_Config').output.firstRow.PageSizeParameter,'=',string(activity('Lookup_Config').output.firstRow.PageSize))",
+														"type": "Expression"
+													}
+												}
+											},
+											{
+												"name": "Set_HasMore",
+												"type": "SetVariable",
+												"dependsOn": [
+													{
+														"activity": "Get_Page",
+														"dependencyConditions": [
+															"Succeeded"
+														]
+													}
+												],
+												"policy": {
+													"secureOutput": false,
+													"secureInput": false
+												},
+												"userProperties": [],
+												"typeProperties": {
+													"variableName": "v_HasMore",
+													"value": {
+														"value": "@greater(length(activity('Get_Page').output[activity('Lookup_Config').output.firstRow.ItemsPropertyName]),0)",
+														"type": "Expression"
+													}
+												}
+											},
+											{
+												"name": "Increment_Page",
+												"type": "SetVariable",
+												"dependsOn": [
+													{
+														"activity": "Set_HasMore",
+														"dependencyConditions": [
+															"Succeeded"
+														]
+													}
+												],
+												"policy": {
+													"secureOutput": false,
+													"secureInput": false
+												},
+												"userProperties": [],
+												"typeProperties": {
+													"variableName": "v_Page",
+													"value": {
+														"value": "@add(variables('v_Page'),1)",
+														"type": "Expression"
+													}
+												}
+											}
+										],
+										"timeout": "0.12:00:00"
+									}
+								}
+							]
+						},
+						{
+							"value": "NEXT_LINK",
+							"activities": [
+								{
+									"name": "Set_Initial_URL",
+									"type": "SetVariable",
+									"dependsOn": [],
+									"policy": {
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "v_NextUrl",
+										"value": {
+											"value": "@concat(activity('Lookup_Config').output.firstRow.ApiBaseUrl,activity('Lookup_Config').output.firstRow.ApiRelativeUrl)",
+											"type": "Expression"
+										}
+									}
+								},
+								{
+									"name": "Until_NextLink_Empty",
+									"type": "Until",
+									"dependsOn": [
+										{
+											"activity": "Set_Initial_URL",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"userProperties": [],
+									"typeProperties": {
+										"expression": {
+											"value": "@empty(variables('v_NextUrl'))",
+											"type": "Expression"
+										},
+										"activities": [
+											{
+												"name": "Get_Next_Page",
+												"type": "WebActivity",
+												"dependsOn": [],
+												"policy": {
+													"retry": 0,
+													"retryIntervalInSeconds": 30,
+													"secureOutput": false,
+													"secureInput": false
+												},
+												"userProperties": [],
+												"typeProperties": {
+													"method": "GET",
+													"url": {
+														"value": "@variables('v_NextUrl')",
+														"type": "Expression"
+													}
+												}
+											},
+											{
+												"name": "Set_NextUrl",
+												"type": "SetVariable",
+												"dependsOn": [
+													{
+														"activity": "Get_Next_Page",
+														"dependencyConditions": [
+															"Succeeded"
+														]
+													}
+												],
+												"policy": {
+													"secureOutput": false,
+													"secureInput": false
+												},
+												"userProperties": [],
+												"typeProperties": {
+													"variableName": "v_NextUrl",
+													"value": {
+														"value": "@string(activity('Get_Next_Page').output[activity('Lookup_Config').output.firstRow.NextLinkPropertyName])",
+														"type": "Expression"
+													}
+												}
+											}
+										],
+										"timeout": "0.12:00:00"
+									}
+								}
+							]
+						}
+					],
+					"defaultActivities": [
+						{
+							"name": "Fail_Unsupported_Pagination",
+							"type": "Fail",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"message": "Unsupported REST pagination type",
+								"errorCode": "UNSUPPORTED_PAGINATION"
+							}
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"EntityName": {
+				"type": "String"
+			},
+			"BatchId": {
+				"type": "String"
+			},
+			"ParentRunId": {
+				"type": "String"
+			},
+			"WindowKey": {
+				"type": "String"
+			},
+			"ExtractionStart": {
+				"type": "String"
+			},
+			"EndWatermark": {
+				"type": "String"
+			}
+		},
+		"variables": {
+			"v_Page": {
+				"type": "Integer",
+				"defaultValue": 1
+			},
+			"v_HasMore": {
+				"type": "Boolean",
+				"defaultValue": true
+			},
+			"v_NextUrl": {
+				"type": "String"
+			}
+		},
+		"annotations": [
+			"ENTITY_DRIVEN",
+			"ST37_SEEDED"
+		]
+	}
+}

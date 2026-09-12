@@ -1,0 +1,203 @@
+{
+	"name": "PL_MD_Source_Freshness",
+	"properties": {
+		"activities": [
+			{
+				"name": "Lookup_Config",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('EXEC control.usp_GetEntityConfig @EntityName=''',pipeline().parameters.EntityName,'''')",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "If_SQL_Freshness",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Lookup_Config",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@and(equals(activity('Lookup_Config').output.firstRow.SourceType,'SQL'),not(empty(activity('Lookup_Config').output.firstRow.WatermarkColumn)))",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Lookup_Latest_Source_Time",
+							"type": "Lookup",
+							"dependsOn": [],
+							"policy": {
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "SqlSource",
+									"sqlReaderQuery": {
+										"value": "@concat('SELECT MAX(',activity('Lookup_Config').output.firstRow.WatermarkColumn,') ActualLatestTime FROM [',activity('Lookup_Config').output.firstRow.SourceSchema,'].[',activity('Lookup_Config').output.firstRow.SourceObject,']')",
+										"type": "Expression"
+									},
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "DS_MD_SourceSql",
+									"type": "DatasetReference",
+									"parameters": {
+										"SchemaName": {
+											"value": "@activity('Lookup_Config').output.firstRow.SourceSchema",
+											"type": "Expression"
+										},
+										"TableName": {
+											"value": "@activity('Lookup_Config').output.firstRow.SourceObject",
+											"type": "Expression"
+										}
+									}
+								},
+								"firstRowOnly": true
+							}
+						},
+						{
+							"name": "Evaluate_Freshness",
+							"type": "Lookup",
+							"dependsOn": [
+								{
+									"activity": "Lookup_Latest_Source_Time",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "@concat('EXEC control.usp_EvaluateFreshness @EntityName=''',pipeline().parameters.EntityName,''', @PipelineRunId=''',pipeline().parameters.ParentRunId,''', @ActualLatestTime=''',activity('Lookup_Latest_Source_Time').output.firstRow.ActualLatestTime,'''')",
+										"type": "Expression"
+									},
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "DS_MD_Control",
+									"type": "DatasetReference"
+								},
+								"firstRowOnly": true
+							}
+						},
+						{
+							"name": "If_Stale",
+							"type": "IfCondition",
+							"dependsOn": [
+								{
+									"activity": "Evaluate_Freshness",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"expression": {
+									"value": "@equals(activity('Evaluate_Freshness').output.firstRow.FreshnessStatus,'STALE')",
+									"type": "Expression"
+								},
+								"ifTrueActivities": [
+									{
+										"name": "Alert_Stale",
+										"type": "ExecutePipeline",
+										"dependsOn": [],
+										"policy": {
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"pipeline": {
+												"referenceName": "PL_MD_Common_Alert_Handler",
+												"type": "PipelineReference"
+											},
+											"waitOnCompletion": true,
+											"parameters": {
+												"EntityName": {
+													"value": "@pipeline().parameters.EntityName",
+													"type": "Expression"
+												},
+												"BatchId": {
+													"value": "@pipeline().parameters.BatchId",
+													"type": "Expression"
+												},
+												"ParentRunId": {
+													"value": "@pipeline().parameters.ParentRunId",
+													"type": "Expression"
+												},
+												"WindowKey": {
+													"value": "@pipeline().parameters.WindowKey",
+													"type": "Expression"
+												},
+												"AlertType": "SOURCE_STALE",
+												"Severity": "WARNING",
+												"ActivityName": "SourceFreshness",
+												"Message": "Source freshness threshold breached"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"EntityName": {
+				"type": "String"
+			},
+			"BatchId": {
+				"type": "String"
+			},
+			"ParentRunId": {
+				"type": "String"
+			},
+			"WindowKey": {
+				"type": "String"
+			}
+		},
+		"annotations": [
+			"ENTITY_DRIVEN",
+			"ST37_SEEDED"
+		]
+	}
+}

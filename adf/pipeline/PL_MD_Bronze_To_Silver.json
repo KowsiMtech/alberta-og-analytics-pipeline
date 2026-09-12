@@ -1,0 +1,188 @@
+{
+	"name": "PL_MD_Bronze_To_Silver",
+	"properties": {
+		"activities": [
+			{
+				"name": "Lookup_Transform",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('SELECT ScriptTemplate FROM control.EntityTransformScript WHERE EntityName=''',pipeline().parameters.EntityName,''' AND StageName=''BRONZE_TO_SILVER'' AND IsActive=1')",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Run_Entity_BronzeToSilver",
+				"type": "Script",
+				"dependsOn": [
+					{
+						"activity": "Lookup_Transform",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "LS_Synapse_Serverless",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": {
+								"value": "@replace(activity('Lookup_Transform').output.firstRow.ScriptTemplate,'{{WindowKey}}',pipeline().parameters.WindowKey)",
+								"type": "Expression"
+							}
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			},
+			{
+				"name": "Set_SilverCount",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Run_Entity_BronzeToSilver",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_SilverCount",
+					"value": {
+						"value": "@int(activity('Run_Entity_BronzeToSilver').output.resultSets[0].rows[0].SilverCount)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_QuarantineCount",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Run_Entity_BronzeToSilver",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_QuarantineCount",
+					"value": {
+						"value": "@int(activity('Run_Entity_BronzeToSilver').output.resultSets[0].rows[0].QuarantineCount)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Return_Counts",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set_SilverCount",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set_QuarantineCount",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "pipelineReturnValue",
+					"value": [
+						{
+							"key": "SilverCount",
+							"value": {
+								"type": "Expression",
+								"content": "@string(variables('v_SilverCount'))"
+							}
+						},
+						{
+							"key": "QuarantineCount",
+							"value": {
+								"type": "Expression",
+								"content": "@string(variables('v_QuarantineCount'))"
+							}
+						}
+					],
+					"setSystemVariable": true
+				}
+			}
+		],
+		"parameters": {
+			"EntityName": {
+				"type": "String"
+			},
+			"BatchId": {
+				"type": "String"
+			},
+			"ParentRunId": {
+				"type": "String"
+			},
+			"WindowKey": {
+				"type": "String"
+			}
+		},
+		"variables": {
+			"v_SilverCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_QuarantineCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			}
+		},
+		"annotations": [
+			"ENTITY_DRIVEN",
+			"ST37_SEEDED"
+		]
+	}
+}

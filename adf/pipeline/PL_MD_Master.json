@@ -1,0 +1,301 @@
+{
+	"name": "PL_MD_Master",
+	"properties": {
+		"activities": [
+			{
+				"name": "Set_BatchId",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_BatchId",
+					"value": {
+						"value": "@concat('BATCH_',formatDateTime(utcnow(),'yyyyMMdd_HHmmss'),'_',substring(pipeline().RunId,0,8))",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Reconcile_Stale_Runs",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Set_BatchId",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "control.usp_ReconcileStaleRuns"
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Lookup_Waves",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Reconcile_Stale_Runs",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": "EXEC control.usp_GetExecutionWaves",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "ForEach_Wave",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Lookup_Waves",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Lookup_Waves').output.value",
+						"type": "Expression"
+					},
+					"isSequential": true,
+					"activities": [
+						{
+							"name": "Lookup_Entities",
+							"type": "Lookup",
+							"dependsOn": [],
+							"policy": {
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "@concat('EXEC control.usp_GetEntitiesForWave @ExecutionWave=',string(item().ExecutionWave))",
+										"type": "Expression"
+									},
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "DS_MD_Control",
+									"type": "DatasetReference"
+								},
+								"firstRowOnly": false
+							}
+						},
+						{
+							"name": "ForEach_Entity",
+							"type": "ForEach",
+							"dependsOn": [
+								{
+									"activity": "Lookup_Entities",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"items": {
+									"value": "@activity('Lookup_Entities').output.value",
+									"type": "Expression"
+								},
+								"isSequential": false,
+								"batchCount": 4,
+								"activities": [
+									{
+										"name": "Dependency_Status",
+										"type": "Lookup",
+										"dependsOn": [],
+										"policy": {
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"source": {
+												"type": "AzureSqlSource",
+												"sqlReaderQuery": {
+													"value": "@concat('EXEC control.usp_GetDependencyStatus @EntityName=''',item().EntityName,''', @BatchId=''',variables('v_BatchId'),'''')",
+													"type": "Expression"
+												},
+												"partitionOption": "None"
+											},
+											"dataset": {
+												"referenceName": "DS_MD_Control",
+												"type": "DatasetReference"
+											},
+											"firstRowOnly": true
+										}
+									},
+									{
+										"name": "If_Dependency_Ready",
+										"type": "IfCondition",
+										"dependsOn": [
+											{
+												"activity": "Dependency_Status",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"userProperties": [],
+										"typeProperties": {
+											"expression": {
+												"value": "@equals(activity('Dependency_Status').output.firstRow.DependencyStatus,'READY')",
+												"type": "Expression"
+											},
+											"ifFalseActivities": [
+												{
+													"name": "Alert_Dependency_Blocked",
+													"type": "ExecutePipeline",
+													"dependsOn": [],
+													"policy": {
+														"secureInput": false
+													},
+													"userProperties": [],
+													"typeProperties": {
+														"pipeline": {
+															"referenceName": "PL_MD_Common_Alert_Handler",
+															"type": "PipelineReference"
+														},
+														"waitOnCompletion": true,
+														"parameters": {
+															"EntityName": {
+																"value": "@item().EntityName",
+																"type": "Expression"
+															},
+															"BatchId": {
+																"value": "@variables('v_BatchId')",
+																"type": "Expression"
+															},
+															"ParentRunId": {
+																"value": "@pipeline().RunId",
+																"type": "Expression"
+															},
+															"WindowKey": "",
+															"AlertType": "DEPENDENCY_BLOCKED",
+															"Severity": "WARNING",
+															"ActivityName": "DependencyCheck",
+															"Message": "Entity dependency not satisfied"
+														}
+													}
+												}
+											],
+											"ifTrueActivities": [
+												{
+													"name": "Run_Entity",
+													"type": "ExecutePipeline",
+													"dependsOn": [],
+													"policy": {
+														"secureInput": false
+													},
+													"userProperties": [],
+													"typeProperties": {
+														"pipeline": {
+															"referenceName": "PL_MD_Entity_Orchestrator",
+															"type": "PipelineReference"
+														},
+														"waitOnCompletion": true,
+														"parameters": {
+															"EntityName": {
+																"value": "@item().EntityName",
+																"type": "Expression"
+															},
+															"BatchId": {
+																"value": "@variables('v_BatchId')",
+																"type": "Expression"
+															},
+															"ParentRunId": {
+																"value": "@pipeline().RunId",
+																"type": "Expression"
+															},
+															"RunMode": {
+																"value": "@pipeline().parameters.RunMode",
+																"type": "Expression"
+															},
+															"WindowStart": {
+																"value": "@pipeline().parameters.WindowStart",
+																"type": "Expression"
+															},
+															"WindowEnd": {
+																"value": "@pipeline().parameters.WindowEnd",
+																"type": "Expression"
+															}
+														}
+													}
+												}
+											]
+										}
+									}
+								]
+							}
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"RunMode": {
+				"type": "String",
+				"defaultValue": "NORMAL"
+			},
+			"WindowStart": {
+				"type": "String"
+			},
+			"WindowEnd": {
+				"type": "String"
+			}
+		},
+		"variables": {
+			"v_BatchId": {
+				"type": "String"
+			}
+		},
+		"annotations": [
+			"ENTITY_DRIVEN",
+			"ST37_SEEDED"
+		]
+	}
+}
