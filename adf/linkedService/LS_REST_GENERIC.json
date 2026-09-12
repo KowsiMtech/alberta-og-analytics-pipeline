@@ -1,12 +1,20 @@
 {
-	"name": "LS_REST_Generic",
+	"name": "LS_REST_GENERIC",
 	"properties": {
-		"annotations": [],
+		"parameters": {
+			"BaseUrl": {
+				"type": "String"
+			}
+		},
 		"type": "RestService",
 		"typeProperties": {
-			"url": "kjj",
+			"url": {
+				"value": "@linkedService().BaseUrl",
+				"type": "Expression"
+			},
 			"enableServerCertificateValidation": true,
 			"authenticationType": "Anonymous"
-		}
+		},
+		"annotations": []
 	}
 }
