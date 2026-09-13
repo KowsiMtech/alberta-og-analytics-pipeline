@@ -309,12 +309,33 @@
 															},
 															"partitionOption": "None"
 														},
+														"sink": {
+															"type": "ParquetSink",
+															"storeSettings": {
+																"type": "AzureBlobFSWriteSettings"
+															},
+															"formatSettings": {
+																"type": "ParquetWriteSettings"
+															}
+														},
 														"enableStaging": false
 													},
 													"inputs": [
 														{
 															"referenceName": "DS_MD_Control",
 															"type": "DatasetReference"
+														}
+													],
+													"outputs": [
+														{
+															"referenceName": "DS_MD_ArchiveParquet",
+															"type": "DatasetReference",
+															"parameters": {
+																"FolderPath": {
+																	"value": "@replace(item().TargetFolderTemplate,'{{UTC_DATE}}',variables('v_ArchiveDate'))",
+																	"type": "Expression"
+																}
+															}
 														}
 													]
 												},
@@ -422,7 +443,7 @@
 			}
 		},
 		"folder": {
-			"name": "Metadata_Driven_Pipeline"
+			"name": "Metadata_Driven"
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",

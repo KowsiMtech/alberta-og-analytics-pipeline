@@ -1,10 +1,10 @@
 {
 	"name": "PL_MD_Source_Freshness",
 	"properties": {
-		"description": "Source freshness is evaluated separately from data presence; stale source alerts do not masquerade as NO_DATA.",
+		"description": "Hybrid source freshness: SQL computes/persists status, severity, lag and true consecutive-stale streak; ADF visibly decides alert/continue/fail.",
 		"activities": [
 			{
-				"name": "Lookup_Config",
+				"name": "Lookup_Freshness_Policy",
 				"type": "Lookup",
 				"dependsOn": [],
 				"policy": {
@@ -18,7 +18,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "@concat('EXEC control.usp_GetEntityConfig @EntityName=''',pipeline().parameters.EntityName,'''')",
+							"value": "@concat('EXEC control.usp_GetSourceFreshnessConfig @EntityName=''',pipeline().parameters.EntityName,'''')",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
@@ -35,7 +35,7 @@
 				"type": "IfCondition",
 				"dependsOn": [
 					{
-						"activity": "Lookup_Config",
+						"activity": "Lookup_Freshness_Policy",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -44,12 +44,12 @@
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
-						"value": "@and(equals(activity('Lookup_Config').output.firstRow.FreshnessCheckEnabled,true),equals(activity('Lookup_Config').output.firstRow.SourceType,'SQL'))",
+						"value": "@equals(activity('Lookup_Freshness_Policy').output.firstRow.IsEnabled,true)",
 						"type": "Expression"
 					},
 					"ifFalseActivities": [
 						{
-							"name": "Log_Freshness_Skipped",
+							"name": "Log_Freshness_Check_Disabled",
 							"type": "SqlServerStoredProcedure",
 							"dependsOn": [],
 							"policy": {
@@ -97,6 +97,10 @@
 									"Status": {
 										"value": "SKIPPED",
 										"type": "String"
+									},
+									"Detail": {
+										"value": "Freshness check disabled by metadata policy.",
+										"type": "String"
 									}
 								}
 							},
@@ -108,38 +112,136 @@
 					],
 					"ifTrueActivities": [
 						{
-							"name": "Lookup_Source_Latest_Time",
-							"type": "Lookup",
+							"name": "Switch_Freshness_SourceType",
+							"type": "Switch",
 							"dependsOn": [],
-							"policy": {
-								"retry": 0,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
-							},
 							"userProperties": [],
 							"typeProperties": {
-								"source": {
-									"type": "SqlSource",
-									"sqlReaderQuery": {
-										"value": "@concat('SELECT MAX(',activity('Lookup_Config').output.firstRow.WatermarkColumn,') ActualLatestTime FROM ',activity('Lookup_Config').output.firstRow.SourceSchema,'.',activity('Lookup_Config').output.firstRow.SourceObject)",
-										"type": "Expression"
+								"on": {
+									"value": "@activity('Lookup_Freshness_Policy').output.firstRow.SourceType",
+									"type": "Expression"
+								},
+								"cases": [
+									{
+										"value": "SQL",
+										"activities": [
+											{
+												"name": "Lookup_SQL_Source_Latest_Time",
+												"type": "Lookup",
+												"dependsOn": [],
+												"policy": {
+													"retry": 0,
+													"retryIntervalInSeconds": 30,
+													"secureOutput": false,
+													"secureInput": false
+												},
+												"userProperties": [],
+												"typeProperties": {
+													"source": {
+														"type": "SqlSource",
+														"sqlReaderQuery": {
+															"value": "@concat('SELECT MAX(',activity('Lookup_Freshness_Policy').output.firstRow.WatermarkColumn,') ActualLatestTime FROM ',activity('Lookup_Freshness_Policy').output.firstRow.SourceSchema,'.',activity('Lookup_Freshness_Policy').output.firstRow.SourceObject)",
+															"type": "Expression"
+														},
+														"partitionOption": "None"
+													},
+													"dataset": {
+														"referenceName": "DS_MD_SourceSql",
+														"type": "DatasetReference"
+													},
+													"firstRowOnly": true
+												}
+											},
+											{
+												"name": "Evaluate_SQL_Freshness",
+												"type": "Lookup",
+												"dependsOn": [
+													{
+														"activity": "Lookup_SQL_Source_Latest_Time",
+														"dependencyConditions": [
+															"Succeeded"
+														]
+													}
+												],
+												"policy": {
+													"retry": 0,
+													"retryIntervalInSeconds": 30,
+													"secureOutput": false,
+													"secureInput": false
+												},
+												"userProperties": [],
+												"typeProperties": {
+													"source": {
+														"type": "AzureSqlSource",
+														"sqlReaderQuery": {
+															"value": "@concat('EXEC control.usp_CheckSourceFreshnessV3 @EntityName=''',pipeline().parameters.EntityName,''', @BatchId=''',pipeline().parameters.BatchId,''', @PipelineRunId=''',pipeline().parameters.ParentRunId,''', @WindowKey=''',pipeline().parameters.WindowKey,''', @SourceLastModified=',if(empty(activity('Lookup_SQL_Source_Latest_Time').output.firstRow.ActualLatestTime),'NULL',concat('''',activity('Lookup_SQL_Source_Latest_Time').output.firstRow.ActualLatestTime,'''')))",
+															"type": "Expression"
+														},
+														"partitionOption": "None"
+													},
+													"dataset": {
+														"referenceName": "DS_MD_Control",
+														"type": "DatasetReference"
+													},
+													"firstRowOnly": true
+												}
+											}
+										]
 									},
-									"partitionOption": "None"
-								},
-								"dataset": {
-									"referenceName": "DS_MD_SourceSql",
-									"type": "DatasetReference"
-								},
-								"firstRowOnly": true
+									{
+										"value": "REST_API",
+										"activities": [
+											{
+												"name": "Evaluate_REST_Freshness_Unknown",
+												"description": "Generic REST freshness defaults to UNKNOWN unless an API-specific freshness probe is configured upstream; policy decides fail-open/fail-closed.",
+												"type": "Lookup",
+												"dependsOn": [],
+												"policy": {
+													"retry": 0,
+													"retryIntervalInSeconds": 30,
+													"secureOutput": false,
+													"secureInput": false
+												},
+												"userProperties": [],
+												"typeProperties": {
+													"source": {
+														"type": "AzureSqlSource",
+														"sqlReaderQuery": {
+															"value": "@concat('EXEC control.usp_CheckSourceFreshnessV3 @EntityName=''',pipeline().parameters.EntityName,''', @BatchId=''',pipeline().parameters.BatchId,''', @PipelineRunId=''',pipeline().parameters.ParentRunId,''', @WindowKey=''',pipeline().parameters.WindowKey,''', @SourceLastModified=NULL')",
+															"type": "Expression"
+														},
+														"partitionOption": "None"
+													},
+													"dataset": {
+														"referenceName": "DS_MD_Control",
+														"type": "DatasetReference"
+													},
+													"firstRowOnly": true
+												}
+											}
+										]
+									}
+								],
+								"defaultActivities": [
+									{
+										"name": "Fail_Unsupported_Freshness_Source",
+										"type": "Fail",
+										"dependsOn": [],
+										"userProperties": [],
+										"typeProperties": {
+											"message": "Unsupported SourceType for freshness evaluation.",
+											"errorCode": "FRESHNESS_SOURCE_UNSUPPORTED"
+										}
+									}
+								]
 							}
 						},
 						{
-							"name": "Evaluate_Freshness",
+							"name": "Lookup_Freshness_Result",
 							"type": "Lookup",
 							"dependsOn": [
 								{
-									"activity": "Lookup_Source_Latest_Time",
+									"activity": "Switch_Freshness_SourceType",
 									"dependencyConditions": [
 										"Succeeded"
 									]
@@ -156,7 +258,7 @@
 								"source": {
 									"type": "AzureSqlSource",
 									"sqlReaderQuery": {
-										"value": "@concat('EXEC control.usp_EvaluateFreshness @EntityName=''',pipeline().parameters.EntityName,''', @PipelineRunId=''',pipeline().parameters.ParentRunId,''', @ActualLatestTime=',if(empty(activity('Lookup_Source_Latest_Time').output.firstRow.ActualLatestTime),'NULL',concat('''',activity('Lookup_Source_Latest_Time').output.firstRow.ActualLatestTime,'''')))",
+										"value": "@concat('SELECT TOP 1 FreshnessStatus,Severity,LagMinutes,ConsecutiveStaleCount,ConsecutiveStaleBreached,PolicyAction,Detail FROM control.SourceFreshnessResult WHERE EntityName=''',pipeline().parameters.EntityName,''' AND BatchId=''',pipeline().parameters.BatchId,''' AND ISNULL(WindowKey,'''')=''',pipeline().parameters.WindowKey,''' ORDER BY FreshnessResultId DESC')",
 										"type": "Expression"
 									},
 									"partitionOption": "None"
@@ -173,7 +275,7 @@
 							"type": "SetVariable",
 							"dependsOn": [
 								{
-									"activity": "Evaluate_Freshness",
+									"activity": "Lookup_Freshness_Result",
 									"dependencyConditions": [
 										"Succeeded"
 									]
@@ -187,17 +289,167 @@
 							"typeProperties": {
 								"variableName": "v_FreshnessStatus",
 								"value": {
-									"value": "@activity('Evaluate_Freshness').output.firstRow.FreshnessStatus",
+									"value": "@activity('Lookup_Freshness_Result').output.firstRow.FreshnessStatus",
 									"type": "Expression"
 								}
 							}
 						},
 						{
-							"name": "Update_Freshness_Status",
+							"name": "Set_Severity",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Lookup_Freshness_Result",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_Severity",
+								"value": {
+									"value": "@activity('Lookup_Freshness_Result').output.firstRow.Severity",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Set_LagMinutes",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Lookup_Freshness_Result",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_LagMinutes",
+								"value": {
+									"value": "@int(coalesce(activity('Lookup_Freshness_Result').output.firstRow.LagMinutes,0))",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Set_StaleCount",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Lookup_Freshness_Result",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_ConsecutiveStaleCount",
+								"value": {
+									"value": "@int(activity('Lookup_Freshness_Result').output.firstRow.ConsecutiveStaleCount)",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Set_StreakBreached",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Lookup_Freshness_Result",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_ConsecutiveStaleBreached",
+								"value": {
+									"value": "@bool(activity('Lookup_Freshness_Result').output.firstRow.ConsecutiveStaleBreached)",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Set_PolicyAction",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Lookup_Freshness_Result",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_PolicyAction",
+								"value": {
+									"value": "@activity('Lookup_Freshness_Result').output.firstRow.PolicyAction",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Update_Run_Freshness_Metric",
 							"type": "SqlServerStoredProcedure",
 							"dependsOn": [
 								{
 									"activity": "Set_FreshnessStatus",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Set_Severity",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Set_LagMinutes",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Set_StaleCount",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Set_StreakBreached",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Set_PolicyAction",
 									"dependencyConditions": [
 										"Succeeded"
 									]
@@ -249,11 +501,11 @@
 							}
 						},
 						{
-							"name": "If_Source_Stale",
-							"type": "IfCondition",
+							"name": "Switch_Freshness_Status",
+							"type": "Switch",
 							"dependsOn": [
 								{
-									"activity": "Update_Freshness_Status",
+									"activity": "Update_Run_Freshness_Metric",
 									"dependencyConditions": [
 										"Succeeded"
 									]
@@ -261,113 +513,955 @@
 							],
 							"userProperties": [],
 							"typeProperties": {
-								"expression": {
-									"value": "@equals(variables('v_FreshnessStatus'),'STALE')",
+								"on": {
+									"value": "@variables('v_FreshnessStatus')",
 									"type": "Expression"
 								},
-								"ifFalseActivities": [
+								"cases": [
 									{
-										"name": "Log_Freshness_OK",
-										"type": "SqlServerStoredProcedure",
-										"dependsOn": [],
-										"policy": {
-											"retry": 0,
-											"retryIntervalInSeconds": 30,
-											"secureOutput": false,
-											"secureInput": false
-										},
-										"userProperties": [],
-										"typeProperties": {
-											"storedProcedureName": "control.usp_RecordStage",
-											"storedProcedureParameters": {
-												"EntityName": {
-													"value": {
-														"value": "@pipeline().parameters.EntityName",
-														"type": "Expression"
-													},
-													"type": "String"
+										"value": "FRESH",
+										"activities": [
+											{
+												"name": "Log_FRESH",
+												"type": "SqlServerStoredProcedure",
+												"dependsOn": [],
+												"policy": {
+													"retry": 0,
+													"retryIntervalInSeconds": 30,
+													"secureOutput": false,
+													"secureInput": false
 												},
-												"PipelineRunId": {
-													"value": {
-														"value": "@pipeline().parameters.ParentRunId",
-														"type": "Expression"
-													},
-													"type": "String"
+												"userProperties": [],
+												"typeProperties": {
+													"storedProcedureName": "control.usp_RecordStage",
+													"storedProcedureParameters": {
+														"EntityName": {
+															"value": {
+																"value": "@pipeline().parameters.EntityName",
+																"type": "Expression"
+															},
+															"type": "String"
+														},
+														"PipelineRunId": {
+															"value": {
+																"value": "@pipeline().parameters.ParentRunId",
+																"type": "Expression"
+															},
+															"type": "String"
+														},
+														"BatchId": {
+															"value": {
+																"value": "@pipeline().parameters.BatchId",
+																"type": "Expression"
+															},
+															"type": "String"
+														},
+														"WindowKey": {
+															"value": {
+																"value": "@pipeline().parameters.WindowKey",
+																"type": "Expression"
+															},
+															"type": "String"
+														},
+														"StageName": {
+															"value": "SOURCE_FRESHNESS",
+															"type": "String"
+														},
+														"Status": {
+															"value": "SUCCESS",
+															"type": "String"
+														},
+														"Detail": {
+															"value": {
+																"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=',variables('v_PolicyAction'))",
+																"type": "Expression"
+															},
+															"type": "Expression"
+														}
+													}
 												},
-												"BatchId": {
-													"value": {
-														"value": "@pipeline().parameters.BatchId",
-														"type": "Expression"
-													},
-													"type": "String"
-												},
-												"WindowKey": {
-													"value": {
-														"value": "@pipeline().parameters.WindowKey",
-														"type": "Expression"
-													},
-													"type": "String"
-												},
-												"StageName": {
-													"value": "SOURCE_FRESHNESS",
-													"type": "String"
-												},
-												"Status": {
-													"value": "SUCCESS",
-													"type": "String"
-												},
-												"Detail": {
-													"value": {
-														"value": "@variables('v_FreshnessStatus')",
-														"type": "Expression"
-													},
-													"type": "String"
+												"linkedServiceName": {
+													"referenceName": "LS_AzureSQL",
+													"type": "LinkedServiceReference"
 												}
 											}
-										},
-										"linkedServiceName": {
-											"referenceName": "LS_AzureSQL",
-											"type": "LinkedServiceReference"
-										}
+										]
+									},
+									{
+										"value": "STALE",
+										"activities": [
+											{
+												"name": "Switch_STALE_Severity",
+												"type": "Switch",
+												"dependsOn": [],
+												"userProperties": [],
+												"typeProperties": {
+													"on": {
+														"value": "@variables('v_Severity')",
+														"type": "Expression"
+													},
+													"cases": [
+														{
+															"value": "NONE",
+															"activities": [
+																{
+																	"name": "Log_STALE_Below_Warning",
+																	"type": "SqlServerStoredProcedure",
+																	"dependsOn": [],
+																	"policy": {
+																		"retry": 0,
+																		"retryIntervalInSeconds": 30,
+																		"secureOutput": false,
+																		"secureInput": false
+																	},
+																	"userProperties": [],
+																	"typeProperties": {
+																		"storedProcedureName": "control.usp_RecordStage",
+																		"storedProcedureParameters": {
+																			"EntityName": {
+																				"value": {
+																					"value": "@pipeline().parameters.EntityName",
+																					"type": "Expression"
+																				},
+																				"type": "String"
+																			},
+																			"PipelineRunId": {
+																				"value": {
+																					"value": "@pipeline().parameters.ParentRunId",
+																					"type": "Expression"
+																				},
+																				"type": "String"
+																			},
+																			"BatchId": {
+																				"value": {
+																					"value": "@pipeline().parameters.BatchId",
+																					"type": "Expression"
+																				},
+																				"type": "String"
+																			},
+																			"WindowKey": {
+																				"value": {
+																					"value": "@pipeline().parameters.WindowKey",
+																					"type": "Expression"
+																				},
+																				"type": "String"
+																			},
+																			"StageName": {
+																				"value": "SOURCE_FRESHNESS",
+																				"type": "String"
+																			},
+																			"Status": {
+																				"value": "WARNING",
+																				"type": "String"
+																			},
+																			"Detail": {
+																				"value": {
+																					"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=',variables('v_PolicyAction'))",
+																					"type": "Expression"
+																				},
+																				"type": "Expression"
+																			}
+																		}
+																	},
+																	"linkedServiceName": {
+																		"referenceName": "LS_AzureSQL",
+																		"type": "LinkedServiceReference"
+																	}
+																}
+															]
+														},
+														{
+															"value": "WARNING",
+															"activities": [
+																{
+																	"name": "Alert_STALE_WARNING",
+																	"type": "ExecutePipeline",
+																	"dependsOn": [],
+																	"policy": {
+																		"secureInput": false
+																	},
+																	"userProperties": [],
+																	"typeProperties": {
+																		"pipeline": {
+																			"referenceName": "PL_MD_Common_Alert_Handler",
+																			"type": "PipelineReference"
+																		},
+																		"waitOnCompletion": true,
+																		"parameters": {
+																			"EntityName": {
+																				"value": "@pipeline().parameters.EntityName",
+																				"type": "Expression"
+																			},
+																			"BatchId": {
+																				"value": "@pipeline().parameters.BatchId",
+																				"type": "Expression"
+																			},
+																			"ParentRunId": {
+																				"value": "@pipeline().parameters.ParentRunId",
+																				"type": "Expression"
+																			},
+																			"WindowKey": {
+																				"value": "@pipeline().parameters.WindowKey",
+																				"type": "Expression"
+																			},
+																			"AlertType": "SOURCE_STALE_WARNING",
+																			"Severity": {
+																				"value": "@variables('v_Severity')",
+																				"type": "Expression"
+																			},
+																			"ActivityName": "SOURCE_FRESHNESS",
+																			"Message": {
+																				"value": "@concat('Source stale. LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')))",
+																				"type": "Expression"
+																			}
+																		}
+																	}
+																},
+																{
+																	"name": "If_WARNING_Action_FAIL",
+																	"type": "IfCondition",
+																	"dependsOn": [
+																		{
+																			"activity": "Alert_STALE_WARNING",
+																			"dependencyConditions": [
+																				"Succeeded"
+																			]
+																		}
+																	],
+																	"userProperties": [],
+																	"typeProperties": {
+																		"expression": {
+																			"value": "@equals(variables('v_PolicyAction'),'FAIL')",
+																			"type": "Expression"
+																		},
+																		"ifFalseActivities": [
+																			{
+																				"name": "Log_WARNING_Continue",
+																				"type": "SqlServerStoredProcedure",
+																				"dependsOn": [],
+																				"policy": {
+																					"retry": 0,
+																					"retryIntervalInSeconds": 30,
+																					"secureOutput": false,
+																					"secureInput": false
+																				},
+																				"userProperties": [],
+																				"typeProperties": {
+																					"storedProcedureName": "control.usp_RecordStage",
+																					"storedProcedureParameters": {
+																						"EntityName": {
+																							"value": {
+																								"value": "@pipeline().parameters.EntityName",
+																								"type": "Expression"
+																							},
+																							"type": "String"
+																						},
+																						"PipelineRunId": {
+																							"value": {
+																								"value": "@pipeline().parameters.ParentRunId",
+																								"type": "Expression"
+																							},
+																							"type": "String"
+																						},
+																						"BatchId": {
+																							"value": {
+																								"value": "@pipeline().parameters.BatchId",
+																								"type": "Expression"
+																							},
+																							"type": "String"
+																						},
+																						"WindowKey": {
+																							"value": {
+																								"value": "@pipeline().parameters.WindowKey",
+																								"type": "Expression"
+																							},
+																							"type": "String"
+																						},
+																						"StageName": {
+																							"value": "SOURCE_FRESHNESS",
+																							"type": "String"
+																						},
+																						"Status": {
+																							"value": "WARNING",
+																							"type": "String"
+																						},
+																						"Detail": {
+																							"value": {
+																								"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=',variables('v_PolicyAction'))",
+																								"type": "Expression"
+																							},
+																							"type": "Expression"
+																						}
+																					}
+																				},
+																				"linkedServiceName": {
+																					"referenceName": "LS_AzureSQL",
+																					"type": "LinkedServiceReference"
+																				}
+																			}
+																		],
+																		"ifTrueActivities": [
+																			{
+																				"name": "Log_WARNING_Block",
+																				"type": "SqlServerStoredProcedure",
+																				"dependsOn": [],
+																				"policy": {
+																					"retry": 0,
+																					"retryIntervalInSeconds": 30,
+																					"secureOutput": false,
+																					"secureInput": false
+																				},
+																				"userProperties": [],
+																				"typeProperties": {
+																					"storedProcedureName": "control.usp_RecordStage",
+																					"storedProcedureParameters": {
+																						"EntityName": {
+																							"value": {
+																								"value": "@pipeline().parameters.EntityName",
+																								"type": "Expression"
+																							},
+																							"type": "String"
+																						},
+																						"PipelineRunId": {
+																							"value": {
+																								"value": "@pipeline().parameters.ParentRunId",
+																								"type": "Expression"
+																							},
+																							"type": "String"
+																						},
+																						"BatchId": {
+																							"value": {
+																								"value": "@pipeline().parameters.BatchId",
+																								"type": "Expression"
+																							},
+																							"type": "String"
+																						},
+																						"WindowKey": {
+																							"value": {
+																								"value": "@pipeline().parameters.WindowKey",
+																								"type": "Expression"
+																							},
+																							"type": "String"
+																						},
+																						"StageName": {
+																							"value": "SOURCE_FRESHNESS",
+																							"type": "String"
+																						},
+																						"Status": {
+																							"value": "FAILED",
+																							"type": "String"
+																						},
+																						"Detail": {
+																							"value": {
+																								"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=',variables('v_PolicyAction'))",
+																								"type": "Expression"
+																							},
+																							"type": "Expression"
+																						}
+																					}
+																				},
+																				"linkedServiceName": {
+																					"referenceName": "LS_AzureSQL",
+																					"type": "LinkedServiceReference"
+																				}
+																			},
+																			{
+																				"name": "Fail_Freshness_WARNING_Policy",
+																				"type": "Fail",
+																				"dependsOn": [
+																					{
+																						"activity": "Log_WARNING_Block",
+																						"dependencyConditions": [
+																							"Succeeded"
+																						]
+																					}
+																				],
+																				"userProperties": [],
+																				"typeProperties": {
+																					"message": "Source freshness warning policy is configured to fail.",
+																					"errorCode": "SOURCE_FRESHNESS_WARNING_FAIL"
+																				}
+																			}
+																		]
+																	}
+																}
+															]
+														},
+														{
+															"value": "CRITICAL",
+															"activities": [
+																{
+																	"name": "Alert_STALE_CRITICAL",
+																	"type": "ExecutePipeline",
+																	"dependsOn": [],
+																	"policy": {
+																		"secureInput": false
+																	},
+																	"userProperties": [],
+																	"typeProperties": {
+																		"pipeline": {
+																			"referenceName": "PL_MD_Common_Alert_Handler",
+																			"type": "PipelineReference"
+																		},
+																		"waitOnCompletion": true,
+																		"parameters": {
+																			"EntityName": {
+																				"value": "@pipeline().parameters.EntityName",
+																				"type": "Expression"
+																			},
+																			"BatchId": {
+																				"value": "@pipeline().parameters.BatchId",
+																				"type": "Expression"
+																			},
+																			"ParentRunId": {
+																				"value": "@pipeline().parameters.ParentRunId",
+																				"type": "Expression"
+																			},
+																			"WindowKey": {
+																				"value": "@pipeline().parameters.WindowKey",
+																				"type": "Expression"
+																			},
+																			"AlertType": "SOURCE_STALE_CRITICAL",
+																			"Severity": "CRITICAL",
+																			"ActivityName": "SOURCE_FRESHNESS",
+																			"Message": {
+																				"value": "@concat('Source critically stale. LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')))",
+																				"type": "Expression"
+																			}
+																		}
+																	}
+																},
+																{
+																	"name": "If_CRITICAL_Action_FAIL",
+																	"type": "IfCondition",
+																	"dependsOn": [
+																		{
+																			"activity": "Alert_STALE_CRITICAL",
+																			"dependencyConditions": [
+																				"Succeeded"
+																			]
+																		}
+																	],
+																	"userProperties": [],
+																	"typeProperties": {
+																		"expression": {
+																			"value": "@equals(variables('v_PolicyAction'),'FAIL')",
+																			"type": "Expression"
+																		},
+																		"ifFalseActivities": [
+																			{
+																				"name": "Log_CRITICAL_Continue",
+																				"type": "SqlServerStoredProcedure",
+																				"dependsOn": [],
+																				"policy": {
+																					"retry": 0,
+																					"retryIntervalInSeconds": 30,
+																					"secureOutput": false,
+																					"secureInput": false
+																				},
+																				"userProperties": [],
+																				"typeProperties": {
+																					"storedProcedureName": "control.usp_RecordStage",
+																					"storedProcedureParameters": {
+																						"EntityName": {
+																							"value": {
+																								"value": "@pipeline().parameters.EntityName",
+																								"type": "Expression"
+																							},
+																							"type": "String"
+																						},
+																						"PipelineRunId": {
+																							"value": {
+																								"value": "@pipeline().parameters.ParentRunId",
+																								"type": "Expression"
+																							},
+																							"type": "String"
+																						},
+																						"BatchId": {
+																							"value": {
+																								"value": "@pipeline().parameters.BatchId",
+																								"type": "Expression"
+																							},
+																							"type": "String"
+																						},
+																						"WindowKey": {
+																							"value": {
+																								"value": "@pipeline().parameters.WindowKey",
+																								"type": "Expression"
+																							},
+																							"type": "String"
+																						},
+																						"StageName": {
+																							"value": "SOURCE_FRESHNESS",
+																							"type": "String"
+																						},
+																						"Status": {
+																							"value": "WARNING",
+																							"type": "String"
+																						},
+																						"Detail": {
+																							"value": {
+																								"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=',variables('v_PolicyAction'))",
+																								"type": "Expression"
+																							},
+																							"type": "Expression"
+																						}
+																					}
+																				},
+																				"linkedServiceName": {
+																					"referenceName": "LS_AzureSQL",
+																					"type": "LinkedServiceReference"
+																				}
+																			}
+																		],
+																		"ifTrueActivities": [
+																			{
+																				"name": "Log_CRITICAL_Block",
+																				"type": "SqlServerStoredProcedure",
+																				"dependsOn": [],
+																				"policy": {
+																					"retry": 0,
+																					"retryIntervalInSeconds": 30,
+																					"secureOutput": false,
+																					"secureInput": false
+																				},
+																				"userProperties": [],
+																				"typeProperties": {
+																					"storedProcedureName": "control.usp_RecordStage",
+																					"storedProcedureParameters": {
+																						"EntityName": {
+																							"value": {
+																								"value": "@pipeline().parameters.EntityName",
+																								"type": "Expression"
+																							},
+																							"type": "String"
+																						},
+																						"PipelineRunId": {
+																							"value": {
+																								"value": "@pipeline().parameters.ParentRunId",
+																								"type": "Expression"
+																							},
+																							"type": "String"
+																						},
+																						"BatchId": {
+																							"value": {
+																								"value": "@pipeline().parameters.BatchId",
+																								"type": "Expression"
+																							},
+																							"type": "String"
+																						},
+																						"WindowKey": {
+																							"value": {
+																								"value": "@pipeline().parameters.WindowKey",
+																								"type": "Expression"
+																							},
+																							"type": "String"
+																						},
+																						"StageName": {
+																							"value": "SOURCE_FRESHNESS",
+																							"type": "String"
+																						},
+																						"Status": {
+																							"value": "FAILED",
+																							"type": "String"
+																						},
+																						"Detail": {
+																							"value": {
+																								"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=',variables('v_PolicyAction'))",
+																								"type": "Expression"
+																							},
+																							"type": "Expression"
+																						}
+																					}
+																				},
+																				"linkedServiceName": {
+																					"referenceName": "LS_AzureSQL",
+																					"type": "LinkedServiceReference"
+																				}
+																			},
+																			{
+																				"name": "Fail_Freshness_CRITICAL_Policy",
+																				"type": "Fail",
+																				"dependsOn": [
+																					{
+																						"activity": "Log_CRITICAL_Block",
+																						"dependencyConditions": [
+																							"Succeeded"
+																						]
+																					}
+																				],
+																				"userProperties": [],
+																				"typeProperties": {
+																					"message": "Critical source freshness policy blocked ingestion.",
+																					"errorCode": "SOURCE_FRESHNESS_CRITICAL_FAIL"
+																				}
+																			}
+																		]
+																	}
+																}
+															]
+														}
+													],
+													"defaultActivities": [
+														{
+															"name": "Log_STALE_Unexpected_Severity",
+															"type": "SqlServerStoredProcedure",
+															"dependsOn": [],
+															"policy": {
+																"retry": 0,
+																"retryIntervalInSeconds": 30,
+																"secureOutput": false,
+																"secureInput": false
+															},
+															"userProperties": [],
+															"typeProperties": {
+																"storedProcedureName": "control.usp_RecordStage",
+																"storedProcedureParameters": {
+																	"EntityName": {
+																		"value": {
+																			"value": "@pipeline().parameters.EntityName",
+																			"type": "Expression"
+																		},
+																		"type": "String"
+																	},
+																	"PipelineRunId": {
+																		"value": {
+																			"value": "@pipeline().parameters.ParentRunId",
+																			"type": "Expression"
+																		},
+																		"type": "String"
+																	},
+																	"BatchId": {
+																		"value": {
+																			"value": "@pipeline().parameters.BatchId",
+																			"type": "Expression"
+																		},
+																		"type": "String"
+																	},
+																	"WindowKey": {
+																		"value": {
+																			"value": "@pipeline().parameters.WindowKey",
+																			"type": "Expression"
+																		},
+																		"type": "String"
+																	},
+																	"StageName": {
+																		"value": "SOURCE_FRESHNESS",
+																		"type": "String"
+																	},
+																	"Status": {
+																		"value": "WARNING",
+																		"type": "String"
+																	},
+																	"Detail": {
+																		"value": {
+																			"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=',variables('v_PolicyAction'))",
+																			"type": "Expression"
+																		},
+																		"type": "Expression"
+																	}
+																}
+															},
+															"linkedServiceName": {
+																"referenceName": "LS_AzureSQL",
+																"type": "LinkedServiceReference"
+															}
+														}
+													]
+												}
+											}
+										]
+									},
+									{
+										"value": "UNKNOWN",
+										"activities": [
+											{
+												"name": "Alert_Freshness_UNKNOWN",
+												"type": "ExecutePipeline",
+												"dependsOn": [],
+												"policy": {
+													"secureInput": false
+												},
+												"userProperties": [],
+												"typeProperties": {
+													"pipeline": {
+														"referenceName": "PL_MD_Common_Alert_Handler",
+														"type": "PipelineReference"
+													},
+													"waitOnCompletion": true,
+													"parameters": {
+														"EntityName": {
+															"value": "@pipeline().parameters.EntityName",
+															"type": "Expression"
+														},
+														"BatchId": {
+															"value": "@pipeline().parameters.BatchId",
+															"type": "Expression"
+														},
+														"ParentRunId": {
+															"value": "@pipeline().parameters.ParentRunId",
+															"type": "Expression"
+														},
+														"WindowKey": {
+															"value": "@pipeline().parameters.WindowKey",
+															"type": "Expression"
+														},
+														"AlertType": "SOURCE_FRESHNESS_UNKNOWN",
+														"Severity": "WARNING",
+														"ActivityName": "SOURCE_FRESHNESS",
+														"Message": "Source latest-modified timestamp could not be determined."
+													}
+												}
+											},
+											{
+												"name": "If_UNKNOWN_Action_FAIL",
+												"type": "IfCondition",
+												"dependsOn": [
+													{
+														"activity": "Alert_Freshness_UNKNOWN",
+														"dependencyConditions": [
+															"Succeeded"
+														]
+													}
+												],
+												"userProperties": [],
+												"typeProperties": {
+													"expression": {
+														"value": "@equals(variables('v_PolicyAction'),'FAIL')",
+														"type": "Expression"
+													},
+													"ifFalseActivities": [
+														{
+															"name": "Log_UNKNOWN_Continue",
+															"type": "SqlServerStoredProcedure",
+															"dependsOn": [],
+															"policy": {
+																"retry": 0,
+																"retryIntervalInSeconds": 30,
+																"secureOutput": false,
+																"secureInput": false
+															},
+															"userProperties": [],
+															"typeProperties": {
+																"storedProcedureName": "control.usp_RecordStage",
+																"storedProcedureParameters": {
+																	"EntityName": {
+																		"value": {
+																			"value": "@pipeline().parameters.EntityName",
+																			"type": "Expression"
+																		},
+																		"type": "String"
+																	},
+																	"PipelineRunId": {
+																		"value": {
+																			"value": "@pipeline().parameters.ParentRunId",
+																			"type": "Expression"
+																		},
+																		"type": "String"
+																	},
+																	"BatchId": {
+																		"value": {
+																			"value": "@pipeline().parameters.BatchId",
+																			"type": "Expression"
+																		},
+																		"type": "String"
+																	},
+																	"WindowKey": {
+																		"value": {
+																			"value": "@pipeline().parameters.WindowKey",
+																			"type": "Expression"
+																		},
+																		"type": "String"
+																	},
+																	"StageName": {
+																		"value": "SOURCE_FRESHNESS",
+																		"type": "String"
+																	},
+																	"Status": {
+																		"value": "WARNING",
+																		"type": "String"
+																	},
+																	"Detail": {
+																		"value": {
+																			"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=',variables('v_PolicyAction'))",
+																			"type": "Expression"
+																		},
+																		"type": "Expression"
+																	}
+																}
+															},
+															"linkedServiceName": {
+																"referenceName": "LS_AzureSQL",
+																"type": "LinkedServiceReference"
+															}
+														}
+													],
+													"ifTrueActivities": [
+														{
+															"name": "Log_UNKNOWN_Block",
+															"type": "SqlServerStoredProcedure",
+															"dependsOn": [],
+															"policy": {
+																"retry": 0,
+																"retryIntervalInSeconds": 30,
+																"secureOutput": false,
+																"secureInput": false
+															},
+															"userProperties": [],
+															"typeProperties": {
+																"storedProcedureName": "control.usp_RecordStage",
+																"storedProcedureParameters": {
+																	"EntityName": {
+																		"value": {
+																			"value": "@pipeline().parameters.EntityName",
+																			"type": "Expression"
+																		},
+																		"type": "String"
+																	},
+																	"PipelineRunId": {
+																		"value": {
+																			"value": "@pipeline().parameters.ParentRunId",
+																			"type": "Expression"
+																		},
+																		"type": "String"
+																	},
+																	"BatchId": {
+																		"value": {
+																			"value": "@pipeline().parameters.BatchId",
+																			"type": "Expression"
+																		},
+																		"type": "String"
+																	},
+																	"WindowKey": {
+																		"value": {
+																			"value": "@pipeline().parameters.WindowKey",
+																			"type": "Expression"
+																		},
+																		"type": "String"
+																	},
+																	"StageName": {
+																		"value": "SOURCE_FRESHNESS",
+																		"type": "String"
+																	},
+																	"Status": {
+																		"value": "FAILED",
+																		"type": "String"
+																	},
+																	"Detail": {
+																		"value": {
+																			"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=',variables('v_PolicyAction'))",
+																			"type": "Expression"
+																		},
+																		"type": "Expression"
+																	}
+																}
+															},
+															"linkedServiceName": {
+																"referenceName": "LS_AzureSQL",
+																"type": "LinkedServiceReference"
+															}
+														},
+														{
+															"name": "Fail_Freshness_UNKNOWN_Policy",
+															"type": "Fail",
+															"dependsOn": [
+																{
+																	"activity": "Log_UNKNOWN_Block",
+																	"dependencyConditions": [
+																		"Succeeded"
+																	]
+																}
+															],
+															"userProperties": [],
+															"typeProperties": {
+																"message": "Source freshness is UNKNOWN and policy is configured to fail.",
+																"errorCode": "SOURCE_FRESHNESS_UNKNOWN_FAIL"
+															}
+														}
+													]
+												}
+											}
+										]
+									},
+									{
+										"value": "DISABLED",
+										"activities": [
+											{
+												"name": "Log_Freshness_Disabled",
+												"type": "SqlServerStoredProcedure",
+												"dependsOn": [],
+												"policy": {
+													"retry": 0,
+													"retryIntervalInSeconds": 30,
+													"secureOutput": false,
+													"secureInput": false
+												},
+												"userProperties": [],
+												"typeProperties": {
+													"storedProcedureName": "control.usp_RecordStage",
+													"storedProcedureParameters": {
+														"EntityName": {
+															"value": {
+																"value": "@pipeline().parameters.EntityName",
+																"type": "Expression"
+															},
+															"type": "String"
+														},
+														"PipelineRunId": {
+															"value": {
+																"value": "@pipeline().parameters.ParentRunId",
+																"type": "Expression"
+															},
+															"type": "String"
+														},
+														"BatchId": {
+															"value": {
+																"value": "@pipeline().parameters.BatchId",
+																"type": "Expression"
+															},
+															"type": "String"
+														},
+														"WindowKey": {
+															"value": {
+																"value": "@pipeline().parameters.WindowKey",
+																"type": "Expression"
+															},
+															"type": "String"
+														},
+														"StageName": {
+															"value": "SOURCE_FRESHNESS",
+															"type": "String"
+														},
+														"Status": {
+															"value": "SKIPPED",
+															"type": "String"
+														},
+														"Detail": {
+															"value": {
+																"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=',variables('v_PolicyAction'))",
+																"type": "Expression"
+															},
+															"type": "Expression"
+														}
+													}
+												},
+												"linkedServiceName": {
+													"referenceName": "LS_AzureSQL",
+													"type": "LinkedServiceReference"
+												}
+											}
+										]
 									}
 								],
-								"ifTrueActivities": [
+								"defaultActivities": [
 									{
-										"name": "Alert_Source_Stale",
-										"type": "ExecutePipeline",
+										"name": "Fail_Unexpected_Freshness_Status",
+										"type": "Fail",
 										"dependsOn": [],
-										"policy": {
-											"secureInput": false
-										},
 										"userProperties": [],
 										"typeProperties": {
-											"pipeline": {
-												"referenceName": "PL_MD_Common_Alert_Handler",
-												"type": "PipelineReference"
-											},
-											"waitOnCompletion": true,
-											"parameters": {
-												"EntityName": {
-													"value": "@pipeline().parameters.EntityName",
-													"type": "Expression"
-												},
-												"BatchId": {
-													"value": "@pipeline().parameters.BatchId",
-													"type": "Expression"
-												},
-												"ParentRunId": {
-													"value": "@pipeline().parameters.ParentRunId",
-													"type": "Expression"
-												},
-												"WindowKey": {
-													"value": "@pipeline().parameters.WindowKey",
-													"type": "Expression"
-												},
-												"AlertType": "SOURCE_STALE",
-												"Severity": "WARNING",
-												"ActivityName": "SOURCE_FRESHNESS",
-												"Message": "Source latest watermark is older than configured freshness threshold."
-											}
+											"message": "Unexpected FreshnessStatus returned by control.usp_CheckSourceFreshnessV3.",
+											"errorCode": "FRESHNESS_STATUS_INVALID"
 										}
 									}
 								]
@@ -394,15 +1488,33 @@
 		"variables": {
 			"v_FreshnessStatus": {
 				"type": "String"
+			},
+			"v_Severity": {
+				"type": "String"
+			},
+			"v_LagMinutes": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_ConsecutiveStaleCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_ConsecutiveStaleBreached": {
+				"type": "Boolean",
+				"defaultValue": false
+			},
+			"v_PolicyAction": {
+				"type": "String",
+				"defaultValue": "CONTINUE"
 			}
 		},
 		"folder": {
-			"name": "Metadata_Driven_Pipeline"
+			"name": "Metadata_Driven"
 		},
 		"annotations": [
-			"ENTITY_DRIVEN",
-			"ENTERPRISE_HARDENED",
-			"ST37_SEEDED"
+			"HYBRID_ORCHESTRATION",
+			"SOURCE_FRESHNESS_V3"
 		]
 	}
 }

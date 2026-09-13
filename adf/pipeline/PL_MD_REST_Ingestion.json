@@ -87,6 +87,10 @@
 												"RelativeUrl": {
 													"value": "@activity('Lookup_Config').output.firstRow.ApiRelativeUrl",
 													"type": "Expression"
+												},
+												"BaseUrl": {
+													"value": "@activity('Lookup_Config').output.firstRow.ApiBaseUrl",
+													"type": "Expression"
 												}
 											}
 										}
@@ -335,7 +339,7 @@
 			}
 		},
 		"folder": {
-			"name": "Metadata_Driven_Pipeline"
+			"name": "Metadata_Driven"
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",

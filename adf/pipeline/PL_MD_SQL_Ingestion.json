@@ -677,7 +677,7 @@
 			}
 		},
 		"folder": {
-			"name": "Metadata_Driven_Pipeline"
+			"name": "Metadata_Driven"
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",

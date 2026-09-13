@@ -1877,6 +1877,10 @@
 																		},
 																		"userProperties": [],
 																		"typeProperties": {
+																			"pipeline": {
+																				"referenceName": "PL_MD_Gold_Validation",
+																				"type": "PipelineReference"
+																			},
 																			"waitOnCompletion": true,
 																			"parameters": {
 																				"EntityName": {
@@ -2908,7 +2912,7 @@
 			}
 		},
 		"folder": {
-			"name": "Metadata_Driven_Pipeline"
+			"name": "Metadata_Driven"
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",
