@@ -1,0 +1,164 @@
+{
+	"name": "PL_MD_Process_Entity_Gated",
+	"properties": {
+		"activities": [
+			{
+				"name": "Check_Dependency_Ready",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('EXEC control.usp_GetDependencyStatus @EntityName=''',pipeline().parameters.EntityName,''', @BatchId=''',pipeline().parameters.BatchId,'''')",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "If_Dependency_Ready",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Check_Dependency_Ready",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(activity('Check_Dependency_Ready').output.firstRow.IsReady,1)",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
+						{
+							"name": "Log_Dependency_Not_Ready",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [],
+							"policy": {
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "control.usp_LogSkippedRunV4",
+								"storedProcedureParameters": {
+									"EntityName": {
+										"value": {
+											"value": "@pipeline().parameters.EntityName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BatchId": {
+										"value": {
+											"value": "@pipeline().parameters.BatchId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"Reason": {
+										"value": "DEPENDENCY_NOT_READY",
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						}
+					],
+					"ifTrueActivities": [
+						{
+							"name": "Run_Entity_Recovery_Controller",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Entity_Recovery_Controller",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"EntityName": {
+										"value": "@pipeline().parameters.EntityName",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().parameters.ParentRunId",
+										"type": "Expression"
+									},
+									"RunMode": {
+										"value": "@pipeline().parameters.RunMode",
+										"type": "Expression"
+									},
+									"WindowStart": {
+										"value": "@pipeline().parameters.WindowStart",
+										"type": "Expression"
+									},
+									"WindowEnd": {
+										"value": "@pipeline().parameters.WindowEnd",
+										"type": "Expression"
+									},
+									"RecoveryMode": "AUTO",
+									"ResumeFromStage": ""
+								}
+							}
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"EntityName": {
+				"type": "String"
+			},
+			"BatchId": {
+				"type": "String"
+			},
+			"ParentRunId": {
+				"type": "String"
+			},
+			"RunMode": {
+				"type": "String"
+			},
+			"WindowStart": {
+				"type": "String"
+			},
+			"WindowEnd": {
+				"type": "String"
+			}
+		},
+		"folder": {
+			"name": "Metadata_Driven"
+		},
+		"annotations": []
+	}
+}

@@ -1,0 +1,114 @@
+{
+	"name": "PL_MD_Stage_Gate",
+	"properties": {
+		"description": "Durable stage checkpoint gate. SQL stores checkpoint state; ADF visibly branches on EXECUTE vs SKIP.",
+		"activities": [
+			{
+				"name": "Begin_Or_Reuse_Stage",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('EXEC control.usp_BeginStageV4 @EntityName=''',replace(pipeline().parameters.EntityName,'''',''''''),''', @BatchId=''',replace(pipeline().parameters.BatchId,'''',''''''),''', @WindowKey=''',replace(pipeline().parameters.WindowKey,'''',''''''),''', @StageName=''',replace(pipeline().parameters.StageName,'''',''''''),''', @PipelineRunId=''',replace(pipeline().parameters.ParentRunId,'''',''''''),''', @RecoveryMode=''',replace(pipeline().parameters.RecoveryMode,'''',''''''),'''')",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Return_Stage_Gate",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Begin_Or_Reuse_Stage",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "pipelineReturnValue",
+					"value": [
+						{
+							"key": "Decision",
+							"value": {
+								"type": "Expression",
+								"content": "@string(activity('Begin_Or_Reuse_Stage').output.firstRow.Decision)"
+							}
+						},
+						{
+							"key": "AttemptNo",
+							"value": {
+								"type": "Expression",
+								"content": "@string(activity('Begin_Or_Reuse_Stage').output.firstRow.AttemptNo)"
+							}
+						},
+						{
+							"key": "RowCount",
+							"value": {
+								"type": "Expression",
+								"content": "@string(coalesce(activity('Begin_Or_Reuse_Stage').output.firstRow.RowCount,0))"
+							}
+						},
+						{
+							"key": "OutputJson",
+							"value": {
+								"type": "Expression",
+								"content": "@string(coalesce(activity('Begin_Or_Reuse_Stage').output.firstRow.OutputJson,'{}'))"
+							}
+						}
+					],
+					"setSystemVariable": true
+				}
+			}
+		],
+		"parameters": {
+			"EntityName": {
+				"type": "String"
+			},
+			"BatchId": {
+				"type": "String"
+			},
+			"ParentRunId": {
+				"type": "String"
+			},
+			"WindowKey": {
+				"type": "String"
+			},
+			"StageName": {
+				"type": "String"
+			},
+			"RecoveryMode": {
+				"type": "String"
+			}
+		},
+		"folder": {
+			"name": "Metadata_Driven"
+		},
+		"annotations": [
+			"ENTITY_DRIVEN",
+			"FULL_RESUME",
+			"STAGE_CHECKPOINT"
+		]
+	}
+}

@@ -15,9 +15,93 @@
 				"typeProperties": {
 					"variableName": "v_BatchId",
 					"value": {
-						"value": "@concat(formatDateTime(utcnow(),'yyyyMMddHHmmss'),'_',substring(guid(),0,8))",
+						"value": "@if(empty(pipeline().parameters.ResumeBatchId),guid(),pipeline().parameters.ResumeBatchId)",
 						"type": "Expression"
 					}
+				}
+			},
+			{
+				"name": "Register_Batch_Audit_Request",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Set_BatchId",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "control.usp_RegisterBatchExecutionRequestV6",
+					"storedProcedureParameters": {
+						"BatchId": {
+							"value": {
+								"value": "@variables('v_BatchId')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"MasterPipelineRunId": {
+							"value": {
+								"value": "@pipeline().RunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"RunMode": {
+							"value": {
+								"value": "@pipeline().parameters.RunMode",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"RecoveryMode": {
+							"value": {
+								"value": "@pipeline().parameters.RecoveryMode",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"TriggerType": {
+							"value": {
+								"value": "@pipeline().parameters.TriggerType",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"RequestedBy": {
+							"value": {
+								"value": "@pipeline().parameters.RequestedBy",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"RequestReason": {
+							"value": {
+								"value": "@pipeline().parameters.RequestReason",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ChangeTicket": {
+							"value": {
+								"value": "@pipeline().parameters.ChangeTicket",
+								"type": "Expression"
+							},
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
 				}
 			},
 			{
@@ -25,7 +109,7 @@
 				"type": "SqlServerStoredProcedure",
 				"dependsOn": [
 					{
-						"activity": "Set_BatchId",
+						"activity": "Register_Batch_Audit_Request",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -100,180 +184,41 @@
 					"isSequential": true,
 					"activities": [
 						{
-							"name": "Lookup_Entities_For_Wave",
-							"type": "Lookup",
+							"name": "Run_Wave",
+							"type": "ExecutePipeline",
 							"dependsOn": [],
 							"policy": {
-								"retry": 0,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
 								"secureInput": false
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"source": {
-									"type": "AzureSqlSource",
-									"sqlReaderQuery": {
-										"value": "@concat('SELECT * FROM control.EntityConfig WHERE IsActive=1 AND ExecutionWave=',string(item().ExecutionWave),' ORDER BY Priority,EntityName')",
+								"waitOnCompletion": true,
+								"parameters": {
+									"WaveNo": {
+										"value": "@string(item())",
 										"type": "Expression"
 									},
-									"partitionOption": "None"
-								},
-								"dataset": {
-									"referenceName": "DS_MD_Control",
-									"type": "DatasetReference"
-								},
-								"firstRowOnly": false
-							}
-						},
-						{
-							"name": "ForEach_Entity",
-							"type": "ForEach",
-							"dependsOn": [
-								{
-									"activity": "Lookup_Entities_For_Wave",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"userProperties": [],
-							"typeProperties": {
-								"items": {
-									"value": "@activity('Lookup_Entities_For_Wave').output.value",
-									"type": "Expression"
-								},
-								"isSequential": false,
-								"batchCount": 4,
-								"activities": [
-									{
-										"name": "Check_Dependency",
-										"type": "Lookup",
-										"dependsOn": [],
-										"policy": {
-											"retry": 0,
-											"retryIntervalInSeconds": 30,
-											"secureOutput": false,
-											"secureInput": false
-										},
-										"userProperties": [],
-										"typeProperties": {
-											"source": {
-												"type": "AzureSqlSource",
-												"sqlReaderQuery": {
-													"value": "@concat('EXEC control.usp_GetDependencyStatus @EntityName=''',item().EntityName,''', @BatchId=''',variables('v_BatchId'),'''')",
-													"type": "Expression"
-												},
-												"partitionOption": "None"
-											},
-											"dataset": {
-												"referenceName": "DS_MD_Control",
-												"type": "DatasetReference"
-											},
-											"firstRowOnly": true
-										}
+									"BatchId": {
+										"value": "@variables('v_BatchId')",
+										"type": "Expression"
 									},
-									{
-										"name": "If_Dependency_Ready",
-										"type": "IfCondition",
-										"dependsOn": [
-											{
-												"activity": "Check_Dependency",
-												"dependencyConditions": [
-													"Succeeded"
-												]
-											}
-										],
-										"userProperties": [],
-										"typeProperties": {
-											"expression": {
-												"value": "@equals(activity('Check_Dependency').output.firstRow.DependencyStatus,'READY')",
-												"type": "Expression"
-											},
-											"ifFalseActivities": [
-												{
-													"name": "Alert_Dependency_Blocked",
-													"type": "ExecutePipeline",
-													"dependsOn": [],
-													"policy": {
-														"secureInput": false
-													},
-													"userProperties": [],
-													"typeProperties": {
-														"pipeline": {
-															"referenceName": "PL_MD_Common_Alert_Handler",
-															"type": "PipelineReference"
-														},
-														"waitOnCompletion": true,
-														"parameters": {
-															"EntityName": {
-																"value": "@item().EntityName",
-																"type": "Expression"
-															},
-															"BatchId": {
-																"value": "@variables('v_BatchId')",
-																"type": "Expression"
-															},
-															"ParentRunId": {
-																"value": "@pipeline().RunId",
-																"type": "Expression"
-															},
-															"WindowKey": "",
-															"AlertType": "DEPENDENCY_BLOCKED",
-															"Severity": "WARNING",
-															"ActivityName": "MASTER_DEPENDENCY",
-															"Message": "Entity dependency was not successful in the current batch."
-														}
-													}
-												}
-											],
-											"ifTrueActivities": [
-												{
-													"name": "Run_Entity",
-													"type": "ExecutePipeline",
-													"dependsOn": [],
-													"policy": {
-														"secureInput": false
-													},
-													"userProperties": [],
-													"typeProperties": {
-														"pipeline": {
-															"referenceName": "PL_MD_Entity_Orchestrator",
-															"type": "PipelineReference"
-														},
-														"waitOnCompletion": true,
-														"parameters": {
-															"EntityName": {
-																"value": "@item().EntityName",
-																"type": "Expression"
-															},
-															"BatchId": {
-																"value": "@variables('v_BatchId')",
-																"type": "Expression"
-															},
-															"ParentRunId": {
-																"value": "@pipeline().RunId",
-																"type": "Expression"
-															},
-															"RunMode": {
-																"value": "@pipeline().parameters.RunMode",
-																"type": "Expression"
-															},
-															"WindowStart": {
-																"value": "@pipeline().parameters.WindowStart",
-																"type": "Expression"
-															},
-															"WindowEnd": {
-																"value": "@pipeline().parameters.WindowEnd",
-																"type": "Expression"
-															}
-														}
-													}
-												}
-											]
-										}
+									"ParentRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"RunMode": {
+										"value": "@pipeline().parameters.RunMode",
+										"type": "Expression"
+									},
+									"WindowStart": {
+										"value": "@pipeline().parameters.WindowStart",
+										"type": "Expression"
+									},
+									"WindowEnd": {
+										"value": "@pipeline().parameters.WindowEnd",
+										"type": "Expression"
 									}
-								]
+								}
 							}
 						}
 					]
@@ -294,6 +239,29 @@
 			"EntityBatchCount": {
 				"type": "Int",
 				"defaultValue": 4
+			},
+			"RecoveryMode": {
+				"type": "String",
+				"defaultValue": "AUTO"
+			},
+			"ResumeBatchId": {
+				"type": "String"
+			},
+			"ResumeFromStage": {
+				"type": "String"
+			},
+			"TriggerType": {
+				"type": "String",
+				"defaultValue": "SCHEDULE"
+			},
+			"RequestedBy": {
+				"type": "String"
+			},
+			"RequestReason": {
+				"type": "String"
+			},
+			"ChangeTicket": {
+				"type": "String"
 			}
 		},
 		"variables": {
@@ -307,7 +275,9 @@
 		"annotations": [
 			"ENTITY_DRIVEN",
 			"ENTERPRISE_HARDENED",
-			"ST37_SEEDED"
+			"ST37_SEEDED",
+			"BATCH_RECOVERY",
+			"MULTI_LAYER_IDEMPOTENCY"
 		]
 	}
 }

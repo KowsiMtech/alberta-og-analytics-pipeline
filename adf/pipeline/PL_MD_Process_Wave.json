@@ -1,0 +1,123 @@
+{
+	"name": "PL_MD_Process_Wave",
+	"properties": {
+		"activities": [
+			{
+				"name": "Lookup_Entities_For_Wave",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('EXEC control.usp_GetEntitiesForWave @WaveNo=',pipeline().parameters.WaveNo)",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "ForEach_Entity",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Lookup_Entities_For_Wave",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Lookup_Entities_For_Wave').output.value",
+						"type": "Expression"
+					},
+					"isSequential": false,
+					"batchCount": 8,
+					"activities": [
+						{
+							"name": "Run_Entity_Gated",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Process_Entity_Gated",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"EntityName": {
+										"value": "@item().EntityName",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().parameters.ParentRunId",
+										"type": "Expression"
+									},
+									"RunMode": {
+										"value": "@pipeline().parameters.RunMode",
+										"type": "Expression"
+									},
+									"WindowStart": {
+										"value": "@pipeline().parameters.WindowStart",
+										"type": "Expression"
+									},
+									"WindowEnd": {
+										"value": "@pipeline().parameters.WindowEnd",
+										"type": "Expression"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"WaveNo": {
+				"type": "String"
+			},
+			"BatchId": {
+				"type": "String"
+			},
+			"ParentRunId": {
+				"type": "String"
+			},
+			"RunMode": {
+				"type": "String"
+			},
+			"WindowStart": {
+				"type": "String"
+			},
+			"WindowEnd": {
+				"type": "String"
+			}
+		},
+		"folder": {
+			"name": "Metadata_Driven"
+		},
+		"annotations": []
+	}
+}

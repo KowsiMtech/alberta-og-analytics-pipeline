@@ -57,7 +57,7 @@
 						{
 							"type": "Query",
 							"text": {
-								"value": "@activity('Lookup_Gold_Script').output.firstRow.ScriptTemplate",
+								"value": "@concat('SET XACT_ABORT ON; BEGIN TRY BEGIN TRANSACTION; ',activity('Lookup_Gold_Script').output.firstRow.ScriptTemplate,' COMMIT TRANSACTION; END TRY BEGIN CATCH IF @@TRANCOUNT>0 ROLLBACK TRANSACTION; THROW; END CATCH;')",
 								"type": "Expression"
 							}
 						}
@@ -265,7 +265,8 @@
 		"annotations": [
 			"ENTITY_DRIVEN",
 			"ENTERPRISE_HARDENED",
-			"ST37_SEEDED"
+			"ST37_SEEDED",
+			"TRANSACTIONAL_GOLD"
 		]
 	}
 }

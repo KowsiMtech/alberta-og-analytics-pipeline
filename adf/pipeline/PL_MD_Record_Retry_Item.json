@@ -1,0 +1,396 @@
+{
+	"name": "PL_MD_Record_Retry_Item",
+	"properties": {
+		"description": "Retries one record-addressable work item with record-scope exponential backoff and max retry/dead-letter handling.",
+		"activities": [
+			{
+				"name": "Set_Initial_Record_Attempt",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_Attempt",
+					"value": {
+						"value": "@pipeline().parameters.InitialAttempt",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Execute_Record_Handler",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Set_Initial_Record_Attempt",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('EXEC control.usp_ExecuteRecordRetryV5 @RecordRetryId=',string(pipeline().parameters.RecordRetryId))",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Get_Record_Retry_Action",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Execute_Record_Handler",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('EXEC control.usp_GetRecordRetryActionFinal @EntityName=''',pipeline().parameters.EntityName,''', @AttemptNo=',string(variables('v_Attempt')),', @Result=''',activity('Execute_Record_Handler').output.firstRow.Result,''', @ErrorCode=''',replace(coalesce(activity('Execute_Record_Handler').output.firstRow.ErrorCode,''),'''',''''''),''', @ErrorMessage=N''',replace(coalesce(activity('Execute_Record_Handler').output.firstRow.ErrorMessage,''),'''',''''''),'''')",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Switch_Record_Action",
+				"type": "Switch",
+				"dependsOn": [
+					{
+						"activity": "Get_Record_Retry_Action",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"on": {
+						"value": "@activity('Get_Record_Retry_Action').output.firstRow.Action",
+						"type": "Expression"
+					},
+					"cases": [
+						{
+							"value": "COMPLETE",
+							"activities": [
+								{
+									"name": "Complete_Record",
+									"type": "SqlServerStoredProcedure",
+									"dependsOn": [],
+									"policy": {
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"storedProcedureName": "control.usp_CompleteRecordRetryV5",
+										"storedProcedureParameters": {
+											"RecordRetryId": {
+												"value": {
+													"value": "@pipeline().parameters.RecordRetryId",
+													"type": "Expression"
+												},
+												"type": "Int64"
+											},
+											"PipelineRunId": {
+												"value": {
+													"value": "@pipeline().RunId",
+													"type": "Expression"
+												},
+												"type": "String"
+											}
+										}
+									},
+									"linkedServiceName": {
+										"referenceName": "LS_AzureSQL",
+										"type": "LinkedServiceReference"
+									}
+								}
+							]
+						},
+						{
+							"value": "SCHEDULE",
+							"activities": [
+								{
+									"name": "Schedule_Record_Retry",
+									"type": "SqlServerStoredProcedure",
+									"dependsOn": [],
+									"policy": {
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"storedProcedureName": "control.usp_ScheduleRecordRetryV5",
+										"storedProcedureParameters": {
+											"RecordRetryId": {
+												"value": {
+													"value": "@pipeline().parameters.RecordRetryId",
+													"type": "Expression"
+												},
+												"type": "Int64"
+											},
+											"PipelineRunId": {
+												"value": {
+													"value": "@pipeline().RunId",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"AttemptNo": {
+												"value": {
+													"value": "@int(activity('Get_Record_Retry_Action').output.firstRow.NextAttemptNo)",
+													"type": "Expression"
+												},
+												"type": "Int32"
+											},
+											"WaitSeconds": {
+												"value": {
+													"value": "@int(activity('Get_Record_Retry_Action').output.firstRow.ComputedWaitSeconds)",
+													"type": "Expression"
+												},
+												"type": "Int32"
+											},
+											"ErrorCode": {
+												"value": {
+													"value": "@string(activity('Get_Record_Retry_Action').output.firstRow.ErrorCode)",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"ErrorMessage": {
+												"value": {
+													"value": "@string(activity('Get_Record_Retry_Action').output.firstRow.ErrorMessage)",
+													"type": "Expression"
+												},
+												"type": "String"
+											}
+										}
+									},
+									"linkedServiceName": {
+										"referenceName": "LS_AzureSQL",
+										"type": "LinkedServiceReference"
+									}
+								}
+							]
+						},
+						{
+							"value": "DEAD_LETTER",
+							"activities": [
+								{
+									"name": "DeadLetter_Record",
+									"type": "SqlServerStoredProcedure",
+									"dependsOn": [],
+									"policy": {
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"storedProcedureName": "control.usp_DeadLetterRecordRetryV5",
+										"storedProcedureParameters": {
+											"RecordRetryId": {
+												"value": {
+													"value": "@pipeline().parameters.RecordRetryId",
+													"type": "Expression"
+												},
+												"type": "Int64"
+											},
+											"PipelineRunId": {
+												"value": {
+													"value": "@pipeline().RunId",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"AttemptNo": {
+												"value": {
+													"value": "@int(activity('Get_Record_Retry_Action').output.firstRow.NextAttemptNo)",
+													"type": "Expression"
+												},
+												"type": "Int32"
+											},
+											"ErrorCode": {
+												"value": {
+													"value": "@string(activity('Get_Record_Retry_Action').output.firstRow.ErrorCode)",
+													"type": "Expression"
+												},
+												"type": "String"
+											},
+											"ErrorMessage": {
+												"value": {
+													"value": "@string(activity('Get_Record_Retry_Action').output.firstRow.ErrorMessage)",
+													"type": "Expression"
+												},
+												"type": "String"
+											}
+										}
+									},
+									"linkedServiceName": {
+										"referenceName": "LS_AzureSQL",
+										"type": "LinkedServiceReference"
+									}
+								}
+							]
+						}
+					],
+					"defaultActivities": [
+						{
+							"name": "DeadLetter_Record_Default",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [],
+							"policy": {
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "control.usp_DeadLetterRecordRetryV5",
+								"storedProcedureParameters": {
+									"RecordRetryId": {
+										"value": {
+											"value": "@pipeline().parameters.RecordRetryId",
+											"type": "Expression"
+										},
+										"type": "Int64"
+									},
+									"PipelineRunId": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"AttemptNo": {
+										"value": {
+											"value": "@int(activity('Get_Record_Retry_Action').output.firstRow.NextAttemptNo)",
+											"type": "Expression"
+										},
+										"type": "Int32"
+									},
+									"ErrorCode": {
+										"value": {
+											"value": "@string(activity('Get_Record_Retry_Action').output.firstRow.ErrorCode)",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"ErrorMessage": {
+										"value": {
+											"value": "@string(activity('Get_Record_Retry_Action').output.firstRow.ErrorMessage)",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"EntityName": {
+				"type": "String"
+			},
+			"RecordRetryId": {
+				"type": "Int"
+			},
+			"BatchId": {
+				"type": "String"
+			},
+			"WindowKey": {
+				"type": "String"
+			},
+			"ParentRunId": {
+				"type": "String"
+			},
+			"StageName": {
+				"type": "String",
+				"defaultValue": "DQ_ENGINE"
+			},
+			"RecordKey": {
+				"type": "String"
+			},
+			"InitialAttempt": {
+				"type": "Int",
+				"defaultValue": 0
+			}
+		},
+		"variables": {
+			"v_Done": {
+				"type": "Boolean",
+				"defaultValue": false
+			},
+			"v_Attempt": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_Result": {
+				"type": "String"
+			},
+			"v_ErrorCode": {
+				"type": "String"
+			},
+			"v_ErrorMessage": {
+				"type": "String"
+			},
+			"v_Decision": {
+				"type": "String"
+			},
+			"v_Wait": {
+				"type": "Integer",
+				"defaultValue": 0
+			}
+		},
+		"annotations": []
+	}
+}

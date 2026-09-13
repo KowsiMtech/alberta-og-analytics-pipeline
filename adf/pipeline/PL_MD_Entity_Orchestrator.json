@@ -5910,6 +5910,9 @@
 				"defaultValue": "CONTINUE"
 			}
 		},
+		"folder": {
+			"name": "Metadata_Driven"
+		},
 		"annotations": [
 			"ENTITY_DRIVEN",
 			"HYBRID_ORCHESTRATION",

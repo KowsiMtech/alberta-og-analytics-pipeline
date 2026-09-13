@@ -1,0 +1,134 @@
+{
+	"name": "PL_MD_Record_Retry_Worker",
+	"properties": {
+		"description": "Claims due record retry work and processes items in bounded parallelism. Exhausted records are dead-lettered instead of blocking the whole batch forever.",
+		"activities": [
+			{
+				"name": "Claim_Due_Record_Retries",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('EXEC control.usp_ClaimRecordRetriesV5 @EntityName=''',pipeline().parameters.EntityName,''', @PipelineRunId=''',pipeline().RunId,''', @MaxRecords=',string(pipeline().parameters.MaxRecordsPerRun))",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "ForEach_Record_Retry",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Claim_Due_Record_Retries",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Claim_Due_Record_Retries').output.value",
+						"type": "Expression"
+					},
+					"isSequential": false,
+					"batchCount": 10,
+					"activities": [
+						{
+							"name": "Retry_Record_Item",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Record_Retry_Item",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"EntityName": {
+										"value": "@pipeline().parameters.EntityName",
+										"type": "Expression"
+									},
+									"RecordRetryId": {
+										"value": "@int(item().RecordRetryId)",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@coalesce(item().BatchId,pipeline().parameters.BatchId)",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@coalesce(item().WindowKey,pipeline().parameters.WindowKey)",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().parameters.ParentRunId",
+										"type": "Expression"
+									},
+									"StageName": {
+										"value": "@item().StageName",
+										"type": "Expression"
+									},
+									"RecordKey": {
+										"value": "@item().RecordKey",
+										"type": "Expression"
+									},
+									"InitialAttempt": {
+										"value": "@int(item().AttemptCount)",
+										"type": "Expression"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"EntityName": {
+				"type": "String"
+			},
+			"BatchId": {
+				"type": "String"
+			},
+			"WindowKey": {
+				"type": "String"
+			},
+			"ParentRunId": {
+				"type": "String"
+			},
+			"MaxRecordsPerRun": {
+				"type": "Int",
+				"defaultValue": 100
+			},
+			"BatchCount": {
+				"type": "Int",
+				"defaultValue": 10
+			}
+		},
+		"folder": {
+			"name": "Metadata_Driven"
+		},
+		"annotations": []
+	}
+}

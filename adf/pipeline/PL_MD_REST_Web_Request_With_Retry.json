@@ -1,7 +1,7 @@
 {
-	"name": "PL_MD_SQL_Ingestion",
+	"name": "PL_MD_REST_Web_Request_With_Retry",
 	"properties": {
-		"description": "Incremental SQL ingestion with deterministic Bronze cleanup, error-aware bounded exponential backoff with jitter, and same-window retries.",
+		"description": "Reusable REST Web request with error classification, bounded exponential backoff and jitter. Returns response JSON to the caller.",
 		"activities": [
 			{
 				"name": "Lookup_Config",
@@ -31,7 +31,7 @@
 				}
 			},
 			{
-				"name": "Until_Done",
+				"name": "Until_Request_Done",
 				"type": "Until",
 				"dependsOn": [
 					{
@@ -49,241 +49,53 @@
 					},
 					"activities": [
 						{
-							"name": "Set_Copy_Start",
-							"type": "SetVariable",
+							"name": "Web_Request",
+							"type": "WebActivity",
 							"dependsOn": [],
 							"policy": {
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"variableName": "v_CopyStart",
-								"value": {
-									"value": "@utcnow()",
-									"type": "Expression"
-								}
-							}
-						},
-						{
-							"name": "Delete_Partial_Bronze_Window",
-							"type": "Delete",
-							"dependsOn": [
-								{
-									"activity": "Set_Copy_Start",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"policy": {
-								"retry": 0,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"dataset": {
-									"referenceName": "DS_MD_ADLS_Folder",
-									"type": "DatasetReference",
-									"parameters": {
-										"FolderPath": {
-											"value": "@concat(activity('Lookup_Config').output.firstRow.BronzeFolder,'/window=',pipeline().parameters.WindowKey)",
-											"type": "Expression"
-										}
-									}
-								},
-								"enableLogging": false,
-								"storeSettings": {
-									"type": "AzureBlobFSReadSettings",
-									"recursive": true
-								}
-							}
-						},
-						{
-							"name": "Copy_SQL_To_Bronze",
-							"type": "Copy",
-							"dependsOn": [
-								{
-									"activity": "Delete_Partial_Bronze_Window",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"policy": {
-								"timeout": "0.12:00:00",
+								"timeout": "00:10:00",
 								"retry": 0,
 								"retryIntervalInSeconds": 30
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"source": {
-									"type": "SqlSource",
-									"sqlReaderQuery": {
-										"value": "@if(equals(activity('Lookup_Config').output.firstRow.LoadType,'FULL'),concat('SELECT * FROM ',activity('Lookup_Config').output.firstRow.SourceSchema,'.',activity('Lookup_Config').output.firstRow.SourceObject),concat('SELECT * FROM ',activity('Lookup_Config').output.firstRow.SourceSchema,'.',activity('Lookup_Config').output.firstRow.SourceObject,' WHERE ',activity('Lookup_Config').output.firstRow.WatermarkColumn,' > ''',pipeline().parameters.ExtractionStart,''' AND ',activity('Lookup_Config').output.firstRow.WatermarkColumn,' <= ''',pipeline().parameters.EndWatermark,''''))",
-										"type": "Expression"
-									},
-									"partitionOption": "None"
-								},
-								"sink": {
-									"type": "ParquetSink",
-									"storeSettings": {
-										"type": "AzureBlobFSWriteSettings"
-									},
-									"formatSettings": {
-										"type": "ParquetWriteSettings"
-									}
-								},
-								"enableStaging": false
-							},
-							"inputs": [
-								{
-									"referenceName": "DS_MD_SourceSql",
-									"type": "DatasetReference",
-									"parameters": {
-										"SchemaName": {
-											"value": "@activity('Lookup_Config').output.firstRow.SourceSchema",
-											"type": "Expression"
-										},
-										"TableName": {
-											"value": "@activity('Lookup_Config').output.firstRow.SourceObject",
-											"type": "Expression"
-										}
-									}
+								"method": "GET",
+								"url": {
+									"value": "@pipeline().parameters.Url",
+									"type": "Expression"
 								}
-							],
-							"outputs": [
-								{
-									"referenceName": "DS_MD_BronzeParquet",
-									"type": "DatasetReference",
-									"parameters": {
-										"WindowKey": {
-											"value": "@pipeline().parameters.WindowKey",
-											"type": "Expression"
-										},
-										"EntityFolder": {
-											"value": "@activity('Lookup_Config').output.firstRow.BronzeFolder",
-											"type": "Expression"
-										}
-									}
-								}
-							]
+							}
 						},
 						{
-							"name": "Log_Copy_Success",
-							"type": "SqlServerStoredProcedure",
+							"name": "Set_Response",
+							"type": "SetVariable",
 							"dependsOn": [
 								{
-									"activity": "Copy_SQL_To_Bronze",
+									"activity": "Web_Request",
 									"dependencyConditions": [
 										"Succeeded"
 									]
 								}
 							],
 							"policy": {
-								"retry": 0,
-								"retryIntervalInSeconds": 30,
 								"secureOutput": false,
 								"secureInput": false
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_LogRunDetail",
-								"storedProcedureParameters": {
-									"EntityName": {
-										"value": {
-											"value": "@pipeline().parameters.EntityName",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"PipelineRunId": {
-										"value": {
-											"value": "@pipeline().parameters.ParentRunId",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"PipelineName": {
-										"value": "PL_MD_SQL_Ingestion",
-										"type": "String"
-									},
-									"BatchId": {
-										"value": {
-											"value": "@pipeline().parameters.BatchId",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"WindowKey": {
-										"value": {
-											"value": "@pipeline().parameters.WindowKey",
-											"type": "Expression"
-										},
-										"type": "String"
-									},
-									"ActivityName": {
-										"value": "Copy_SQL_To_Bronze",
-										"type": "String"
-									},
-									"ActivityType": {
-										"value": "Copy",
-										"type": "String"
-									},
-									"Status": {
-										"value": "SUCCESS",
-										"type": "String"
-									},
-									"RowsRead": {
-										"value": {
-											"value": "@activity('Copy_SQL_To_Bronze').output.rowsRead",
-											"type": "Expression"
-										},
-										"type": "Int64"
-									},
-									"RowsWritten": {
-										"value": {
-											"value": "@activity('Copy_SQL_To_Bronze').output.rowsCopied",
-											"type": "Expression"
-										},
-										"type": "Int64"
-									},
-									"StartTime": {
-										"value": {
-											"value": "@variables('v_CopyStart')",
-											"type": "Expression"
-										},
-										"type": "DateTime"
-									},
-									"EndTime": {
-										"value": {
-											"value": "@utcnow()",
-											"type": "Expression"
-										},
-										"type": "DateTime"
-									},
-									"RetryAttempt": {
-										"value": {
-											"value": "@variables('v_RetryAttempt')",
-											"type": "Expression"
-										},
-										"type": "Int32"
-									}
+								"variableName": "v_Response",
+								"value": {
+									"value": "@string(activity('Web_Request').output)",
+									"type": "Expression"
 								}
-							},
-							"linkedServiceName": {
-								"referenceName": "LS_AzureSQL",
-								"type": "LinkedServiceReference"
 							}
 						},
 						{
-							"name": "Mark_Done",
+							"name": "Mark_Request_Done",
 							"type": "SetVariable",
 							"dependsOn": [
 								{
-									"activity": "Log_Copy_Success",
+									"activity": "Set_Response",
 									"dependencyConditions": [
 										"Succeeded"
 									]
@@ -300,11 +112,11 @@
 							}
 						},
 						{
-							"name": "Capture_ErrorCode",
+							"name": "Capture_REST_ErrorCode",
 							"type": "SetVariable",
 							"dependsOn": [
 								{
-									"activity": "Copy_SQL_To_Bronze",
+									"activity": "Web_Request",
 									"dependencyConditions": [
 										"Failed"
 									]
@@ -318,17 +130,17 @@
 							"typeProperties": {
 								"variableName": "v_ErrorCode",
 								"value": {
-									"value": "@activity('Copy_SQL_To_Bronze').error.code",
+									"value": "@activity('Web_Request').error.code",
 									"type": "Expression"
 								}
 							}
 						},
 						{
-							"name": "Capture_ErrorMessage",
+							"name": "Capture_REST_ErrorMessage",
 							"type": "SetVariable",
 							"dependsOn": [
 								{
-									"activity": "Copy_SQL_To_Bronze",
+									"activity": "Web_Request",
 									"dependencyConditions": [
 										"Failed"
 									]
@@ -342,23 +154,23 @@
 							"typeProperties": {
 								"variableName": "v_ErrorMessage",
 								"value": {
-									"value": "@activity('Copy_SQL_To_Bronze').error.message",
+									"value": "@activity('Web_Request').error.message",
 									"type": "Expression"
 								}
 							}
 						},
 						{
-							"name": "Retry_Decision",
+							"name": "Retry_Decision_V4",
 							"type": "Lookup",
 							"dependsOn": [
 								{
-									"activity": "Capture_ErrorCode",
+									"activity": "Capture_REST_ErrorCode",
 									"dependencyConditions": [
 										"Succeeded"
 									]
 								},
 								{
-									"activity": "Capture_ErrorMessage",
+									"activity": "Capture_REST_ErrorMessage",
 									"dependencyConditions": [
 										"Succeeded"
 									]
@@ -375,7 +187,7 @@
 								"source": {
 									"type": "AzureSqlSource",
 									"sqlReaderQuery": {
-										"value": "@concat('EXEC control.usp_GetRetryDecisionV4 @PolicyName=''',activity('Lookup_Config').output.firstRow.RetryPolicyName,''', @ErrorCode=''',replace(variables('v_ErrorCode'),'''',''''''),''', @ErrorMessage=N''',replace(variables('v_ErrorMessage'),'''',''''''),''', @RetryAttempt=',string(variables('v_RetryAttempt')))",
+										"value": "@concat('EXEC control.usp_GetRetryDecisionV4 @PolicyName=''',activity('Lookup_Config').output.firstRow.RetryPolicyName,''', @ErrorCode=''',replace(variables('v_ErrorCode'),'''',''''''),''', @ErrorMessage=N''',replace(variables('v_ErrorMessage'),'''',''''''),''', @RetryAttempt=',string(variables('v_Attempt')))",
 										"type": "Expression"
 									},
 									"partitionOption": "None"
@@ -388,11 +200,11 @@
 							}
 						},
 						{
-							"name": "Set_RetryDecision",
+							"name": "Set_REST_Decision",
 							"type": "SetVariable",
 							"dependsOn": [
 								{
-									"activity": "Retry_Decision",
+									"activity": "Retry_Decision_V4",
 									"dependencyConditions": [
 										"Succeeded"
 									]
@@ -404,19 +216,19 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"variableName": "v_RetryDecision",
+								"variableName": "v_Decision",
 								"value": {
-									"value": "@activity('Retry_Decision').output.firstRow.RetryDecision",
+									"value": "@activity('Retry_Decision_V4').output.firstRow.RetryDecision",
 									"type": "Expression"
 								}
 							}
 						},
 						{
-							"name": "Set_WaitSeconds",
+							"name": "Set_REST_Wait",
 							"type": "SetVariable",
 							"dependsOn": [
 								{
-									"activity": "Retry_Decision",
+									"activity": "Retry_Decision_V4",
 									"dependencyConditions": [
 										"Succeeded"
 									]
@@ -430,23 +242,23 @@
 							"typeProperties": {
 								"variableName": "v_WaitSeconds",
 								"value": {
-									"value": "@int(activity('Retry_Decision').output.firstRow.ComputedWaitSeconds)",
+									"value": "@int(activity('Retry_Decision_V4').output.firstRow.ComputedWaitSeconds)",
 									"type": "Expression"
 								}
 							}
 						},
 						{
-							"name": "Record_Retry_Attempt",
+							"name": "Record_REST_Retry",
 							"type": "SqlServerStoredProcedure",
 							"dependsOn": [
 								{
-									"activity": "Set_RetryDecision",
+									"activity": "Set_REST_Decision",
 									"dependencyConditions": [
 										"Succeeded"
 									]
 								},
 								{
-									"activity": "Set_WaitSeconds",
+									"activity": "Set_REST_Wait",
 									"dependencyConditions": [
 										"Succeeded"
 									]
@@ -491,12 +303,15 @@
 										"type": "String"
 									},
 									"ActivityName": {
-										"value": "Copy_SQL_To_Bronze",
+										"value": {
+											"value": "@pipeline().parameters.ActivityName",
+											"type": "Expression"
+										},
 										"type": "String"
 									},
 									"RetryAttempt": {
 										"value": {
-											"value": "@variables('v_RetryAttempt')",
+											"value": "@variables('v_Attempt')",
 											"type": "Expression"
 										},
 										"type": "Int32"
@@ -517,14 +332,14 @@
 									},
 									"ErrorCategory": {
 										"value": {
-											"value": "@activity('Retry_Decision').output.firstRow.ErrorCategory",
+											"value": "@activity('Retry_Decision_V4').output.firstRow.ErrorCategory",
 											"type": "Expression"
 										},
 										"type": "String"
 									},
 									"Decision": {
 										"value": {
-											"value": "@variables('v_RetryDecision')",
+											"value": "@variables('v_Decision')",
 											"type": "Expression"
 										},
 										"type": "String"
@@ -548,7 +363,7 @@
 							"type": "SetVariable",
 							"dependsOn": [
 								{
-									"activity": "Record_Retry_Attempt",
+									"activity": "Record_REST_Retry",
 									"dependencyConditions": [
 										"Succeeded"
 									]
@@ -562,7 +377,7 @@
 							"typeProperties": {
 								"variableName": "v_CurrentAttemptSnapshot",
 								"value": {
-									"value": "@variables('v_RetryAttempt')",
+									"value": "@variables('v_Attempt')",
 									"type": "Expression"
 								}
 							}
@@ -586,7 +401,7 @@
 							"typeProperties": {
 								"variableName": "v_NextAttempt",
 								"value": {
-									"value": "@add(variables('v_RetryAttempt'),1)",
+									"value": "@add(variables('v_Attempt'),1)",
 									"type": "Expression"
 								}
 							}
@@ -608,9 +423,9 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"variableName": "v_RetryAttempt",
+								"variableName": "v_Attempt",
 								"value": {
-									"value": "@if(equals(variables('v_RetryDecision'),'RETRY'),variables('v_NextAttempt'),variables('v_CurrentAttemptSnapshot'))",
+									"value": "@if(equals(variables('v_Decision'),'RETRY'),variables('v_NextAttempt'),variables('v_CurrentAttemptSnapshot'))",
 									"type": "Expression"
 								}
 							}
@@ -629,7 +444,7 @@
 							"userProperties": [],
 							"typeProperties": {
 								"waitTimeInSeconds": {
-									"value": "@if(equals(variables('v_RetryDecision'),'RETRY'),variables('v_WaitSeconds'),0)",
+									"value": "@if(equals(variables('v_Decision'),'RETRY'),variables('v_WaitSeconds'),0)",
 									"type": "Expression"
 								}
 							}
@@ -653,7 +468,7 @@
 							"typeProperties": {
 								"variableName": "v_Done",
 								"value": {
-									"value": "@not(equals(variables('v_RetryDecision'),'RETRY'))",
+									"value": "@not(equals(variables('v_Decision'),'RETRY'))",
 									"type": "Expression"
 								}
 							}
@@ -663,11 +478,41 @@
 				}
 			},
 			{
+				"name": "Return_REST_Response",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Until_Request_Done",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "pipelineReturnValue",
+					"value": [
+						{
+							"key": "ResponseJson",
+							"value": {
+								"type": "Expression",
+								"content": "@variables('v_Response')"
+							}
+						}
+					],
+					"setSystemVariable": true
+				}
+			},
+			{
 				"name": "If_Final_Retry_Failure",
 				"type": "IfCondition",
 				"dependsOn": [
 					{
-						"activity": "Until_Done",
+						"activity": "Until_Request_Done",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -676,68 +521,14 @@
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
-						"value": "@and(equals(variables('v_Done'),true),not(empty(variables('v_RetryDecision'))),not(equals(variables('v_RetryDecision'),'RETRY')))",
+						"value": "@and(equals(variables('v_Done'),true),not(empty(variables('v_Decision'))),not(equals(variables('v_Decision'),'RETRY')))",
 						"type": "Expression"
 					},
 					"ifTrueActivities": [
 						{
-							"name": "Alert_Retry_Exhausted_Or_Permanent",
-							"type": "ExecutePipeline",
-							"dependsOn": [],
-							"policy": {
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"pipeline": {
-									"referenceName": "PL_MD_Common_Alert_Handler",
-									"type": "PipelineReference"
-								},
-								"waitOnCompletion": true,
-								"parameters": {
-									"EntityName": {
-										"value": "@pipeline().parameters.EntityName",
-										"type": "Expression"
-									},
-									"BatchId": {
-										"value": "@pipeline().parameters.BatchId",
-										"type": "Expression"
-									},
-									"ParentRunId": {
-										"value": "@pipeline().parameters.ParentRunId",
-										"type": "Expression"
-									},
-									"WindowKey": {
-										"value": "@pipeline().parameters.WindowKey",
-										"type": "Expression"
-									},
-									"AlertType": {
-										"value": "@if(equals(variables('v_RetryDecision'),'RETRY_EXHAUSTED'),'RETRY_EXHAUSTED','PERMANENT_ERROR')",
-										"type": "Expression"
-									},
-									"Severity": {
-										"value": "@activity('Retry_Decision').output.firstRow.Severity",
-										"type": "Expression"
-									},
-									"ActivityName": "Copy_SQL_To_Bronze",
-									"Message": {
-										"value": "@variables('v_ErrorMessage')",
-										"type": "Expression"
-									}
-								}
-							}
-						},
-						{
-							"name": "Fail_Copy",
+							"name": "Fail_REST_Request",
 							"type": "Fail",
-							"dependsOn": [
-								{
-									"activity": "Alert_Retry_Exhausted_Or_Permanent",
-									"dependencyConditions": [
-										"Completed"
-									]
-								}
-							],
+							"dependsOn": [],
 							"userProperties": [],
 							"typeProperties": {
 								"message": {
@@ -767,13 +558,10 @@
 			"WindowKey": {
 				"type": "String"
 			},
-			"ExtractionStart": {
+			"Url": {
 				"type": "String"
 			},
-			"EndWatermark": {
-				"type": "String"
-			},
-			"RunMode": {
+			"ActivityName": {
 				"type": "String"
 			}
 		},
@@ -782,7 +570,7 @@
 				"type": "Boolean",
 				"defaultValue": false
 			},
-			"v_RetryAttempt": {
+			"v_Attempt": {
 				"type": "Integer",
 				"defaultValue": 0
 			},
@@ -792,15 +580,16 @@
 			"v_ErrorMessage": {
 				"type": "String"
 			},
-			"v_CopyStart": {
-				"type": "String"
-			},
-			"v_RetryDecision": {
+			"v_Decision": {
 				"type": "String"
 			},
 			"v_WaitSeconds": {
 				"type": "Integer",
 				"defaultValue": 0
+			},
+			"v_Response": {
+				"type": "String",
+				"defaultValue": "{}"
 			},
 			"v_NextAttempt": {
 				"type": "Integer",
@@ -815,11 +604,9 @@
 			"name": "Metadata_Driven"
 		},
 		"annotations": [
-			"ENTITY_DRIVEN",
-			"ENTERPRISE_HARDENED",
-			"ST37_SEEDED",
+			"REST_ADAPTER",
 			"EXPONENTIAL_BACKOFF",
-			"IDEMPOTENT_BRONZE_WRITE"
+			"ERROR_AWARE_RETRY"
 		]
 	}
 }
