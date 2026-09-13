@@ -1,7 +1,7 @@
 {
 	"name": "PL_MD_DQ_Engine",
 	"properties": {
-		"description": "Metadata DQ evaluates target staging data, persists rule-level results, gates Gold on severe failures, and records run DQ status.",
+		"description": "Metadata DQ evaluates standardized staging data using final structural/business/domain/reference rules, persists rule evidence, optionally queues record retries, and gates Gold on severe failures.",
 		"activities": [
 			{
 				"name": "Lookup_Config",
@@ -122,7 +122,7 @@
 								"source": {
 									"type": "AzureSqlSource",
 									"sqlReaderQuery": {
-										"value": "@concat('EXEC control.usp_RunDQForSqlTable @EntityName=''',pipeline().parameters.EntityName,''', @TargetSchema=''',activity('Lookup_Config').output.firstRow.StagingSchema,''', @TargetTable=''',activity('Lookup_Config').output.firstRow.StagingTable,''', @PipelineRunId=''',pipeline().parameters.ParentRunId,''', @BatchId=''',pipeline().parameters.BatchId,''', @WindowKey=''',pipeline().parameters.WindowKey,'''')",
+										"value": "@concat('EXEC control.usp_RunDQForSqlTableFinal @EntityName=''',pipeline().parameters.EntityName,''', @TargetSchema=''',activity('Lookup_Config').output.firstRow.StagingSchema,''', @TargetTable=''',activity('Lookup_Config').output.firstRow.StagingTable,''', @PipelineRunId=''',pipeline().parameters.ParentRunId,''', @BatchId=''',pipeline().parameters.BatchId,''', @WindowKey=''',pipeline().parameters.WindowKey,'''')",
 										"type": "Expression"
 									},
 									"partitionOption": "None"
@@ -135,13 +135,86 @@
 							}
 						},
 						{
-							"name": "Get_DQ_Summary",
+							"name": "Queue_Record_Level_Retries",
 							"type": "Lookup",
 							"dependsOn": [
 								{
 									"activity": "Run_Metadata_DQ",
 									"dependencyConditions": [
 										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "@concat('EXEC control.usp_QueueDQRecordRetriesV5 @EntityName=''',pipeline().parameters.EntityName,''', @BatchId=''',pipeline().parameters.BatchId,''', @WindowKey=''',pipeline().parameters.WindowKey,''', @TargetSchema=''',activity('Lookup_Config').output.firstRow.StagingSchema,''', @TargetTable=''',activity('Lookup_Config').output.firstRow.StagingTable,'''')",
+										"type": "Expression"
+									},
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "DS_MD_Control",
+									"type": "DatasetReference"
+								},
+								"firstRowOnly": true
+							}
+						},
+						{
+							"name": "Run_Record_Retry_Worker",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "Queue_Record_Level_Retries",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"waitOnCompletion": true,
+								"parameters": {
+									"EntityName": {
+										"value": "@pipeline().parameters.EntityName",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().parameters.ParentRunId",
+										"type": "Expression"
+									},
+									"MaxRecordsPerRun": 100,
+									"BatchCount": 10
+								}
+							}
+						},
+						{
+							"name": "Get_DQ_Summary",
+							"type": "Lookup",
+							"dependsOn": [
+								{
+									"activity": "Run_Record_Retry_Worker",
+									"dependencyConditions": [
+										"Completed"
 									]
 								}
 							],
@@ -247,150 +320,150 @@
 								"referenceName": "LS_AzureSQL",
 								"type": "LinkedServiceReference"
 							}
+						}
+					]
+				}
+			},
+			{
+				"name": "If_DQ_Failed",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "If_DQ_Enabled",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@and(equals(activity('Lookup_Config').output.firstRow.DQEnabled,true),equals(variables('v_DQStatus'),'FAIL'))",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
+						{
+							"name": "Log_DQ_Passed",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [],
+							"policy": {
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "control.usp_RecordStage",
+								"storedProcedureParameters": {
+									"EntityName": {
+										"value": {
+											"value": "@pipeline().parameters.EntityName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineRunId": {
+										"value": {
+											"value": "@pipeline().parameters.ParentRunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BatchId": {
+										"value": {
+											"value": "@pipeline().parameters.BatchId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"WindowKey": {
+										"value": {
+											"value": "@pipeline().parameters.WindowKey",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"StageName": {
+										"value": "DQ_ENGINE",
+										"type": "String"
+									},
+									"Status": {
+										"value": {
+											"value": "@if(equals(variables('v_DQStatus'),'WARN'),'WARNING','SUCCESS')",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"Detail": {
+										"value": {
+											"value": "@variables('v_DQStatus')",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						}
+					],
+					"ifTrueActivities": [
+						{
+							"name": "Alert_DQ_Failure",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Common_Alert_Handler",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"EntityName": {
+										"value": "@pipeline().parameters.EntityName",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().parameters.ParentRunId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									},
+									"AlertType": "DQ_FAILURE",
+									"Severity": "CRITICAL",
+									"ActivityName": "DQ_ENGINE",
+									"Message": "One or more ERROR/CRITICAL metadata DQ rules failed."
+								}
+							}
 						},
 						{
-							"name": "If_DQ_Failed",
-							"type": "IfCondition",
+							"name": "Fail_DQ",
+							"type": "Fail",
 							"dependsOn": [
 								{
-									"activity": "Update_DQ_Status",
+									"activity": "Alert_DQ_Failure",
 									"dependencyConditions": [
-										"Succeeded"
+										"Completed"
 									]
 								}
 							],
 							"userProperties": [],
 							"typeProperties": {
-								"expression": {
-									"value": "@equals(variables('v_DQStatus'),'FAIL')",
-									"type": "Expression"
-								},
-								"ifFalseActivities": [
-									{
-										"name": "Log_DQ_Passed",
-										"type": "SqlServerStoredProcedure",
-										"dependsOn": [],
-										"policy": {
-											"retry": 0,
-											"retryIntervalInSeconds": 30,
-											"secureOutput": false,
-											"secureInput": false
-										},
-										"userProperties": [],
-										"typeProperties": {
-											"storedProcedureName": "control.usp_RecordStage",
-											"storedProcedureParameters": {
-												"EntityName": {
-													"value": {
-														"value": "@pipeline().parameters.EntityName",
-														"type": "Expression"
-													},
-													"type": "String"
-												},
-												"PipelineRunId": {
-													"value": {
-														"value": "@pipeline().parameters.ParentRunId",
-														"type": "Expression"
-													},
-													"type": "String"
-												},
-												"BatchId": {
-													"value": {
-														"value": "@pipeline().parameters.BatchId",
-														"type": "Expression"
-													},
-													"type": "String"
-												},
-												"WindowKey": {
-													"value": {
-														"value": "@pipeline().parameters.WindowKey",
-														"type": "Expression"
-													},
-													"type": "String"
-												},
-												"StageName": {
-													"value": "DQ_ENGINE",
-													"type": "String"
-												},
-												"Status": {
-													"value": {
-														"value": "@if(equals(variables('v_DQStatus'),'WARN'),'WARNING','SUCCESS')",
-														"type": "Expression"
-													},
-													"type": "String"
-												},
-												"Detail": {
-													"value": {
-														"value": "@variables('v_DQStatus')",
-														"type": "Expression"
-													},
-													"type": "String"
-												}
-											}
-										},
-										"linkedServiceName": {
-											"referenceName": "LS_AzureSQL",
-											"type": "LinkedServiceReference"
-										}
-									}
-								],
-								"ifTrueActivities": [
-									{
-										"name": "Alert_DQ_Failure",
-										"type": "ExecutePipeline",
-										"dependsOn": [],
-										"policy": {
-											"secureInput": false
-										},
-										"userProperties": [],
-										"typeProperties": {
-											"pipeline": {
-												"referenceName": "PL_MD_Common_Alert_Handler",
-												"type": "PipelineReference"
-											},
-											"waitOnCompletion": true,
-											"parameters": {
-												"EntityName": {
-													"value": "@pipeline().parameters.EntityName",
-													"type": "Expression"
-												},
-												"BatchId": {
-													"value": "@pipeline().parameters.BatchId",
-													"type": "Expression"
-												},
-												"ParentRunId": {
-													"value": "@pipeline().parameters.ParentRunId",
-													"type": "Expression"
-												},
-												"WindowKey": {
-													"value": "@pipeline().parameters.WindowKey",
-													"type": "Expression"
-												},
-												"AlertType": "DQ_FAILURE",
-												"Severity": "CRITICAL",
-												"ActivityName": "DQ_ENGINE",
-												"Message": "One or more ERROR/CRITICAL metadata DQ rules failed."
-											}
-										}
-									},
-									{
-										"name": "Fail_DQ",
-										"type": "Fail",
-										"dependsOn": [
-											{
-												"activity": "Alert_DQ_Failure",
-												"dependencyConditions": [
-													"Completed"
-												]
-											}
-										],
-										"userProperties": [],
-										"typeProperties": {
-											"message": "Metadata DQ failed",
-											"errorCode": "DQ_FAILED"
-										}
-									}
-								]
+								"message": "Metadata DQ failed",
+								"errorCode": "DQ_FAILED"
 							}
 						}
 					]
@@ -416,13 +489,11 @@
 				"type": "String"
 			}
 		},
-		"folder": {
-			"name": "Metadata_Driven"
-		},
 		"annotations": [
 			"ENTITY_DRIVEN",
 			"ENTERPRISE_HARDENED",
-			"ST37_SEEDED"
+			"ST37_SEEDED",
+			"SILVER_QUALITY_V7"
 		]
 	}
 }

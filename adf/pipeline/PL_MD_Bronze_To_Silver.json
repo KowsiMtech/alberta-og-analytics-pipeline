@@ -1,7 +1,7 @@
 {
 	"name": "PL_MD_Bronze_To_Silver",
 	"properties": {
-		"description": "Entity-specific transformation, quarantine classification, and explicit counts. ST37 preserves LastModifiedDateTime for later overlap dedup.",
+		"description": "Entity-specific transformation and exhaustive Silver/Quarantine classification. V7 preserves the full ST37 contract, standardizes legacy sentinels, and fails immediately if any Bronze row is unclassified.",
 		"activities": [
 			{
 				"name": "Lookup_Transform",
@@ -31,11 +31,123 @@
 				}
 			},
 			{
+				"name": "Lookup_Entity_Config_For_Cleanup",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Lookup_Transform",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('EXEC control.usp_GetEntityConfig @EntityName=''',pipeline().parameters.EntityName,'''')",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Delete_Previous_Silver_Window",
+				"type": "Delete",
+				"dependsOn": [
+					{
+						"activity": "Lookup_Entity_Config_For_Cleanup",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataset": {
+						"referenceName": "DS_MD_ADLS_Folder",
+						"type": "DatasetReference",
+						"parameters": {
+							"FolderPath": {
+								"value": "@concat(activity('Lookup_Entity_Config_For_Cleanup').output.firstRow.SilverFolder,'/window=',pipeline().parameters.WindowKey)",
+								"type": "Expression"
+							}
+						}
+					},
+					"enableLogging": false,
+					"storeSettings": {
+						"type": "AzureBlobFSReadSettings",
+						"recursive": true
+					}
+				}
+			},
+			{
+				"name": "Delete_Previous_Quarantine_Window",
+				"type": "Delete",
+				"dependsOn": [
+					{
+						"activity": "Lookup_Entity_Config_For_Cleanup",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataset": {
+						"referenceName": "DS_MD_ADLS_Folder",
+						"type": "DatasetReference",
+						"parameters": {
+							"FolderPath": {
+								"value": "@concat(activity('Lookup_Entity_Config_For_Cleanup').output.firstRow.QuarantineFolder,'/window=',pipeline().parameters.WindowKey)",
+								"type": "Expression"
+							}
+						}
+					},
+					"enableLogging": false,
+					"storeSettings": {
+						"type": "AzureBlobFSReadSettings",
+						"recursive": true
+					}
+				}
+			},
+			{
 				"name": "Run_Entity_BronzeToSilver",
 				"type": "Script",
 				"dependsOn": [
 					{
-						"activity": "Lookup_Transform",
+						"activity": "Delete_Previous_Silver_Window",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Delete_Previous_Quarantine_Window",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -63,6 +175,54 @@
 						}
 					],
 					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			},
+			{
+				"name": "Set_SourceCount",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Run_Entity_BronzeToSilver",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_SourceCount",
+					"value": {
+						"value": "@int(activity('Run_Entity_BronzeToSilver').output.resultSets[0].rows[0].SourceCount)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_UnclassifiedCount",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Run_Entity_BronzeToSilver",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_UnclassifiedCount",
+					"value": {
+						"value": "@int(activity('Run_Entity_BronzeToSilver').output.resultSets[0].rows[0].UnclassifiedCount)",
+						"type": "Expression"
+					}
 				}
 			},
 			{
@@ -114,9 +274,15 @@
 				}
 			},
 			{
-				"name": "Log_BronzeToSilver_Stage",
-				"type": "SqlServerStoredProcedure",
+				"name": "Validate_Row_Accounting",
+				"type": "IfCondition",
 				"dependsOn": [
+					{
+						"activity": "Set_SourceCount",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
 					{
 						"activity": "Set_SilverCount",
 						"dependencyConditions": [
@@ -125,6 +291,46 @@
 					},
 					{
 						"activity": "Set_QuarantineCount",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set_UnclassifiedCount",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@and(equals(variables('v_UnclassifiedCount'),0),equals(variables('v_SourceCount'),add(variables('v_SilverCount'),variables('v_QuarantineCount'))))",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
+						{
+							"name": "Fail_Unclassified_Bronze_Rows",
+							"type": "Fail",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"message": {
+									"value": "@concat('Bronze-to-Silver row accounting failed. source=',string(variables('v_SourceCount')),' silver=',string(variables('v_SilverCount')),' quarantine=',string(variables('v_QuarantineCount')),' unclassified=',string(variables('v_UnclassifiedCount')))",
+									"type": "Expression"
+								},
+								"errorCode": "ST37_V7_ROW_ACCOUNTING_FAILED"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Log_BronzeToSilver_Stage",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Validate_Row_Accounting",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -185,7 +391,7 @@
 						},
 						"Detail": {
 							"value": {
-								"value": "@concat('quarantine=',string(variables('v_QuarantineCount')))",
+								"value": "@concat('source=',string(variables('v_SourceCount')),' silver=',string(variables('v_SilverCount')),' quarantine=',string(variables('v_QuarantineCount')),' unclassified=',string(variables('v_UnclassifiedCount')))",
 								"type": "Expression"
 							},
 							"type": "String"
@@ -229,6 +435,20 @@
 								"type": "Expression",
 								"content": "@string(variables('v_QuarantineCount'))"
 							}
+						},
+						{
+							"key": "SourceCount",
+							"value": {
+								"type": "Expression",
+								"content": "@string(variables('v_SourceCount'))"
+							}
+						},
+						{
+							"key": "UnclassifiedCount",
+							"value": {
+								"type": "Expression",
+								"content": "@string(variables('v_UnclassifiedCount'))"
+							}
 						}
 					],
 					"setSystemVariable": true
@@ -257,15 +477,24 @@
 			"v_QuarantineCount": {
 				"type": "Integer",
 				"defaultValue": 0
+			},
+			"v_SourceCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_UnclassifiedCount": {
+				"type": "Integer",
+				"defaultValue": 0
 			}
-		},
-		"folder": {
-			"name": "Metadata_Driven"
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",
 			"ENTERPRISE_HARDENED",
-			"ST37_SEEDED"
+			"ST37_SEEDED",
+			"IDEMPOTENT_STAGE_RERUN",
+			"DATA_CONTRACT_V7",
+			"EXHAUSTIVE_ROW_CLASSIFICATION",
+			"NO_SILENT_DROP"
 		]
 	}
 }

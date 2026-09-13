@@ -167,11 +167,88 @@
 				}
 			},
 			{
-				"name": "Log_Stage_Failed",
+				"name": "Fail_Durable_Stage_Checkpoint",
 				"type": "SqlServerStoredProcedure",
 				"dependsOn": [
 					{
 						"activity": "Log_Error",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "control.usp_FailStageV4",
+					"storedProcedureParameters": {
+						"EntityName": {
+							"value": {
+								"value": "@pipeline().parameters.EntityName",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"BatchId": {
+							"value": {
+								"value": "@pipeline().parameters.BatchId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"WindowKey": {
+							"value": {
+								"value": "@pipeline().parameters.WindowKey",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"StageName": {
+							"value": {
+								"value": "@if(empty(pipeline().parameters.StageName),pipeline().parameters.ActivityName,pipeline().parameters.StageName)",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineRunId": {
+							"value": {
+								"value": "@pipeline().parameters.ParentRunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ErrorCode": {
+							"value": {
+								"value": "@pipeline().parameters.ErrorCode",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ErrorMessage": {
+							"value": {
+								"value": "@pipeline().parameters.ErrorMessage",
+								"type": "Expression"
+							},
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Log_Stage_Failed",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Fail_Durable_Stage_Checkpoint",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -319,13 +396,55 @@
 				}
 			},
 			{
-				"name": "Alert_Failure",
-				"type": "ExecutePipeline",
+				"name": "Release_Entity_Lease_On_Failure",
+				"type": "SqlServerStoredProcedure",
 				"dependsOn": [
 					{
 						"activity": "End_Run_Failed",
 						"dependencyConditions": [
 							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "control.usp_ReleaseEntityLeaseV4",
+					"storedProcedureParameters": {
+						"EntityName": {
+							"value": {
+								"value": "@pipeline().parameters.EntityName",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineRunId": {
+							"value": {
+								"value": "@pipeline().parameters.ParentRunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Alert_Failure",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Release_Entity_Lease_On_Failure",
+						"dependencyConditions": [
+							"Completed"
 						]
 					}
 				],
@@ -417,10 +536,10 @@
 			},
 			"ErrorMessage": {
 				"type": "String"
+			},
+			"StageName": {
+				"type": "String"
 			}
-		},
-		"folder": {
-			"name": "Metadata_Driven"
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",

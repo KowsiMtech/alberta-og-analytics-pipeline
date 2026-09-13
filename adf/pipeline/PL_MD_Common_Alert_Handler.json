@@ -1,7 +1,7 @@
 {
 	"name": "PL_MD_Common_Alert_Handler",
 	"properties": {
-		"description": "Central alert delivery plus alert audit history.",
+		"description": "Central alert delivery with PENDING/DELIVERED/FAILED audit lifecycle.",
 		"activities": [
 			{
 				"name": "Lookup_Alert_Endpoint",
@@ -238,6 +238,94 @@
 					"referenceName": "LS_AzureSQL",
 					"type": "LinkedServiceReference"
 				}
+			},
+			{
+				"name": "Log_Alert_Delivery_Failed",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Invoke_Logic_App",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "control.usp_RecordAlert",
+					"storedProcedureParameters": {
+						"EntityName": {
+							"value": {
+								"value": "@pipeline().parameters.EntityName",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineRunId": {
+							"value": {
+								"value": "@pipeline().parameters.ParentRunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"BatchId": {
+							"value": {
+								"value": "@pipeline().parameters.BatchId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"WindowKey": {
+							"value": {
+								"value": "@pipeline().parameters.WindowKey",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"AlertType": {
+							"value": {
+								"value": "@pipeline().parameters.AlertType",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"Severity": {
+							"value": {
+								"value": "@pipeline().parameters.Severity",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ActivityName": {
+							"value": {
+								"value": "@pipeline().parameters.ActivityName",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"Message": {
+							"value": {
+								"value": "@pipeline().parameters.Message",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"DeliveryStatus": {
+							"value": "FAILED",
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
 			}
 		],
 		"parameters": {
@@ -265,9 +353,6 @@
 			"Message": {
 				"type": "String"
 			}
-		},
-		"folder": {
-			"name": "Metadata_Driven"
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",

@@ -157,266 +157,62 @@
 								},
 								"firstRowOnly": false
 							}
-						},
+						}
+					]
+				}
+			},
+			{
+				"name": "ForEach_Archive_Object",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "If_Archive_Enabled",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@if(equals(activity('Lookup_Config').output.firstRow.ArchiveEnabled,true),activity('Lookup_Archive_Objects').output.value,createArray())",
+						"type": "Expression"
+					},
+					"isSequential": false,
+					"batchCount": 4,
+					"activities": [
 						{
-							"name": "ForEach_Archive_Object",
-							"type": "ForEach",
-							"dependsOn": [
-								{
-									"activity": "Lookup_Archive_Objects",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
+							"name": "Archive_One_Object",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
 							"userProperties": [],
 							"typeProperties": {
-								"items": {
-									"value": "@activity('Lookup_Archive_Objects').output.value",
-									"type": "Expression"
-								},
-								"isSequential": false,
-								"batchCount": 4,
-								"activities": [
-									{
-										"name": "Check_Already_Archived",
-										"type": "Lookup",
-										"dependsOn": [],
-										"policy": {
-											"retry": 0,
-											"retryIntervalInSeconds": 30,
-											"secureOutput": false,
-											"secureInput": false
-										},
-										"userProperties": [],
-										"typeProperties": {
-											"source": {
-												"type": "AzureSqlSource",
-												"sqlReaderQuery": {
-													"value": "@concat('EXEC control.usp_CheckArchiveAlreadyDone @EntityName=''',pipeline().parameters.EntityName,''', @ArchiveObjectName=''',item().ArchiveObjectName,'''')",
-													"type": "Expression"
-												},
-												"partitionOption": "None"
-											},
-											"dataset": {
-												"referenceName": "DS_MD_Control",
-												"type": "DatasetReference"
-											},
-											"firstRowOnly": true
-										}
+								"waitOnCompletion": true,
+								"parameters": {
+									"EntityName": {
+										"value": "@pipeline().parameters.EntityName",
+										"type": "Expression"
 									},
-									{
-										"name": "If_Not_Already_Archived",
-										"type": "IfCondition",
-										"dependsOn": [
-											{
-												"activity": "Check_Already_Archived",
-												"dependencyConditions": [
-													"Succeeded"
-												]
-											}
-										],
-										"userProperties": [],
-										"typeProperties": {
-											"expression": {
-												"value": "@or(equals(activity('Lookup_Config').output.firstRow.ArchiveOncePerDay,false),equals(int(activity('Check_Already_Archived').output.firstRow.AlreadyArchivedToday),0))",
-												"type": "Expression"
-											},
-											"ifFalseActivities": [
-												{
-													"name": "Log_Archive_Skip",
-													"type": "SqlServerStoredProcedure",
-													"dependsOn": [],
-													"policy": {
-														"retry": 0,
-														"retryIntervalInSeconds": 30,
-														"secureOutput": false,
-														"secureInput": false
-													},
-													"userProperties": [],
-													"typeProperties": {
-														"storedProcedureName": "control.usp_RecordStage",
-														"storedProcedureParameters": {
-															"EntityName": {
-																"value": {
-																	"value": "@pipeline().parameters.EntityName",
-																	"type": "Expression"
-																},
-																"type": "String"
-															},
-															"PipelineRunId": {
-																"value": {
-																	"value": "@pipeline().parameters.ParentRunId",
-																	"type": "Expression"
-																},
-																"type": "String"
-															},
-															"BatchId": {
-																"value": {
-																	"value": "@pipeline().parameters.BatchId",
-																	"type": "Expression"
-																},
-																"type": "String"
-															},
-															"WindowKey": {
-																"value": {
-																	"value": "@pipeline().parameters.WindowKey",
-																	"type": "Expression"
-																},
-																"type": "String"
-															},
-															"StageName": {
-																"value": {
-																	"value": "@concat('ARCHIVE:',item().ArchiveObjectName)",
-																	"type": "Expression"
-																},
-																"type": "String"
-															},
-															"Status": {
-																"value": "SKIPPED",
-																"type": "String"
-															},
-															"Detail": {
-																"value": "Already archived today",
-																"type": "String"
-															}
-														}
-													},
-													"linkedServiceName": {
-														"referenceName": "LS_AzureSQL",
-														"type": "LinkedServiceReference"
-													}
-												}
-											],
-											"ifTrueActivities": [
-												{
-													"name": "Copy_Gold_Object_To_ADLS",
-													"type": "Copy",
-													"dependsOn": [],
-													"policy": {
-														"retry": 0,
-														"retryIntervalInSeconds": 30,
-														"secureOutput": false,
-														"secureInput": false
-													},
-													"userProperties": [],
-													"typeProperties": {
-														"source": {
-															"type": "AzureSqlSource",
-															"sqlReaderQuery": {
-																"value": "@item().SourceQuery",
-																"type": "Expression"
-															},
-															"partitionOption": "None"
-														},
-														"sink": {
-															"type": "ParquetSink",
-															"storeSettings": {
-																"type": "AzureBlobFSWriteSettings"
-															},
-															"formatSettings": {
-																"type": "ParquetWriteSettings"
-															}
-														},
-														"enableStaging": false
-													},
-													"inputs": [
-														{
-															"referenceName": "DS_MD_Control",
-															"type": "DatasetReference"
-														}
-													],
-													"outputs": [
-														{
-															"referenceName": "DS_MD_ArchiveParquet",
-															"type": "DatasetReference",
-															"parameters": {
-																"FolderPath": {
-																	"value": "@replace(item().TargetFolderTemplate,'{{UTC_DATE}}',variables('v_ArchiveDate'))",
-																	"type": "Expression"
-																}
-															}
-														}
-													]
-												},
-												{
-													"name": "Log_Archive_Object",
-													"type": "SqlServerStoredProcedure",
-													"dependsOn": [
-														{
-															"activity": "Copy_Gold_Object_To_ADLS",
-															"dependencyConditions": [
-																"Succeeded"
-															]
-														}
-													],
-													"policy": {
-														"retry": 0,
-														"retryIntervalInSeconds": 30,
-														"secureOutput": false,
-														"secureInput": false
-													},
-													"userProperties": [],
-													"typeProperties": {
-														"storedProcedureName": "control.usp_RecordStage",
-														"storedProcedureParameters": {
-															"EntityName": {
-																"value": {
-																	"value": "@pipeline().parameters.EntityName",
-																	"type": "Expression"
-																},
-																"type": "String"
-															},
-															"PipelineRunId": {
-																"value": {
-																	"value": "@pipeline().parameters.ParentRunId",
-																	"type": "Expression"
-																},
-																"type": "String"
-															},
-															"BatchId": {
-																"value": {
-																	"value": "@pipeline().parameters.BatchId",
-																	"type": "Expression"
-																},
-																"type": "String"
-															},
-															"WindowKey": {
-																"value": {
-																	"value": "@pipeline().parameters.WindowKey",
-																	"type": "Expression"
-																},
-																"type": "String"
-															},
-															"StageName": {
-																"value": {
-																	"value": "@concat('ARCHIVE:',item().ArchiveObjectName)",
-																	"type": "Expression"
-																},
-																"type": "String"
-															},
-															"Status": {
-																"value": "SUCCESS",
-																"type": "String"
-															},
-															"RowCount": {
-																"value": {
-																	"value": "@activity('Copy_Gold_Object_To_ADLS').output.rowsCopied",
-																	"type": "Expression"
-																},
-																"type": "Int64"
-															}
-														}
-													},
-													"linkedServiceName": {
-														"referenceName": "LS_AzureSQL",
-														"type": "LinkedServiceReference"
-													}
-												}
-											]
-										}
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().parameters.ParentRunId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									},
+									"ArchiveObject": {
+										"value": "@string(item())",
+										"type": "Expression"
 									}
-								]
+								}
 							}
 						}
 					]
@@ -441,9 +237,6 @@
 			"v_ArchiveDate": {
 				"type": "String"
 			}
-		},
-		"folder": {
-			"name": "Metadata_Driven"
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",
