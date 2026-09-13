@@ -309,15 +309,6 @@
 															},
 															"partitionOption": "None"
 														},
-														"sink": {
-															"type": "ParquetSink",
-															"storeSettings": {
-																"type": "AzureBlobFSWriteSettings"
-															},
-															"formatSettings": {
-																"type": "ParquetWriteSettings"
-															}
-														},
 														"enableStaging": false
 													},
 													"inputs": [

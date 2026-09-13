@@ -2,11 +2,20 @@
 	"name": "DS_MD_REST",
 	"properties": {
 		"linkedServiceName": {
-			"referenceName": "LS_REST_GENERIC",
-			"type": "LinkedServiceReference"
+			"referenceName": "LS_REST_Generic",
+			"type": "LinkedServiceReference",
+			"parameters": {
+				"BaseUrl": {
+					"value": "@dataset().BaseUrl",
+					"type": "Expression"
+				}
+			}
 		},
 		"parameters": {
 			"RelativeUrl": {
+				"type": "String"
+			},
+			"BaseUrl": {
 				"type": "String"
 			}
 		},
