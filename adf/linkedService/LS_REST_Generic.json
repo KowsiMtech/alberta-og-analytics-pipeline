@@ -1,11 +1,14 @@
 {
-	"name": "LS_REST_GENERIC",
+	"name": "LS_REST_Generic",
 	"properties": {
 		"parameters": {
 			"BaseUrl": {
 				"type": "String"
 			}
 		},
+		"annotations": [
+			"GENERIC_BASE_URL_FROM_ENTITY_CONFIG"
+		],
 		"type": "RestService",
 		"typeProperties": {
 			"url": {
@@ -14,7 +17,6 @@
 			},
 			"enableServerCertificateValidation": true,
 			"authenticationType": "Anonymous"
-		},
-		"annotations": []
+		}
 	}
 }
