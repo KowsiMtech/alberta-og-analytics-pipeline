@@ -1,10 +1,10 @@
 {
-	"name": "PL_MD_Reconciliation",
+	"name": "PL_MD_Gold_Validation",
 	"properties": {
-		"description": "Reconciliation understands quarantine and dedup: Source = Silver + Quarantine; RawStaging = Staging + Duplicates.",
+		"description": "Post-Gold SCD2 invariant checks restored from the original project: one current row per business key, valid effective dates, and current end-date sentinel.",
 		"activities": [
 			{
-				"name": "Reconcile_Counts",
+				"name": "Lookup_Gold_DQ_Script",
 				"type": "Lookup",
 				"dependsOn": [],
 				"policy": {
@@ -18,7 +18,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "@concat('EXEC control.usp_ReconcileCountsV2 @EntityName=''',pipeline().parameters.EntityName,''', @PipelineRunId=''',pipeline().parameters.ParentRunId,''', @BatchId=''',pipeline().parameters.BatchId,''', @WindowKey=''',pipeline().parameters.WindowKey,''', @SourceCount=',string(pipeline().parameters.SourceCount),', @SilverCount=',string(pipeline().parameters.SilverCount),', @QuarantineCount=',string(pipeline().parameters.QuarantineCount),', @RawStagingCount=',string(pipeline().parameters.RawStagingCount),', @DuplicateCount=',string(pipeline().parameters.DuplicateCount),', @StagingCount=',string(pipeline().parameters.StagingCount))",
+							"value": "@concat('SELECT ScriptTemplate FROM control.EntityTransformScript WHERE EntityName=''',pipeline().parameters.EntityName,''' AND StageName=''GOLD_DQ'' AND IsActive=1')",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
@@ -31,35 +31,46 @@
 				}
 			},
 			{
-				"name": "Set_Reconciliation_Status",
-				"type": "SetVariable",
+				"name": "Run_Gold_DQ",
+				"type": "Script",
 				"dependsOn": [
 					{
-						"activity": "Reconcile_Counts",
+						"activity": "Lookup_Gold_DQ_Script",
 						"dependencyConditions": [
 							"Succeeded"
 						]
 					}
 				],
 				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
 					"secureOutput": false,
 					"secureInput": false
 				},
 				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				},
 				"typeProperties": {
-					"variableName": "v_Status",
-					"value": {
-						"value": "@activity('Reconcile_Counts').output.firstRow.ReconciliationStatus",
-						"type": "Expression"
-					}
+					"scripts": [
+						{
+							"type": "Query",
+							"text": {
+								"value": "@activity('Lookup_Gold_DQ_Script').output.firstRow.ScriptTemplate",
+								"type": "Expression"
+							}
+						}
+					],
+					"scriptBlockExecutionTimeout": "00:30:00"
 				}
 			},
 			{
-				"name": "If_Reconciliation_Failed",
+				"name": "If_Gold_DQ_Failed",
 				"type": "IfCondition",
 				"dependsOn": [
 					{
-						"activity": "Set_Reconciliation_Status",
+						"activity": "Run_Gold_DQ",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -68,12 +79,12 @@
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
-						"value": "@equals(variables('v_Status'),'FAIL')",
+						"value": "@greater(add(add(int(activity('Run_Gold_DQ').output.resultSets[0].rows[0].DuplicateCurrentWellCount),int(activity('Run_Gold_DQ').output.resultSets[0].rows[0].InvalidEffectiveRangeCount)),add(int(activity('Run_Gold_DQ').output.resultSets[0].rows[0].InvalidCurrentEndDateCount),int(activity('Run_Gold_DQ').output.resultSets[0].rows[0].DuplicateCurrentOperatorCount))),0)",
 						"type": "Expression"
 					},
 					"ifFalseActivities": [
 						{
-							"name": "Log_Reconciliation_Pass",
+							"name": "Log_Gold_DQ_Pass",
 							"type": "SqlServerStoredProcedure",
 							"dependsOn": [],
 							"policy": {
@@ -115,11 +126,15 @@
 										"type": "String"
 									},
 									"StageName": {
-										"value": "RECONCILIATION",
+										"value": "GOLD_VALIDATION",
 										"type": "String"
 									},
 									"Status": {
 										"value": "SUCCESS",
+										"type": "String"
+									},
+									"Detail": {
+										"value": "SCD2 invariants valid",
 										"type": "String"
 									}
 								}
@@ -132,7 +147,7 @@
 					],
 					"ifTrueActivities": [
 						{
-							"name": "Alert_Reconciliation_Failure",
+							"name": "Alert_Gold_DQ",
 							"type": "ExecutePipeline",
 							"dependsOn": [],
 							"policy": {
@@ -162,19 +177,19 @@
 										"value": "@pipeline().parameters.WindowKey",
 										"type": "Expression"
 									},
-									"AlertType": "RECONCILIATION_FAILURE",
+									"AlertType": "GOLD_DQ_FAILURE",
 									"Severity": "CRITICAL",
-									"ActivityName": "RECONCILIATION",
-									"Message": "Count reconciliation failed. Watermark must not advance."
+									"ActivityName": "GOLD_VALIDATION",
+									"Message": "Post-Gold SCD2 invariant validation failed."
 								}
 							}
 						},
 						{
-							"name": "Fail_Reconciliation",
+							"name": "Fail_Gold_DQ",
 							"type": "Fail",
 							"dependsOn": [
 								{
-									"activity": "Alert_Reconciliation_Failure",
+									"activity": "Alert_Gold_DQ",
 									"dependencyConditions": [
 										"Completed"
 									]
@@ -182,8 +197,8 @@
 							],
 							"userProperties": [],
 							"typeProperties": {
-								"message": "Count reconciliation failed",
-								"errorCode": "RECONCILIATION_FAILED"
+								"message": "Post-Gold SCD2 invariant validation failed",
+								"errorCode": "GOLD_DQ_FAILED"
 							}
 						}
 					]
@@ -201,29 +216,6 @@
 				"type": "String"
 			},
 			"WindowKey": {
-				"type": "String"
-			},
-			"SourceCount": {
-				"type": "Int64"
-			},
-			"SilverCount": {
-				"type": "Int64"
-			},
-			"QuarantineCount": {
-				"type": "Int64"
-			},
-			"RawStagingCount": {
-				"type": "Int64"
-			},
-			"DuplicateCount": {
-				"type": "Int64"
-			},
-			"StagingCount": {
-				"type": "Int64"
-			}
-		},
-		"variables": {
-			"v_Status": {
 				"type": "String"
 			}
 		},

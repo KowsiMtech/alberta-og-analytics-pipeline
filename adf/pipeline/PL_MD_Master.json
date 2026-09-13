@@ -1,6 +1,7 @@
 {
 	"name": "PL_MD_Master",
 	"properties": {
+		"description": "Master processes active entities by execution wave and bounded parallelism; EntityName is the runtime contract.",
 		"activities": [
 			{
 				"name": "Set_BatchId",
@@ -14,7 +15,7 @@
 				"typeProperties": {
 					"variableName": "v_BatchId",
 					"value": {
-						"value": "@concat('BATCH_',formatDateTime(utcnow(),'yyyyMMdd_HHmmss'),'_',substring(pipeline().RunId,0,8))",
+						"value": "@concat(formatDateTime(utcnow(),'yyyyMMddHHmmss'),'_',substring(guid(),0,8))",
 						"type": "Expression"
 					}
 				}
@@ -38,7 +39,7 @@
 				},
 				"userProperties": [],
 				"typeProperties": {
-					"storedProcedureName": "control.usp_ReconcileStaleRuns"
+					"storedProcedureName": "control.usp_CloseStalePipelineRuns"
 				},
 				"linkedServiceName": {
 					"referenceName": "LS_AzureSQL",
@@ -66,7 +67,10 @@
 				"typeProperties": {
 					"source": {
 						"type": "AzureSqlSource",
-						"sqlReaderQuery": "EXEC control.usp_GetExecutionWaves",
+						"sqlReaderQuery": {
+							"value": "@concat('SELECT DISTINCT ExecutionWave FROM control.EntityConfig WHERE IsActive=1 ORDER BY ExecutionWave')",
+							"type": "Expression"
+						},
 						"partitionOption": "None"
 					},
 					"dataset": {
@@ -96,7 +100,7 @@
 					"isSequential": true,
 					"activities": [
 						{
-							"name": "Lookup_Entities",
+							"name": "Lookup_Entities_For_Wave",
 							"type": "Lookup",
 							"dependsOn": [],
 							"policy": {
@@ -110,7 +114,7 @@
 								"source": {
 									"type": "AzureSqlSource",
 									"sqlReaderQuery": {
-										"value": "@concat('EXEC control.usp_GetEntitiesForWave @ExecutionWave=',string(item().ExecutionWave))",
+										"value": "@concat('SELECT * FROM control.EntityConfig WHERE IsActive=1 AND ExecutionWave=',string(item().ExecutionWave),' ORDER BY Priority,EntityName')",
 										"type": "Expression"
 									},
 									"partitionOption": "None"
@@ -127,7 +131,7 @@
 							"type": "ForEach",
 							"dependsOn": [
 								{
-									"activity": "Lookup_Entities",
+									"activity": "Lookup_Entities_For_Wave",
 									"dependencyConditions": [
 										"Succeeded"
 									]
@@ -136,14 +140,14 @@
 							"userProperties": [],
 							"typeProperties": {
 								"items": {
-									"value": "@activity('Lookup_Entities').output.value",
+									"value": "@activity('Lookup_Entities_For_Wave').output.value",
 									"type": "Expression"
 								},
 								"isSequential": false,
 								"batchCount": 4,
 								"activities": [
 									{
-										"name": "Dependency_Status",
+										"name": "Check_Dependency",
 										"type": "Lookup",
 										"dependsOn": [],
 										"policy": {
@@ -174,7 +178,7 @@
 										"type": "IfCondition",
 										"dependsOn": [
 											{
-												"activity": "Dependency_Status",
+												"activity": "Check_Dependency",
 												"dependencyConditions": [
 													"Succeeded"
 												]
@@ -183,7 +187,7 @@
 										"userProperties": [],
 										"typeProperties": {
 											"expression": {
-												"value": "@equals(activity('Dependency_Status').output.firstRow.DependencyStatus,'READY')",
+												"value": "@equals(activity('Check_Dependency').output.firstRow.DependencyStatus,'READY')",
 												"type": "Expression"
 											},
 											"ifFalseActivities": [
@@ -217,8 +221,8 @@
 															"WindowKey": "",
 															"AlertType": "DEPENDENCY_BLOCKED",
 															"Severity": "WARNING",
-															"ActivityName": "DependencyCheck",
-															"Message": "Entity dependency not satisfied"
+															"ActivityName": "MASTER_DEPENDENCY",
+															"Message": "Entity dependency was not successful in the current batch."
 														}
 													}
 												}
@@ -286,6 +290,10 @@
 			},
 			"WindowEnd": {
 				"type": "String"
+			},
+			"EntityBatchCount": {
+				"type": "Int",
+				"defaultValue": 4
 			}
 		},
 		"variables": {
@@ -298,6 +306,7 @@
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",
+			"ENTERPRISE_HARDENED",
 			"ST37_SEEDED"
 		]
 	}

@@ -1,11 +1,80 @@
 {
 	"name": "PL_MD_Common_Error_Handler",
 	"properties": {
+		"description": "Central final-failure classification, logging, run closure, alert, and fail propagation.",
 		"activities": [
+			{
+				"name": "Lookup_Error_Config",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('SELECT RetryPolicyName FROM control.EntityConfig WHERE EntityName=''',pipeline().parameters.EntityName,'''')",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Classify_Final_Error",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Lookup_Error_Config",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('EXEC control.usp_GetRetryDecision @PolicyName=''',coalesce(activity('Lookup_Error_Config').output.firstRow.RetryPolicyName,'DEFAULT'),''', @ErrorCode=''',replace(pipeline().parameters.ErrorCode,'''',''''''),''', @ErrorMessage=N''',replace(pipeline().parameters.ErrorMessage,'''',''''''),''', @RetryAttempt=999')",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
 			{
 				"name": "Log_Error",
 				"type": "SqlServerStoredProcedure",
-				"dependsOn": [],
+				"dependsOn": [
+					{
+						"activity": "Classify_Final_Error",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"policy": {
 					"retry": 0,
 					"retryIntervalInSeconds": 30,
@@ -24,7 +93,10 @@
 							"type": "String"
 						},
 						"PipelineName": {
-							"value": "PL_MD_Entity_Orchestrator",
+							"value": {
+								"value": "@pipeline().parameters.PipelineName",
+								"type": "Expression"
+							},
 							"type": "String"
 						},
 						"PipelineRunId": {
@@ -70,11 +142,17 @@
 							"type": "String"
 						},
 						"ErrorCategory": {
-							"value": "CHILD_PIPELINE_FAILURE",
+							"value": {
+								"value": "@activity('Classify_Final_Error').output.firstRow.ErrorCategory",
+								"type": "Expression"
+							},
 							"type": "String"
 						},
 						"IsRetryable": {
-							"value": false,
+							"value": {
+								"value": "@activity('Classify_Final_Error').output.firstRow.IsRetryable",
+								"type": "Expression"
+							},
 							"type": "Boolean"
 						},
 						"RetryAttempt": {
@@ -89,7 +167,7 @@
 				}
 			},
 			{
-				"name": "End_Run_Failed",
+				"name": "Log_Stage_Failed",
 				"type": "SqlServerStoredProcedure",
 				"dependsOn": [
 					{
@@ -107,7 +185,7 @@
 				},
 				"userProperties": [],
 				"typeProperties": {
-					"storedProcedureName": "control.usp_EndEntityRun",
+					"storedProcedureName": "control.usp_RecordStage",
 					"storedProcedureParameters": {
 						"EntityName": {
 							"value": {
@@ -126,6 +204,87 @@
 						"BatchId": {
 							"value": {
 								"value": "@pipeline().parameters.BatchId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"WindowKey": {
+							"value": {
+								"value": "@pipeline().parameters.WindowKey",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"StageName": {
+							"value": {
+								"value": "@pipeline().parameters.ActivityName",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"Status": {
+							"value": "FAILED",
+							"type": "String"
+						},
+						"Detail": {
+							"value": {
+								"value": "@pipeline().parameters.ErrorMessage",
+								"type": "Expression"
+							},
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "End_Run_Failed",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Log_Stage_Failed",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "control.usp_EndPipelineRun",
+					"storedProcedureParameters": {
+						"EntityName": {
+							"value": {
+								"value": "@pipeline().parameters.EntityName",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineRunId": {
+							"value": {
+								"value": "@pipeline().parameters.ParentRunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"BatchId": {
+							"value": {
+								"value": "@pipeline().parameters.BatchId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"WindowKey": {
+							"value": {
+								"value": "@pipeline().parameters.WindowKey",
 								"type": "Expression"
 							},
 							"type": "String"
@@ -209,6 +368,29 @@
 						}
 					}
 				}
+			},
+			{
+				"name": "Fail_Handled_Error",
+				"type": "Fail",
+				"dependsOn": [
+					{
+						"activity": "Alert_Failure",
+						"dependencyConditions": [
+							"Completed"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"message": {
+						"value": "@pipeline().parameters.ErrorMessage",
+						"type": "Expression"
+					},
+					"errorCode": {
+						"value": "@pipeline().parameters.ErrorCode",
+						"type": "Expression"
+					}
+				}
 			}
 		],
 		"parameters": {
@@ -222,6 +404,9 @@
 				"type": "String"
 			},
 			"WindowKey": {
+				"type": "String"
+			},
+			"PipelineName": {
 				"type": "String"
 			},
 			"ActivityName": {
@@ -239,6 +424,7 @@
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",
+			"ENTERPRISE_HARDENED",
 			"ST37_SEEDED"
 		]
 	}

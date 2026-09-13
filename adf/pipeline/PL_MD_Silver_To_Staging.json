@@ -1,6 +1,7 @@
 {
 	"name": "PL_MD_Silver_To_Staging",
 	"properties": {
+		"description": "Silver is copied to staging, then overlap duplicates are removed by business-key + latest-modified logic before DQ/Gold.",
 		"activities": [
 			{
 				"name": "Lookup_Config",
@@ -101,11 +102,138 @@
 				]
 			},
 			{
-				"name": "Get_Staging_Count",
+				"name": "Get_Raw_Staging_Count",
 				"type": "Lookup",
 				"dependsOn": [
 					{
 						"activity": "Copy_Silver_To_Staging",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('SELECT COUNT_BIG(*) RawStagingCount FROM [',activity('Lookup_Config').output.firstRow.StagingSchema,'].[',activity('Lookup_Config').output.firstRow.StagingTable,']')",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Set_RawStagingCount",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Get_Raw_Staging_Count",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_RawStagingCount",
+					"value": {
+						"value": "@int(activity('Get_Raw_Staging_Count').output.firstRow.RawStagingCount)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Lookup_Dedup_Script",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Set_RawStagingCount",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('SELECT ScriptTemplate FROM control.EntityTransformScript WHERE EntityName=''',pipeline().parameters.EntityName,''' AND StageName=''STAGING_DEDUP'' AND IsActive=1')",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Run_Staging_Dedup",
+				"type": "Script",
+				"dependsOn": [
+					{
+						"activity": "Lookup_Dedup_Script",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "NonQuery",
+							"text": {
+								"value": "@activity('Lookup_Dedup_Script').output.firstRow.ScriptTemplate",
+								"type": "Expression"
+							}
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			},
+			{
+				"name": "Get_Deduped_Staging_Count",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Run_Staging_Dedup",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -139,7 +267,7 @@
 				"type": "SetVariable",
 				"dependsOn": [
 					{
-						"activity": "Get_Staging_Count",
+						"activity": "Get_Deduped_Staging_Count",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -153,13 +281,13 @@
 				"typeProperties": {
 					"variableName": "v_StagingCount",
 					"value": {
-						"value": "@int(activity('Get_Staging_Count').output.firstRow.StagingCount)",
+						"value": "@int(activity('Get_Deduped_Staging_Count').output.firstRow.StagingCount)",
 						"type": "Expression"
 					}
 				}
 			},
 			{
-				"name": "Return_StagingCount",
+				"name": "Set_DuplicateCount",
 				"type": "SetVariable",
 				"dependsOn": [
 					{
@@ -175,8 +303,124 @@
 				},
 				"userProperties": [],
 				"typeProperties": {
+					"variableName": "v_DuplicateCount",
+					"value": {
+						"value": "@sub(variables('v_RawStagingCount'),variables('v_StagingCount'))",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Log_Staging_Dedup",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Set_DuplicateCount",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "control.usp_RecordStage",
+					"storedProcedureParameters": {
+						"EntityName": {
+							"value": {
+								"value": "@pipeline().parameters.EntityName",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineRunId": {
+							"value": {
+								"value": "@pipeline().parameters.ParentRunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"BatchId": {
+							"value": {
+								"value": "@pipeline().parameters.BatchId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"WindowKey": {
+							"value": {
+								"value": "@pipeline().parameters.WindowKey",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"StageName": {
+							"value": "SILVER_TO_STAGING_DEDUP",
+							"type": "String"
+						},
+						"Status": {
+							"value": "SUCCESS",
+							"type": "String"
+						},
+						"RowCount": {
+							"value": {
+								"value": "@variables('v_StagingCount')",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"Detail": {
+							"value": {
+								"value": "@concat('raw=',string(variables('v_RawStagingCount')),'; duplicates_removed=',string(variables('v_DuplicateCount')))",
+								"type": "Expression"
+							},
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Return_Staging_Counts",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Log_Staging_Dedup",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
 					"variableName": "pipelineReturnValue",
 					"value": [
+						{
+							"key": "RawStagingCount",
+							"value": {
+								"type": "Expression",
+								"content": "@string(variables('v_RawStagingCount'))"
+							}
+						},
+						{
+							"key": "DuplicateCount",
+							"value": {
+								"type": "Expression",
+								"content": "@string(variables('v_DuplicateCount'))"
+							}
+						},
 						{
 							"key": "StagingCount",
 							"value": {
@@ -204,7 +448,15 @@
 			}
 		},
 		"variables": {
+			"v_RawStagingCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
 			"v_StagingCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_DuplicateCount": {
 				"type": "Integer",
 				"defaultValue": 0
 			}
@@ -214,6 +466,7 @@
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",
+			"ENTERPRISE_HARDENED",
 			"ST37_SEEDED"
 		]
 	}

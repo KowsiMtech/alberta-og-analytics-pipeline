@@ -1,6 +1,7 @@
 {
 	"name": "PL_MD_REST_Ingestion",
 	"properties": {
+		"description": "Generic REST adapter with metadata-driven pagination branches. Endpoint-specific auth/token extraction remains profile-driven; ST37 production path uses SQL adapter.",
 		"activities": [
 			{
 				"name": "Lookup_Config",
@@ -338,7 +339,8 @@
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",
-			"ST37_SEEDED"
+			"ENTERPRISE_HARDENED",
+			"REST_ADAPTER"
 		]
 	}
 }

@@ -1,6 +1,7 @@
 {
 	"name": "PL_MD_Gold_Load",
 	"properties": {
+		"description": "Entity-specific Gold strategy script with measurable row counts and stage telemetry.",
 		"activities": [
 			{
 				"name": "Lookup_Gold_Script",
@@ -54,7 +55,7 @@
 				"typeProperties": {
 					"scripts": [
 						{
-							"type": "NonQuery",
+							"type": "Query",
 							"text": {
 								"value": "@activity('Lookup_Gold_Script').output.firstRow.ScriptTemplate",
 								"type": "Expression"
@@ -62,6 +63,175 @@
 						}
 					],
 					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			},
+			{
+				"name": "Set_Gold_RowsRead",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Run_Gold_Load",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_RowsRead",
+					"value": {
+						"value": "@int(activity('Run_Gold_Load').output.resultSets[0].rows[0].RowsRead)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_Gold_RowsWritten",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Run_Gold_Load",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_RowsWritten",
+					"value": {
+						"value": "@int(activity('Run_Gold_Load').output.resultSets[0].rows[0].RowsWritten)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Log_Gold_Stage",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Set_Gold_RowsRead",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set_Gold_RowsWritten",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "control.usp_RecordStage",
+					"storedProcedureParameters": {
+						"EntityName": {
+							"value": {
+								"value": "@pipeline().parameters.EntityName",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineRunId": {
+							"value": {
+								"value": "@pipeline().parameters.ParentRunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"BatchId": {
+							"value": {
+								"value": "@pipeline().parameters.BatchId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"WindowKey": {
+							"value": {
+								"value": "@pipeline().parameters.WindowKey",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"StageName": {
+							"value": "GOLD_LOAD",
+							"type": "String"
+						},
+						"Status": {
+							"value": "SUCCESS",
+							"type": "String"
+						},
+						"RowCount": {
+							"value": {
+								"value": "@variables('v_RowsWritten')",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"Detail": {
+							"value": {
+								"value": "@concat('rowsRead=',string(variables('v_RowsRead')))",
+								"type": "Expression"
+							},
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Return_Gold_Counts",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Log_Gold_Stage",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "pipelineReturnValue",
+					"value": [
+						{
+							"key": "RowsRead",
+							"value": {
+								"type": "Expression",
+								"content": "@string(variables('v_RowsRead'))"
+							}
+						},
+						{
+							"key": "RowsWritten",
+							"value": {
+								"type": "Expression",
+								"content": "@string(variables('v_RowsWritten'))"
+							}
+						}
+					],
+					"setSystemVariable": true
 				}
 			}
 		],
@@ -79,11 +249,22 @@
 				"type": "String"
 			}
 		},
+		"variables": {
+			"v_RowsRead": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_RowsWritten": {
+				"type": "Integer",
+				"defaultValue": 0
+			}
+		},
 		"folder": {
 			"name": "Metadata_Driven_Pipeline"
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",
+			"ENTERPRISE_HARDENED",
 			"ST37_SEEDED"
 		]
 	}

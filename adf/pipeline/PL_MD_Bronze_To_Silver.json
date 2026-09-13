@@ -1,6 +1,7 @@
 {
 	"name": "PL_MD_Bronze_To_Silver",
 	"properties": {
+		"description": "Entity-specific transformation, quarantine classification, and explicit counts. ST37 preserves LastModifiedDateTime for later overlap dedup.",
 		"activities": [
 			{
 				"name": "Lookup_Transform",
@@ -56,7 +57,7 @@
 						{
 							"type": "Query",
 							"text": {
-								"value": "@replace(activity('Lookup_Transform').output.firstRow.ScriptTemplate,'{{WindowKey}}',pipeline().parameters.WindowKey)",
+								"value": "@replace(replace(activity('Lookup_Transform').output.firstRow.ScriptTemplate,'{{WindowKey}}',pipeline().parameters.WindowKey),'{{BatchId}}',pipeline().parameters.BatchId)",
 								"type": "Expression"
 							}
 						}
@@ -113,8 +114,8 @@
 				}
 			},
 			{
-				"name": "Return_Counts",
-				"type": "SetVariable",
+				"name": "Log_BronzeToSilver_Stage",
+				"type": "SqlServerStoredProcedure",
 				"dependsOn": [
 					{
 						"activity": "Set_SilverCount",
@@ -124,6 +125,84 @@
 					},
 					{
 						"activity": "Set_QuarantineCount",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "control.usp_RecordStage",
+					"storedProcedureParameters": {
+						"EntityName": {
+							"value": {
+								"value": "@pipeline().parameters.EntityName",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineRunId": {
+							"value": {
+								"value": "@pipeline().parameters.ParentRunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"BatchId": {
+							"value": {
+								"value": "@pipeline().parameters.BatchId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"WindowKey": {
+							"value": {
+								"value": "@pipeline().parameters.WindowKey",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"StageName": {
+							"value": "BRONZE_TO_SILVER",
+							"type": "String"
+						},
+						"Status": {
+							"value": "SUCCESS",
+							"type": "String"
+						},
+						"RowCount": {
+							"value": {
+								"value": "@variables('v_SilverCount')",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"Detail": {
+							"value": {
+								"value": "@concat('quarantine=',string(variables('v_QuarantineCount')))",
+								"type": "Expression"
+							},
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Return_Counts",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Log_BronzeToSilver_Stage",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -185,6 +264,7 @@
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",
+			"ENTERPRISE_HARDENED",
 			"ST37_SEEDED"
 		]
 	}
