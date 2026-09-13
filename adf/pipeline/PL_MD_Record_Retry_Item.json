@@ -391,6 +391,9 @@
 				"defaultValue": 0
 			}
 		},
+		"folder": {
+			"name": "Metadata_Driven"
+		},
 		"annotations": []
 	}
 }
