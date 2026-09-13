@@ -84,11 +84,8 @@
 							"userProperties": [],
 							"typeProperties": {
 								"source": {
-									"type": "SqlSource",
-									"sqlReaderQuery": {
-										"value": "@if(equals(activity('Lookup_Config').output.firstRow.LoadType,'FULL'),concat('SELECT * FROM ',activity('Lookup_Config').output.firstRow.SourceSchema,'.',activity('Lookup_Config').output.firstRow.SourceObject),concat('SELECT * FROM ',activity('Lookup_Config').output.firstRow.SourceSchema,'.',activity('Lookup_Config').output.firstRow.SourceObject,' WHERE ',activity('Lookup_Config').output.firstRow.WatermarkColumn,' > ''',pipeline().parameters.ExtractionStart,''' AND ',activity('Lookup_Config').output.firstRow.WatermarkColumn,' <= ''',pipeline().parameters.EndWatermark,''''))",
-										"type": "Expression"
-									},
+									"type": "SqlServerSource",
+									"queryTimeout": "02:00:00",
 									"partitionOption": "None"
 								},
 								"sink": {
@@ -100,7 +97,15 @@
 										"type": "ParquetWriteSettings"
 									}
 								},
-								"enableStaging": false
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"typeConversion": true,
+									"typeConversionSettings": {
+										"allowDataTruncation": true,
+										"treatBooleanAsNumber": false
+									}
+								}
 							},
 							"inputs": [
 								{
