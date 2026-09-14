@@ -560,10 +560,6 @@
 				},
 				"userProperties": [],
 				"typeProperties": {
-					"pipeline": {
-						"referenceName": "PL_MD_Freshness_Decision_Handler",
-						"type": "PipelineReference"
-					},
 					"waitOnCompletion": true,
 					"parameters": {
 						"EntityName": {
