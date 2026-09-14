@@ -18,7 +18,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "@concat('EXEC control.usp_BeginStage @EntityName=''',replace(pipeline().parameters.EntityName,'''',''''''),''', @BatchId=''',replace(pipeline().parameters.BatchId,'''',''''''),''', @WindowKey=''',replace(pipeline().parameters.WindowKey,'''',''''''),''', @StageName=''',replace(pipeline().parameters.StageName,'''',''''''),''', @PipelineRunId=''',replace(pipeline().parameters.ParentRunId,'''',''''''),''', @RecoveryMode=''',replace(pipeline().parameters.RecoveryMode,'''',''''''),'''')",
+							"value": "@if(equals(pipeline().parameters.EnableExecution,true),concat('EXEC control.usp_BeginStage @EntityName=''',replace(pipeline().parameters.EntityName,'''',''''''),''', @BatchId=''',replace(pipeline().parameters.BatchId,'''',''''''),''', @WindowKey=''',replace(pipeline().parameters.WindowKey,'''',''''''),''', @StageName=''',replace(pipeline().parameters.StageName,'''',''''''),''', @PipelineRunId=''',replace(pipeline().parameters.ParentRunId,'''',''''''),''', @RecoveryMode=''',replace(pipeline().parameters.RecoveryMode,'''',''''''),''''), 'SELECT ''SKIP'' AS Decision, 0 AS AttemptNo, 0 AS RowCount, ''{}'' AS OutputJson')",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
@@ -100,6 +100,10 @@
 			},
 			"RecoveryMode": {
 				"type": "String"
+			},
+			"EnableExecution": {
+				"type": "Bool",
+				"defaultValue": true
 			}
 		},
 		"annotations": [

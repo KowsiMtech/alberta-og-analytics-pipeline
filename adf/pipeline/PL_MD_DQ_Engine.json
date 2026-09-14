@@ -493,14 +493,11 @@
 				"type": "String"
 			}
 		},
-		"folder": {
-			"name": "Metadata_Driven"
-		},
 		"annotations": [
 			"ENTITY_DRIVEN",
 			"ENTERPRISE_HARDENED",
 			"ST37_SEEDED",
-			"SILVER_QUALITY_V7"
+			"SILVER_QUALITY"
 		]
 	}
 }

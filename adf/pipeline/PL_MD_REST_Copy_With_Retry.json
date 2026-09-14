@@ -268,7 +268,7 @@
 											"value": "@variables('v_Attempt')",
 											"type": "Expression"
 										},
-										"type": "Int32"
+										"type": "Int"
 									}
 								}
 							},
@@ -498,7 +498,7 @@
 											"value": "@variables('v_Attempt')",
 											"type": "Expression"
 										},
-										"type": "Int32"
+										"type": "Int"
 									},
 									"ErrorCode": {
 										"value": {
@@ -533,7 +533,7 @@
 											"value": "@variables('v_WaitSeconds')",
 											"type": "Expression"
 										},
-										"type": "Int32"
+										"type": "Int"
 									}
 								}
 							},

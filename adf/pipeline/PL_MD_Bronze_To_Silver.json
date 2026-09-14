@@ -1,7 +1,7 @@
 {
 	"name": "PL_MD_Bronze_To_Silver",
 	"properties": {
-		"description": "Entity-specific transformation and exhaustive Silver/Quarantine classification. V7 preserves the full ST37 contract, standardizes legacy sentinels, and fails immediately if any Bronze row is unclassified.",
+		"description": "Entity-specific transformation and exhaustive Silver/Quarantine classification. The framework preserves the full ST37 contract, standardizes legacy sentinels, and fails immediately if any Bronze row is unclassified.",
 		"activities": [
 			{
 				"name": "Lookup_Transform",
@@ -319,7 +319,7 @@
 									"value": "@concat('Bronze-to-Silver row accounting failed. source=',string(variables('v_SourceCount')),' silver=',string(variables('v_SilverCount')),' quarantine=',string(variables('v_QuarantineCount')),' unclassified=',string(variables('v_UnclassifiedCount')))",
 									"type": "Expression"
 								},
-								"errorCode": "ST37_V7_ROW_ACCOUNTING_FAILED"
+								"errorCode": "ST37_ROW_ACCOUNTING_FAILED"
 							}
 						}
 					]
@@ -487,15 +487,12 @@
 				"defaultValue": 0
 			}
 		},
-		"folder": {
-			"name": "Metadata_Driven"
-		},
 		"annotations": [
 			"ENTITY_DRIVEN",
 			"ENTERPRISE_HARDENED",
 			"ST37_SEEDED",
 			"IDEMPOTENT_STAGE_RERUN",
-			"DATA_CONTRACT_V7",
+			"DATA_CONTRACT",
 			"EXHAUSTIVE_ROW_CLASSIFICATION",
 			"NO_SILENT_DROP"
 		]

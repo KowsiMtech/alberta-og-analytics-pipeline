@@ -157,6 +157,30 @@
 								},
 								"firstRowOnly": false
 							}
+						},
+						{
+							"name": "Set_Archive_Objects",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Lookup_Archive_Objects",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_ArchiveObjects",
+								"value": {
+									"value": "@activity('Lookup_Archive_Objects').output.value",
+									"type": "Expression"
+								}
+							}
 						}
 					]
 				}
@@ -175,7 +199,7 @@
 				"userProperties": [],
 				"typeProperties": {
 					"items": {
-						"value": "@if(equals(activity('Lookup_Config').output.firstRow.ArchiveEnabled,true),activity('Lookup_Archive_Objects').output.value,createArray())",
+						"value": "@variables('v_ArchiveObjects')",
 						"type": "Expression"
 					},
 					"isSequential": false,
@@ -240,10 +264,11 @@
 		"variables": {
 			"v_ArchiveDate": {
 				"type": "String"
+			},
+			"v_ArchiveObjects": {
+				"type": "Array",
+				"defaultValue": []
 			}
-		},
-		"folder": {
-			"name": "Metadata_Driven"
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",
