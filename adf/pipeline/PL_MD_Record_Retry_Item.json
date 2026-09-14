@@ -128,7 +128,7 @@
 													"value": "@pipeline().parameters.RecordRetryId",
 													"type": "Expression"
 												},
-												"type": "Int64"
+												"type": "Int32"
 											},
 											"PipelineRunId": {
 												"value": {
@@ -168,7 +168,7 @@
 													"value": "@pipeline().parameters.RecordRetryId",
 													"type": "Expression"
 												},
-												"type": "Int64"
+												"type": "Int32"
 											},
 											"PipelineRunId": {
 												"value": {
@@ -182,14 +182,14 @@
 													"value": "@int(activity('Get_Record_Retry_Action').output.firstRow.NextAttemptNo)",
 													"type": "Expression"
 												},
-												"type": "Int"
+												"type": "Int32"
 											},
 											"WaitSeconds": {
 												"value": {
 													"value": "@int(activity('Get_Record_Retry_Action').output.firstRow.ComputedWaitSeconds)",
 													"type": "Expression"
 												},
-												"type": "Int"
+												"type": "Int32"
 											},
 											"ErrorCode": {
 												"value": {
@@ -236,7 +236,7 @@
 													"value": "@pipeline().parameters.RecordRetryId",
 													"type": "Expression"
 												},
-												"type": "Int64"
+												"type": "Int32"
 											},
 											"PipelineRunId": {
 												"value": {
@@ -250,7 +250,7 @@
 													"value": "@int(activity('Get_Record_Retry_Action').output.firstRow.NextAttemptNo)",
 													"type": "Expression"
 												},
-												"type": "Int"
+												"type": "Int32"
 											},
 											"ErrorCode": {
 												"value": {
@@ -395,9 +395,6 @@
 				"type": "Integer",
 				"defaultValue": 0
 			}
-		},
-		"folder": {
-			"name": "Metadata_Driven"
 		},
 		"annotations": []
 	}

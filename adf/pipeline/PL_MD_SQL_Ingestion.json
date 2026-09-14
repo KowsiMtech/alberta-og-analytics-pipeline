@@ -241,14 +241,14 @@
 											"value": "@activity('Copy_SQL_To_Bronze').output.rowsRead",
 											"type": "Expression"
 										},
-										"type": "Int64"
+										"type": "Int32"
 									},
 									"RowsWritten": {
 										"value": {
 											"value": "@activity('Copy_SQL_To_Bronze').output.rowsCopied",
 											"type": "Expression"
 										},
-										"type": "Int64"
+										"type": "Int32"
 									},
 									"StartTime": {
 										"value": {
@@ -269,7 +269,7 @@
 											"value": "@variables('v_RetryAttempt')",
 											"type": "Expression"
 										},
-										"type": "Int"
+										"type": "Int32"
 									}
 								}
 							},
@@ -499,7 +499,7 @@
 											"value": "@variables('v_RetryAttempt')",
 											"type": "Expression"
 										},
-										"type": "Int"
+										"type": "Int32"
 									},
 									"ErrorCode": {
 										"value": {
@@ -534,7 +534,7 @@
 											"value": "@variables('v_WaitSeconds')",
 											"type": "Expression"
 										},
-										"type": "Int"
+										"type": "Int32"
 									}
 								}
 							},
@@ -838,9 +838,6 @@
 				"type": "String",
 				"defaultValue": "ERROR"
 			}
-		},
-		"folder": {
-			"name": "Metadata_Driven"
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",

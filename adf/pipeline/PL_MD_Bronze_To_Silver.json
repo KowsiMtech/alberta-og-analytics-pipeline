@@ -387,7 +387,7 @@
 								"value": "@variables('v_SilverCount')",
 								"type": "Expression"
 							},
-							"type": "Int64"
+							"type": "Int32"
 						},
 						"Detail": {
 							"value": {
@@ -486,9 +486,6 @@
 				"type": "Integer",
 				"defaultValue": 0
 			}
-		},
-		"folder": {
-			"name": "Metadata_Driven"
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",

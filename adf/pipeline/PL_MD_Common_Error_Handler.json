@@ -185,7 +185,7 @@
 				},
 				"userProperties": [],
 				"typeProperties": {
-					"storedProcedureName": "control.usp_FailStageV4",
+					"storedProcedureName": "control.usp_FailStage",
 					"storedProcedureParameters": {
 						"EntityName": {
 							"value": {
@@ -414,7 +414,7 @@
 				},
 				"userProperties": [],
 				"typeProperties": {
-					"storedProcedureName": "control.usp_ReleaseEntityLeaseV4",
+					"storedProcedureName": "control.usp_ReleaseEntityLease",
 					"storedProcedureParameters": {
 						"EntityName": {
 							"value": {
@@ -540,9 +540,6 @@
 			"StageName": {
 				"type": "String"
 			}
-		},
-		"folder": {
-			"name": "Metadata_Driven"
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",

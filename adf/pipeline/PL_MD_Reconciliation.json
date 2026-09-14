@@ -204,31 +204,28 @@
 				"type": "String"
 			},
 			"SourceCount": {
-				"type": "Int64"
+				"type": "Int"
 			},
 			"SilverCount": {
-				"type": "Int64"
+				"type": "Int"
 			},
 			"QuarantineCount": {
-				"type": "Int64"
+				"type": "Int"
 			},
 			"RawStagingCount": {
-				"type": "Int64"
+				"type": "Int"
 			},
 			"DuplicateCount": {
-				"type": "Int64"
+				"type": "Int"
 			},
 			"StagingCount": {
-				"type": "Int64"
+				"type": "Int"
 			}
 		},
 		"variables": {
 			"v_Status": {
 				"type": "String"
 			}
-		},
-		"folder": {
-			"name": "Metadata_Driven"
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",

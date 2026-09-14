@@ -314,7 +314,7 @@
 											"value": "@variables('v_Attempt')",
 											"type": "Expression"
 										},
-										"type": "Int"
+										"type": "Int32"
 									},
 									"ErrorCode": {
 										"value": {
@@ -349,7 +349,7 @@
 											"value": "@variables('v_WaitSeconds')",
 											"type": "Expression"
 										},
-										"type": "Int"
+										"type": "Int32"
 									}
 								}
 							},
@@ -599,9 +599,6 @@
 				"type": "Integer",
 				"defaultValue": 0
 			}
-		},
-		"folder": {
-			"name": "Metadata_Driven"
 		},
 		"annotations": [
 			"REST_ADAPTER",
