@@ -203,7 +203,7 @@
 								"source": {
 									"type": "AzureSqlSource",
 									"sqlReaderQuery": {
-										"value": "@concat('EXEC control.usp_GetLatestFailedStageV5 @EntityName=''',pipeline().parameters.EntityName,''', @BatchId=''',pipeline().parameters.BatchId,'''')",
+										"value": "@concat('EXEC control.usp_GetLatestFailedStage @EntityName=''',pipeline().parameters.EntityName,''', @BatchId=''',pipeline().parameters.BatchId,'''')",
 										"type": "Expression"
 									},
 									"partitionOption": "None"
@@ -285,7 +285,7 @@
 								"source": {
 									"type": "AzureSqlSource",
 									"sqlReaderQuery": {
-										"value": "@concat('EXEC control.usp_GetRecoveryRetryDecisionFinal @EntityName=''',pipeline().parameters.EntityName,''', @StageAttempt=',string(variables('v_StageAttempt')),', @IncrementalAttempt=',string(variables('v_IncrementalAttempt')),', @BatchAttempt=',string(variables('v_BatchAttempt')),', @FailedStage=''',replace(variables('v_FailedStage'),'''',''''''),''', @ErrorCode=''',replace(variables('v_ErrorCode'),'''',''''''),''', @ErrorMessage=N''',replace(variables('v_ErrorMessage'),'''',''''''),'''')",
+										"value": "@concat('EXEC control.usp_GetRecoveryRetryDecision @EntityName=''',pipeline().parameters.EntityName,''', @StageAttempt=',string(variables('v_StageAttempt')),', @IncrementalAttempt=',string(variables('v_IncrementalAttempt')),', @BatchAttempt=',string(variables('v_BatchAttempt')),', @FailedStage=''',replace(variables('v_FailedStage'),'''',''''''),''', @ErrorCode=''',replace(variables('v_ErrorCode'),'''',''''''),''', @ErrorMessage=N''',replace(variables('v_ErrorMessage'),'''',''''''),'''')",
 										"type": "Expression"
 									},
 									"partitionOption": "None"
@@ -484,7 +484,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_RecordRecoveryDecisionFinal",
+								"storedProcedureName": "control.usp_RecordRecoveryDecision",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {

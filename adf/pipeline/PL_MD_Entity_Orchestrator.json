@@ -86,7 +86,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "@concat('EXEC control.usp_AcquireEntityLeaseV4 @EntityName=''',pipeline().parameters.EntityName,''', @PipelineRunId=''',pipeline().RunId,''', @BatchId=''',pipeline().parameters.BatchId,'''')",
+							"value": "@concat('EXEC control.usp_AcquireEntityLease @EntityName=''',pipeline().parameters.EntityName,''', @PipelineRunId=''',pipeline().RunId,''', @BatchId=''',pipeline().parameters.BatchId,'''')",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
@@ -293,7 +293,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_LogLeaseBlockedRunV4",
+								"storedProcedureName": "control.usp_LogLeaseBlockedRun",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -361,7 +361,7 @@
 								"source": {
 									"type": "AzureSqlSource",
 									"sqlReaderQuery": {
-										"value": "@concat('EXEC control.usp_StartOrResumeEntityRunV4 @EntityName=''',pipeline().parameters.EntityName,''', @PipelineName=''',pipeline().Pipeline,''', @PipelineRunId=''',pipeline().RunId,''', @ParentRunId=''',pipeline().parameters.ParentRunId,''', @BatchId=''',pipeline().parameters.BatchId,''', @RunMode=''',pipeline().parameters.RunMode,''', @RecoveryMode=''',pipeline().parameters.RecoveryMode,''', @ResumeFromStage=',if(empty(pipeline().parameters.ResumeFromStage),'NULL',concat('''',pipeline().parameters.ResumeFromStage,'''')))",
+										"value": "@concat('EXEC control.usp_StartOrResumeEntityRun @EntityName=''',pipeline().parameters.EntityName,''', @PipelineName=''',pipeline().Pipeline,''', @PipelineRunId=''',pipeline().RunId,''', @ParentRunId=''',pipeline().parameters.ParentRunId,''', @BatchId=''',pipeline().parameters.BatchId,''', @RunMode=''',pipeline().parameters.RunMode,''', @RecoveryMode=''',pipeline().parameters.RecoveryMode,''', @ResumeFromStage=',if(empty(pipeline().parameters.ResumeFromStage),'NULL',concat('''',pipeline().parameters.ResumeFromStage,'''')))",
 										"type": "Expression"
 									},
 									"partitionOption": "None"
@@ -502,7 +502,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_CompleteStageV4",
+								"storedProcedureName": "control.usp_CompleteStage",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -679,7 +679,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_CompleteStageV4",
+								"storedProcedureName": "control.usp_CompleteStage",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -1026,7 +1026,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_UpdateRunMetricsV2",
+								"storedProcedureName": "control.usp_UpdateRunMetrics",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -1089,7 +1089,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_CompleteStageV4",
+								"storedProcedureName": "control.usp_CompleteStage",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -1357,7 +1357,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_UpdateRunMetricsV2",
+								"storedProcedureName": "control.usp_UpdateRunMetrics",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -1420,7 +1420,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_CompleteStageV4",
+								"storedProcedureName": "control.usp_CompleteStage",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -2034,7 +2034,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_UpdateRunMetricsV2",
+								"storedProcedureName": "control.usp_UpdateRunMetrics",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -2104,7 +2104,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_CompleteStageV4",
+								"storedProcedureName": "control.usp_CompleteStage",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -2288,7 +2288,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_CompleteStageV4",
+								"storedProcedureName": "control.usp_CompleteStage",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -2508,7 +2508,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_UpdateRunMetricsV2",
+								"storedProcedureName": "control.usp_UpdateRunMetrics",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -2564,7 +2564,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_CompleteStageV4",
+								"storedProcedureName": "control.usp_CompleteStage",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -2748,7 +2748,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_CompleteStageV4",
+								"storedProcedureName": "control.usp_CompleteStage",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -2949,7 +2949,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_CompleteStageV4",
+								"storedProcedureName": "control.usp_CompleteStage",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -3126,7 +3126,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_CompleteStageV4",
+								"storedProcedureName": "control.usp_CompleteStage",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -3303,7 +3303,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_CompleteStageV4",
+								"storedProcedureName": "control.usp_CompleteStage",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -3509,7 +3509,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_CompleteStageV4",
+								"storedProcedureName": "control.usp_CompleteStage",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -3809,7 +3809,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_CompleteStageV4",
+								"storedProcedureName": "control.usp_CompleteStage",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -3938,7 +3938,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_CompleteStageV4",
+								"storedProcedureName": "control.usp_CompleteStage",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -4144,7 +4144,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_CompleteStageV4",
+								"storedProcedureName": "control.usp_CompleteStage",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -4277,6 +4277,10 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Stage_Gate",
+									"type": "PipelineReference"
+								},
 								"waitOnCompletion": true,
 								"parameters": {
 									"EntityName": {
@@ -4312,6 +4316,10 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Stage_Gate",
+									"type": "PipelineReference"
+								},
 								"waitOnCompletion": true,
 								"parameters": {
 									"EntityName": {
@@ -4347,6 +4355,10 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Stage_Gate",
+									"type": "PipelineReference"
+								},
 								"waitOnCompletion": true,
 								"parameters": {
 									"EntityName": {
@@ -4442,7 +4454,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_ReleaseEntityLeaseV4",
+								"storedProcedureName": "control.usp_ReleaseEntityLease",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -4476,6 +4488,10 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Stage_Gate",
+									"type": "PipelineReference"
+								},
 								"waitOnCompletion": true,
 								"parameters": {
 									"EntityName": {
@@ -4517,7 +4533,7 @@
 								"source": {
 									"type": "AzureSqlSource",
 									"sqlReaderQuery": {
-										"value": "@concat('EXEC control.usp_GetDataOutcomeV4 @EntityName=''',pipeline().parameters.EntityName,''', @SourceCount=',string(variables('v_SourceCount')),', @SilverCount=',string(variables('v_SilverCount')),', @QuarantineCount=',string(variables('v_QuarantineCount')))",
+										"value": "@concat('EXEC control.usp_GetDataOutcome @EntityName=''',pipeline().parameters.EntityName,''', @SourceCount=',string(variables('v_SourceCount')),', @SilverCount=',string(variables('v_SilverCount')),', @QuarantineCount=',string(variables('v_QuarantineCount')))",
 										"type": "Expression"
 									},
 									"partitionOption": "None"
@@ -4610,6 +4626,10 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Stage_Gate",
+									"type": "PipelineReference"
+								},
 								"waitOnCompletion": true,
 								"parameters": {
 									"EntityName": {
@@ -4645,6 +4665,10 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Stage_Gate",
+									"type": "PipelineReference"
+								},
 								"waitOnCompletion": true,
 								"parameters": {
 									"EntityName": {
@@ -4680,6 +4704,10 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Stage_Gate",
+									"type": "PipelineReference"
+								},
 								"waitOnCompletion": true,
 								"parameters": {
 									"EntityName": {
@@ -4715,6 +4743,10 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Stage_Gate",
+									"type": "PipelineReference"
+								},
 								"waitOnCompletion": true,
 								"parameters": {
 									"EntityName": {
@@ -4750,6 +4782,10 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Stage_Gate",
+									"type": "PipelineReference"
+								},
 								"waitOnCompletion": true,
 								"parameters": {
 									"EntityName": {
@@ -4785,6 +4821,10 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Stage_Gate",
+									"type": "PipelineReference"
+								},
 								"waitOnCompletion": true,
 								"parameters": {
 									"EntityName": {
@@ -4820,6 +4860,10 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Stage_Gate",
+									"type": "PipelineReference"
+								},
 								"waitOnCompletion": true,
 								"parameters": {
 									"EntityName": {
@@ -4855,6 +4899,10 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Stage_Gate",
+									"type": "PipelineReference"
+								},
 								"waitOnCompletion": true,
 								"parameters": {
 									"EntityName": {
@@ -4950,7 +4998,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_ReleaseEntityLeaseV4",
+								"storedProcedureName": "control.usp_ReleaseEntityLease",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -5071,7 +5119,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_ReleaseEntityLeaseV4",
+								"storedProcedureName": "control.usp_ReleaseEntityLease",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -5111,7 +5159,7 @@
 								"source": {
 									"type": "AzureSqlSource",
 									"sqlReaderQuery": {
-										"value": "@concat('EXEC control.usp_PrepareRecoveryV4 @EntityName=''',pipeline().parameters.EntityName,''', @BatchId=''',pipeline().parameters.BatchId,''', @WindowKey=''',variables('v_WindowKey'),''', @PipelineRunId=''',pipeline().RunId,''', @RecoveryMode=''',pipeline().parameters.RecoveryMode,''', @ResumeFromStage=',if(empty(pipeline().parameters.ResumeFromStage),'NULL',concat('''',pipeline().parameters.ResumeFromStage,'''')))",
+										"value": "@concat('EXEC control.usp_PrepareRecovery @EntityName=''',pipeline().parameters.EntityName,''', @BatchId=''',pipeline().parameters.BatchId,''', @WindowKey=''',variables('v_WindowKey'),''', @PipelineRunId=''',pipeline().RunId,''', @RecoveryMode=''',pipeline().parameters.RecoveryMode,''', @ResumeFromStage=',if(empty(pipeline().parameters.ResumeFromStage),'NULL',concat('''',pipeline().parameters.ResumeFromStage,'''')))",
 										"type": "Expression"
 									},
 									"partitionOption": "None"
@@ -5194,6 +5242,10 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Stage_Gate",
+									"type": "PipelineReference"
+								},
 								"waitOnCompletion": true,
 								"parameters": {
 									"EntityName": {
@@ -5229,6 +5281,10 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Stage_Gate",
+									"type": "PipelineReference"
+								},
 								"waitOnCompletion": true,
 								"parameters": {
 									"EntityName": {
@@ -5264,6 +5320,10 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Stage_Gate",
+									"type": "PipelineReference"
+								},
 								"waitOnCompletion": true,
 								"parameters": {
 									"EntityName": {
@@ -5323,7 +5383,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_LogSkippedRunV4",
+								"storedProcedureName": "control.usp_LogSkippedRun",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -5401,7 +5461,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_ReleaseEntityLeaseV4",
+								"storedProcedureName": "control.usp_ReleaseEntityLease",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -5441,7 +5501,7 @@
 								"source": {
 									"type": "AzureSqlSource",
 									"sqlReaderQuery": {
-										"value": "@concat('EXEC control.usp_ResolveWindowV4 @EntityName=''',pipeline().parameters.EntityName,''', @BatchId=''',pipeline().parameters.BatchId,''', @PipelineRunId=''',pipeline().RunId,''', @RunMode=''',pipeline().parameters.RunMode,''', @RecoveryMode=''',pipeline().parameters.RecoveryMode,''', @RequestedWindowStart=',if(empty(pipeline().parameters.WindowStart),'NULL',concat('''',pipeline().parameters.WindowStart,'''')),', @RequestedWindowEnd=',if(empty(pipeline().parameters.WindowEnd),'NULL',concat('''',pipeline().parameters.WindowEnd,'''')))",
+										"value": "@concat('EXEC control.usp_ResolveWindow @EntityName=''',pipeline().parameters.EntityName,''', @BatchId=''',pipeline().parameters.BatchId,''', @PipelineRunId=''',pipeline().RunId,''', @RunMode=''',pipeline().parameters.RunMode,''', @RecoveryMode=''',pipeline().parameters.RecoveryMode,''', @RequestedWindowStart=',if(empty(pipeline().parameters.WindowStart),'NULL',concat('''',pipeline().parameters.WindowStart,'''')),', @RequestedWindowEnd=',if(empty(pipeline().parameters.WindowEnd),'NULL',concat('''',pipeline().parameters.WindowEnd,'''')))",
 										"type": "Expression"
 									},
 									"partitionOption": "None"
@@ -5623,7 +5683,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_UpdateRunWindowV4",
+								"storedProcedureName": "control.usp_UpdateRunWindow",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -5758,7 +5818,7 @@
 								"source": {
 									"type": "AzureSqlSource",
 									"sqlReaderQuery": {
-										"value": "@concat('EXEC control.usp_CheckWindowIdempotencyV4 @EntityName=''',pipeline().parameters.EntityName,''', @BatchId=''',pipeline().parameters.BatchId,''', @PipelineRunId=''',pipeline().RunId,''', @WindowKey=''',variables('v_WindowKey'),''', @RunMode=''',pipeline().parameters.RunMode,'''')",
+										"value": "@concat('EXEC control.usp_CheckWindowIdempotency @EntityName=''',pipeline().parameters.EntityName,''', @BatchId=''',pipeline().parameters.BatchId,''', @PipelineRunId=''',pipeline().RunId,''', @WindowKey=''',variables('v_WindowKey'),''', @RunMode=''',pipeline().parameters.RunMode,'''')",
 										"type": "Expression"
 									},
 									"partitionOption": "None"
