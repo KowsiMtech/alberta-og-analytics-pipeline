@@ -113,345 +113,6 @@
 				}
 			},
 			{
-				"name": "Switch_Schema_Status",
-				"type": "Switch",
-				"dependsOn": [
-					{
-						"activity": "Switch_Source_For_Schema",
-						"dependencyConditions": [
-							"Succeeded"
-						]
-					}
-				],
-				"userProperties": [],
-				"typeProperties": {
-					"on": {
-						"value": "@if(and(equals(activity('Lookup_Config').output.firstRow.SchemaCheckEnabled,true),equals(if(equals(activity('Lookup_Config').output.firstRow.SchemaCheckEnabled,true),activity('Lookup_Config').output.firstRow.SourceType,'__SKIP__'),'SQL')),variables('v_SchemaStatus'),'__SKIP__')",
-						"type": "Expression"
-					},
-					"cases": [
-						{
-							"value": "NO_CHANGE",
-							"activities": [
-								{
-									"name": "Log_Schema_NoChange",
-									"type": "SqlServerStoredProcedure",
-									"dependsOn": [],
-									"policy": {
-										"retry": 0,
-										"retryIntervalInSeconds": 30,
-										"secureOutput": false,
-										"secureInput": false
-									},
-									"userProperties": [],
-									"typeProperties": {
-										"storedProcedureName": "control.usp_RecordStage",
-										"storedProcedureParameters": {
-											"EntityName": {
-												"value": {
-													"value": "@pipeline().parameters.EntityName",
-													"type": "Expression"
-												},
-												"type": "String"
-											},
-											"PipelineRunId": {
-												"value": {
-													"value": "@pipeline().parameters.ParentRunId",
-													"type": "Expression"
-												},
-												"type": "String"
-											},
-											"BatchId": {
-												"value": {
-													"value": "@pipeline().parameters.BatchId",
-													"type": "Expression"
-												},
-												"type": "String"
-											},
-											"WindowKey": {
-												"value": {
-													"value": "@pipeline().parameters.WindowKey",
-													"type": "Expression"
-												},
-												"type": "String"
-											},
-											"StageName": {
-												"value": "SCHEMA_VALIDATION",
-												"type": "String"
-											},
-											"Status": {
-												"value": "SUCCESS",
-												"type": "String"
-											},
-											"Detail": {
-												"value": "NO_CHANGE",
-												"type": "String"
-											}
-										}
-									},
-									"linkedServiceName": {
-										"referenceName": "LS_AzureSQL",
-										"type": "LinkedServiceReference"
-									}
-								}
-							]
-						},
-						{
-							"value": "BASELINE_CREATED",
-							"activities": [
-								{
-									"name": "Log_Schema_Baseline",
-									"type": "SqlServerStoredProcedure",
-									"dependsOn": [],
-									"policy": {
-										"retry": 0,
-										"retryIntervalInSeconds": 30,
-										"secureOutput": false,
-										"secureInput": false
-									},
-									"userProperties": [],
-									"typeProperties": {
-										"storedProcedureName": "control.usp_RecordStage",
-										"storedProcedureParameters": {
-											"EntityName": {
-												"value": {
-													"value": "@pipeline().parameters.EntityName",
-													"type": "Expression"
-												},
-												"type": "String"
-											},
-											"PipelineRunId": {
-												"value": {
-													"value": "@pipeline().parameters.ParentRunId",
-													"type": "Expression"
-												},
-												"type": "String"
-											},
-											"BatchId": {
-												"value": {
-													"value": "@pipeline().parameters.BatchId",
-													"type": "Expression"
-												},
-												"type": "String"
-											},
-											"WindowKey": {
-												"value": {
-													"value": "@pipeline().parameters.WindowKey",
-													"type": "Expression"
-												},
-												"type": "String"
-											},
-											"StageName": {
-												"value": "SCHEMA_VALIDATION",
-												"type": "String"
-											},
-											"Status": {
-												"value": "SUCCESS",
-												"type": "String"
-											},
-											"Detail": {
-												"value": "BASELINE_CREATED",
-												"type": "String"
-											}
-										}
-									},
-									"linkedServiceName": {
-										"referenceName": "LS_AzureSQL",
-										"type": "LinkedServiceReference"
-									}
-								}
-							]
-						},
-						{
-							"value": "COMPATIBLE_CHANGE",
-							"activities": [
-								{
-									"name": "Alert_Compatible_Schema",
-									"type": "ExecutePipeline",
-									"dependsOn": [],
-									"policy": {
-										"secureInput": false
-									},
-									"userProperties": [],
-									"typeProperties": {
-										"pipeline": {
-											"referenceName": "PL_MD_Common_Alert_Handler",
-											"type": "PipelineReference"
-										},
-										"waitOnCompletion": true,
-										"parameters": {
-											"EntityName": {
-												"value": "@pipeline().parameters.EntityName",
-												"type": "Expression"
-											},
-											"BatchId": {
-												"value": "@pipeline().parameters.BatchId",
-												"type": "Expression"
-											},
-											"ParentRunId": {
-												"value": "@pipeline().parameters.ParentRunId",
-												"type": "Expression"
-											},
-											"WindowKey": {
-												"value": "@pipeline().parameters.WindowKey",
-												"type": "Expression"
-											},
-											"AlertType": "SCHEMA_COMPATIBLE_CHANGE",
-											"Severity": "WARNING",
-											"ActivityName": "SCHEMA_VALIDATION",
-											"Message": "Compatible schema drift detected; logged and continued by policy."
-										}
-									}
-								},
-								{
-									"name": "Log_Compatible_Schema",
-									"type": "SqlServerStoredProcedure",
-									"dependsOn": [
-										{
-											"activity": "Alert_Compatible_Schema",
-											"dependencyConditions": [
-												"Succeeded"
-											]
-										}
-									],
-									"policy": {
-										"retry": 0,
-										"retryIntervalInSeconds": 30,
-										"secureOutput": false,
-										"secureInput": false
-									},
-									"userProperties": [],
-									"typeProperties": {
-										"storedProcedureName": "control.usp_RecordStage",
-										"storedProcedureParameters": {
-											"EntityName": {
-												"value": {
-													"value": "@pipeline().parameters.EntityName",
-													"type": "Expression"
-												},
-												"type": "String"
-											},
-											"PipelineRunId": {
-												"value": {
-													"value": "@pipeline().parameters.ParentRunId",
-													"type": "Expression"
-												},
-												"type": "String"
-											},
-											"BatchId": {
-												"value": {
-													"value": "@pipeline().parameters.BatchId",
-													"type": "Expression"
-												},
-												"type": "String"
-											},
-											"WindowKey": {
-												"value": {
-													"value": "@pipeline().parameters.WindowKey",
-													"type": "Expression"
-												},
-												"type": "String"
-											},
-											"StageName": {
-												"value": "SCHEMA_VALIDATION",
-												"type": "String"
-											},
-											"Status": {
-												"value": "WARNING",
-												"type": "String"
-											},
-											"Detail": {
-												"value": "COMPATIBLE_CHANGE",
-												"type": "String"
-											}
-										}
-									},
-									"linkedServiceName": {
-										"referenceName": "LS_AzureSQL",
-										"type": "LinkedServiceReference"
-									}
-								}
-							]
-						},
-						{
-							"value": "BREAKING_CHANGE",
-							"activities": [
-								{
-									"name": "Alert_Breaking_Schema",
-									"type": "ExecutePipeline",
-									"dependsOn": [],
-									"policy": {
-										"secureInput": false
-									},
-									"userProperties": [],
-									"typeProperties": {
-										"pipeline": {
-											"referenceName": "PL_MD_Common_Alert_Handler",
-											"type": "PipelineReference"
-										},
-										"waitOnCompletion": true,
-										"parameters": {
-											"EntityName": {
-												"value": "@pipeline().parameters.EntityName",
-												"type": "Expression"
-											},
-											"BatchId": {
-												"value": "@pipeline().parameters.BatchId",
-												"type": "Expression"
-											},
-											"ParentRunId": {
-												"value": "@pipeline().parameters.ParentRunId",
-												"type": "Expression"
-											},
-											"WindowKey": {
-												"value": "@pipeline().parameters.WindowKey",
-												"type": "Expression"
-											},
-											"AlertType": "SCHEMA_BREAKING_CHANGE",
-											"Severity": "CRITICAL",
-											"ActivityName": "SCHEMA_VALIDATION",
-											"Message": "Breaking schema drift detected. Entity processing stopped."
-										}
-									}
-								},
-								{
-									"name": "Fail_Breaking_Schema",
-									"type": "Fail",
-									"dependsOn": [
-										{
-											"activity": "Alert_Breaking_Schema",
-											"dependencyConditions": [
-												"Completed"
-											]
-										}
-									],
-									"userProperties": [],
-									"typeProperties": {
-										"message": "Breaking schema drift detected",
-										"errorCode": "SCHEMA_BREAKING_CHANGE"
-									}
-								}
-							]
-						},
-						{
-							"value": "__SKIP__"
-						}
-					],
-					"defaultActivities": [
-						{
-							"name": "Fail_Unknown_Schema_Status",
-							"type": "Fail",
-							"dependsOn": [],
-							"userProperties": [],
-							"typeProperties": {
-								"message": "Unknown schema status",
-								"errorCode": "SCHEMA_STATUS_UNKNOWN"
-							}
-						}
-					]
-				}
-			},
-			{
 				"name": "Switch_Source_For_Schema",
 				"type": "Switch",
 				"dependsOn": [
@@ -487,7 +148,7 @@
 										"source": {
 											"type": "SqlSource",
 											"sqlReaderQuery": {
-												"value": "@concat('SELECT COLUMN_NAME ColumnName,DATA_TYPE DataType,CASE WHEN IS_NULLABLE=''''YES'''' THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END IsNullable,ORDINAL_POSITION OrdinalPosition FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=''''',activity('Lookup_Config').output.firstRow.SourceSchema,'''' AND TABLE_NAME=''''',activity('Lookup_Config').output.firstRow.SourceObject,'''' ORDER BY ORDINAL_POSITION')",
+												"value": "@concat('SELECT COLUMN_NAME AS ColumnName, DATA_TYPE AS DataType, CASE WHEN IS_NULLABLE = ''YES'' THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS IsNullable, ORDINAL_POSITION AS OrdinalPosition FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ''', activity('Lookup_Config').output.firstRow.SourceSchema, ''' AND TABLE_NAME = ''', activity('Lookup_Config').output.firstRow.SourceObject, ''' ORDER BY ORDINAL_POSITION')",
 												"type": "Expression"
 											},
 											"partitionOption": "None"
@@ -506,7 +167,7 @@
 												}
 											}
 										},
-										"firstRowOnly": true
+										"firstRowOnly": false
 									}
 								},
 								{
@@ -636,7 +297,18 @@
 							]
 						},
 						{
-							"value": "__SKIP__"
+							"value": "__SKIP__",
+							"activities": [
+								{
+									"name": "Skip_Schema_Source_Check",
+									"type": "Wait",
+									"dependsOn": [],
+									"userProperties": [],
+									"typeProperties": {
+										"waitTimeInSeconds": 1
+									}
+								}
+							]
 						}
 					],
 					"defaultActivities": [
@@ -651,6 +323,51 @@
 							}
 						}
 					]
+				}
+			},
+			{
+				"name": "Handle_Schema_Status",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Switch_Source_For_Schema",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_MD_Schema_Status_Handler",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"EntityName": {
+							"value": "@pipeline().parameters.EntityName",
+							"type": "Expression"
+						},
+						"BatchId": {
+							"value": "@pipeline().parameters.BatchId",
+							"type": "Expression"
+						},
+						"ParentRunId": {
+							"value": "@pipeline().parameters.ParentRunId",
+							"type": "Expression"
+						},
+						"WindowKey": {
+							"value": "@pipeline().parameters.WindowKey",
+							"type": "Expression"
+						},
+						"SchemaStatus": {
+							"value": "@if(equals(activity('Lookup_Config').output.firstRow.SchemaCheckEnabled,true),if(equals(activity('Lookup_Config').output.firstRow.SourceType,'SQL'),variables('v_SchemaStatus'),'NO_CHANGE'),'__SKIP__')",
+							"type": "Expression"
+						}
+					}
 				}
 			}
 		],
@@ -673,14 +390,11 @@
 				"type": "String"
 			}
 		},
-		"folder": {
-			"name": "Metadata_Driven"
-		},
 		"annotations": [
 			"ENTITY_DRIVEN",
 			"ENTERPRISE_HARDENED",
 			"ST37_SEEDED",
-			"DATA_CONTRACT_V7"
+			"DATA_CONTRACT"
 		]
 	}
 }

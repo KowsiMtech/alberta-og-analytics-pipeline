@@ -1,0 +1,2501 @@
+{
+	"name": "PL_MD_With_Data_Flow",
+	"properties": {
+		"activities": [
+			{
+				"name": "Gate_BRONZE_TO_SILVER",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_MD_Stage_Gate",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"EntityName": {
+							"value": "@pipeline().parameters.EntityName",
+							"type": "Expression"
+						},
+						"BatchId": {
+							"value": "@pipeline().parameters.BatchId",
+							"type": "Expression"
+						},
+						"ParentRunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"WindowKey": {
+							"value": "@pipeline().parameters.WindowKey",
+							"type": "Expression"
+						},
+						"StageName": "BRONZE_TO_SILVER",
+						"RecoveryMode": {
+							"value": "@pipeline().parameters.RecoveryMode",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "If_Execute_BRONZE_TO_SILVER",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Gate_BRONZE_TO_SILVER",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(activity('Gate_BRONZE_TO_SILVER').output.pipelineReturnValue.Decision,'EXECUTE')",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
+						{
+							"name": "Restore_SilverCount",
+							"type": "SetVariable",
+							"dependsOn": [],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_SilverCount",
+								"value": {
+									"value": "@int(json(activity('Gate_BRONZE_TO_SILVER').output.pipelineReturnValue.OutputJson).SilverCount)",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Restore_QuarantineCount",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Restore_SilverCount",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_QuarantineCount",
+								"value": {
+									"value": "@int(json(activity('Gate_BRONZE_TO_SILVER').output.pipelineReturnValue.OutputJson).QuarantineCount)",
+									"type": "Expression"
+								}
+							}
+						}
+					],
+					"ifTrueActivities": [
+						{
+							"name": "Run_BRONZE_TO_SILVER",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Bronze_To_Silver",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"EntityName": {
+										"value": "@pipeline().parameters.EntityName",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Set_SilverCount",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Run_BRONZE_TO_SILVER",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_SilverCount",
+								"value": {
+									"value": "@int(activity('Run_BRONZE_TO_SILVER').output.pipelineReturnValue.SilverCount)",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Set_QuarantineCount",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Set_SilverCount",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_QuarantineCount",
+								"value": {
+									"value": "@int(activity('Run_BRONZE_TO_SILVER').output.pipelineReturnValue.QuarantineCount)",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Update_Transform_Metrics",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Set_QuarantineCount",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "control.usp_UpdateRunMetrics",
+								"storedProcedureParameters": {
+									"EntityName": {
+										"value": {
+											"value": "@pipeline().parameters.EntityName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineRunId": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BatchId": {
+										"value": {
+											"value": "@pipeline().parameters.BatchId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"SilverRowCount": {
+										"value": {
+											"value": "@variables('v_SilverCount')",
+											"type": "Expression"
+										},
+										"type": "Int64"
+									},
+									"QuarantineRowCount": {
+										"value": {
+											"value": "@variables('v_QuarantineCount')",
+											"type": "Expression"
+										},
+										"type": "Int64"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "Checkpoint_BRONZE_TO_SILVER",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Update_Transform_Metrics",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "control.usp_CompleteStage",
+								"storedProcedureParameters": {
+									"EntityName": {
+										"value": {
+											"value": "@pipeline().parameters.EntityName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BatchId": {
+										"value": {
+											"value": "@pipeline().parameters.BatchId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"WindowKey": {
+										"value": {
+											"value": "@pipeline().parameters.WindowKey",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"StageName": {
+										"value": "BRONZE_TO_SILVER",
+										"type": "String"
+									},
+									"PipelineRunId": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"RowCount": {
+										"value": {
+											"value": "@variables('v_SilverCount')",
+											"type": "Expression"
+										},
+										"type": "Int64"
+									},
+									"OutputJson": {
+										"value": {
+											"value": "@concat('{\"SilverCount\":',string(variables('v_SilverCount')),',\"QuarantineCount\":',string(variables('v_QuarantineCount')),'}')",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Get_Data_Outcome",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "If_Execute_BRONZE_TO_SILVER",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('EXEC control.usp_GetDataOutcome @EntityName=''',pipeline().parameters.EntityName,''', @SourceCount=',string(pipeline().parameters.SourceCount),', @SilverCount=',string(variables('v_SilverCount')),', @QuarantineCount=',string(variables('v_QuarantineCount')))",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Set_DataOutcome",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Get_Data_Outcome",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_DataOutcome",
+					"value": {
+						"value": "@activity('Get_Data_Outcome').output.firstRow.DataOutcome",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_QuarantineSeverity",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set_DataOutcome",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_QuarantineSeverity",
+					"value": {
+						"value": "@activity('Get_Data_Outcome').output.firstRow.Severity",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_QuarantineAction",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set_QuarantineSeverity",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_QuarantineAction",
+					"value": {
+						"value": "@activity('Get_Data_Outcome').output.firstRow.PolicyAction",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "If_PARTIAL_QUARANTINE",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Set_QuarantineAction",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(variables('v_DataOutcome'),'PARTIAL_QUARANTINE')",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Alert_PARTIAL_QUARANTINE",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Common_Alert_Handler",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"EntityName": {
+										"value": "@pipeline().parameters.EntityName",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									},
+									"AlertType": "PARTIAL_QUARANTINE",
+									"Severity": {
+										"value": "@variables('v_QuarantineSeverity')",
+										"type": "Expression"
+									},
+									"ActivityName": "BRONZE_TO_SILVER",
+									"Message": {
+										"value": "@concat('Quarantine rate=',string(activity('Get_Data_Outcome').output.firstRow.QuarantinePct),'%. PolicyAction=',variables('v_QuarantineAction'))",
+										"type": "Expression"
+									}
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "If_Partial_Quarantine_Action_FAIL",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "If_PARTIAL_QUARANTINE",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@and(equals(variables('v_DataOutcome'),'PARTIAL_QUARANTINE'),equals(variables('v_QuarantineAction'),'FAIL'))",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Raise_Partial_Quarantine_Policy_Failure",
+							"type": "Fail",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"message": "Partial quarantine policy blocked the batch.",
+								"errorCode": "PARTIAL_QUARANTINE_BLOCKED"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "If_Transform_Can_Continue",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "If_Partial_Quarantine_Action_FAIL",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@or(equals(variables('v_DataOutcome'),'CLEAN'),equals(variables('v_DataOutcome'),'PARTIAL_QUARANTINE'))",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
+						{
+							"name": "Alert_Transform_Block",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Common_Alert_Handler",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"EntityName": {
+										"value": "@pipeline().parameters.EntityName",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									},
+									"AlertType": {
+										"value": "@variables('v_DataOutcome')",
+										"type": "Expression"
+									},
+									"Severity": "CRITICAL",
+									"ActivityName": "BRONZE_TO_SILVER",
+									"Message": {
+										"value": "@concat('Transform blocked. Outcome=',variables('v_DataOutcome'))",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Raise_Transform_Outcome_Policy_Failure",
+							"type": "Fail",
+							"dependsOn": [
+								{
+									"activity": "Alert_Transform_Block",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"message": {
+									"value": "@concat('Transform outcome blocked: ',variables('v_DataOutcome'))",
+									"type": "Expression"
+								},
+								"errorCode": "TRANSFORM_BLOCKED"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Gate_SILVER_TO_STAGING_DEDUP",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "If_Transform_Can_Continue",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_MD_Stage_Gate",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"EntityName": {
+							"value": "@pipeline().parameters.EntityName",
+							"type": "Expression"
+						},
+						"BatchId": {
+							"value": "@pipeline().parameters.BatchId",
+							"type": "Expression"
+						},
+						"ParentRunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"WindowKey": {
+							"value": "@pipeline().parameters.WindowKey",
+							"type": "Expression"
+						},
+						"StageName": "SILVER_TO_STAGING_DEDUP",
+						"RecoveryMode": {
+							"value": "@pipeline().parameters.RecoveryMode",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "If_Execute_SILVER_TO_STAGING_DEDUP",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Gate_SILVER_TO_STAGING_DEDUP",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(activity('Gate_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.Decision,'EXECUTE')",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
+						{
+							"name": "Restore_RawStagingCount",
+							"type": "SetVariable",
+							"dependsOn": [],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_RawStagingCount",
+								"value": {
+									"value": "@int(json(activity('Gate_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.OutputJson).RawStagingCount)",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Restore_DuplicateCount",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Restore_RawStagingCount",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_DuplicateCount",
+								"value": {
+									"value": "@int(json(activity('Gate_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.OutputJson).DuplicateCount)",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Restore_StagingCount",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Restore_DuplicateCount",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_StagingCount",
+								"value": {
+									"value": "@int(json(activity('Gate_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.OutputJson).StagingCount)",
+									"type": "Expression"
+								}
+							}
+						}
+					],
+					"ifTrueActivities": [
+						{
+							"name": "Run_SILVER_TO_STAGING_DEDUP",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Silver_To_Staging",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"EntityName": {
+										"value": "@pipeline().parameters.EntityName",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Set_RawStagingCount",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Run_SILVER_TO_STAGING_DEDUP",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_RawStagingCount",
+								"value": {
+									"value": "@int(activity('Run_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.RawStagingCount)",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Set_DuplicateCount",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Set_RawStagingCount",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_DuplicateCount",
+								"value": {
+									"value": "@int(activity('Run_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.DuplicateCount)",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Set_StagingCount",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Set_DuplicateCount",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_StagingCount",
+								"value": {
+									"value": "@int(activity('Run_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.StagingCount)",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Update_Staging_Metrics",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Set_StagingCount",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "control.usp_UpdateRunMetrics",
+								"storedProcedureParameters": {
+									"EntityName": {
+										"value": {
+											"value": "@pipeline().parameters.EntityName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineRunId": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BatchId": {
+										"value": {
+											"value": "@pipeline().parameters.BatchId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"RawStagingRowCount": {
+										"value": {
+											"value": "@variables('v_RawStagingCount')",
+											"type": "Expression"
+										},
+										"type": "Int64"
+									},
+									"DuplicateRowCount": {
+										"value": {
+											"value": "@variables('v_DuplicateCount')",
+											"type": "Expression"
+										},
+										"type": "Int64"
+									},
+									"StagingRowCount": {
+										"value": {
+											"value": "@variables('v_StagingCount')",
+											"type": "Expression"
+										},
+										"type": "Int64"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "Checkpoint_SILVER_TO_STAGING_DEDUP",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Update_Staging_Metrics",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "control.usp_CompleteStage",
+								"storedProcedureParameters": {
+									"EntityName": {
+										"value": {
+											"value": "@pipeline().parameters.EntityName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BatchId": {
+										"value": {
+											"value": "@pipeline().parameters.BatchId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"WindowKey": {
+										"value": {
+											"value": "@pipeline().parameters.WindowKey",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"StageName": {
+										"value": "SILVER_TO_STAGING_DEDUP",
+										"type": "String"
+									},
+									"PipelineRunId": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"RowCount": {
+										"value": {
+											"value": "@variables('v_StagingCount')",
+											"type": "Expression"
+										},
+										"type": "Int64"
+									},
+									"OutputJson": {
+										"value": {
+											"value": "@concat('{\"RawStagingCount\":',string(variables('v_RawStagingCount')),',\"DuplicateCount\":',string(variables('v_DuplicateCount')),',\"StagingCount\":',string(variables('v_StagingCount')),'}')",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Gate_DQ_ENGINE",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "If_Execute_SILVER_TO_STAGING_DEDUP",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_MD_Stage_Gate",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"EntityName": {
+							"value": "@pipeline().parameters.EntityName",
+							"type": "Expression"
+						},
+						"BatchId": {
+							"value": "@pipeline().parameters.BatchId",
+							"type": "Expression"
+						},
+						"ParentRunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"WindowKey": {
+							"value": "@pipeline().parameters.WindowKey",
+							"type": "Expression"
+						},
+						"StageName": "DQ_ENGINE",
+						"RecoveryMode": {
+							"value": "@pipeline().parameters.RecoveryMode",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "If_Execute_DQ_ENGINE",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Gate_DQ_ENGINE",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(activity('Gate_DQ_ENGINE').output.pipelineReturnValue.Decision,'EXECUTE')",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Run_DQ_ENGINE",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_DQ_Engine",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"EntityName": {
+										"value": "@pipeline().parameters.EntityName",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Checkpoint_DQ_ENGINE",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Run_DQ_ENGINE",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "control.usp_CompleteStage",
+								"storedProcedureParameters": {
+									"EntityName": {
+										"value": {
+											"value": "@pipeline().parameters.EntityName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BatchId": {
+										"value": {
+											"value": "@pipeline().parameters.BatchId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"WindowKey": {
+										"value": {
+											"value": "@pipeline().parameters.WindowKey",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"StageName": {
+										"value": "DQ_ENGINE",
+										"type": "String"
+									},
+									"PipelineRunId": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"OutputJson": {
+										"value": {
+											"value": "@concat('{\"Status\":\"SUCCESS\"}')",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Gate_GOLD_LOAD",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "If_Execute_DQ_ENGINE",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_MD_Stage_Gate",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"EntityName": {
+							"value": "@pipeline().parameters.EntityName",
+							"type": "Expression"
+						},
+						"BatchId": {
+							"value": "@pipeline().parameters.BatchId",
+							"type": "Expression"
+						},
+						"ParentRunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"WindowKey": {
+							"value": "@pipeline().parameters.WindowKey",
+							"type": "Expression"
+						},
+						"StageName": "GOLD_LOAD",
+						"RecoveryMode": {
+							"value": "@pipeline().parameters.RecoveryMode",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "If_Execute_GOLD_LOAD",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Gate_GOLD_LOAD",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(activity('Gate_GOLD_LOAD').output.pipelineReturnValue.Decision,'EXECUTE')",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
+						{
+							"name": "Restore_GoldCount",
+							"type": "SetVariable",
+							"dependsOn": [],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_GoldCount",
+								"value": {
+									"value": "@int(json(activity('Gate_GOLD_LOAD').output.pipelineReturnValue.OutputJson).GoldCount)",
+									"type": "Expression"
+								}
+							}
+						}
+					],
+					"ifTrueActivities": [
+						{
+							"name": "Run_GOLD_LOAD",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Gold_Load",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"EntityName": {
+										"value": "@pipeline().parameters.EntityName",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Set_GoldCount",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Run_GOLD_LOAD",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_GoldCount",
+								"value": {
+									"value": "@int(activity('Run_GOLD_LOAD').output.pipelineReturnValue.RowsWritten)",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Update_Gold_Metrics",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Set_GoldCount",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "control.usp_UpdateRunMetrics",
+								"storedProcedureParameters": {
+									"EntityName": {
+										"value": {
+											"value": "@pipeline().parameters.EntityName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineRunId": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BatchId": {
+										"value": {
+											"value": "@pipeline().parameters.BatchId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"GoldRowCount": {
+										"value": {
+											"value": "@variables('v_GoldCount')",
+											"type": "Expression"
+										},
+										"type": "Int64"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "Checkpoint_GOLD_LOAD",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Update_Gold_Metrics",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "control.usp_CompleteStage",
+								"storedProcedureParameters": {
+									"EntityName": {
+										"value": {
+											"value": "@pipeline().parameters.EntityName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BatchId": {
+										"value": {
+											"value": "@pipeline().parameters.BatchId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"WindowKey": {
+										"value": {
+											"value": "@pipeline().parameters.WindowKey",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"StageName": {
+										"value": "GOLD_LOAD",
+										"type": "String"
+									},
+									"PipelineRunId": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"RowCount": {
+										"value": {
+											"value": "@variables('v_GoldCount')",
+											"type": "Expression"
+										},
+										"type": "Int64"
+									},
+									"OutputJson": {
+										"value": {
+											"value": "@concat('{\"GoldCount\":',string(variables('v_GoldCount')),'}')",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Gate_GOLD_VALIDATION",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "If_Execute_GOLD_LOAD",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_MD_Stage_Gate",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"EntityName": {
+							"value": "@pipeline().parameters.EntityName",
+							"type": "Expression"
+						},
+						"BatchId": {
+							"value": "@pipeline().parameters.BatchId",
+							"type": "Expression"
+						},
+						"ParentRunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"WindowKey": {
+							"value": "@pipeline().parameters.WindowKey",
+							"type": "Expression"
+						},
+						"StageName": "GOLD_VALIDATION",
+						"RecoveryMode": {
+							"value": "@pipeline().parameters.RecoveryMode",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "If_Execute_GOLD_VALIDATION",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Gate_GOLD_VALIDATION",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(activity('Gate_GOLD_VALIDATION').output.pipelineReturnValue.Decision,'EXECUTE')",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Run_GOLD_VALIDATION",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Gold_Validation",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"EntityName": {
+										"value": "@pipeline().parameters.EntityName",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Checkpoint_GOLD_VALIDATION",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Run_GOLD_VALIDATION",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "control.usp_CompleteStage",
+								"storedProcedureParameters": {
+									"EntityName": {
+										"value": {
+											"value": "@pipeline().parameters.EntityName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BatchId": {
+										"value": {
+											"value": "@pipeline().parameters.BatchId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"WindowKey": {
+										"value": {
+											"value": "@pipeline().parameters.WindowKey",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"StageName": {
+										"value": "GOLD_VALIDATION",
+										"type": "String"
+									},
+									"PipelineRunId": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"OutputJson": {
+										"value": {
+											"value": "@concat('{\"Status\":\"SUCCESS\"}')",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Gate_RECONCILIATION",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "If_Execute_GOLD_VALIDATION",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_MD_Stage_Gate",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"EntityName": {
+							"value": "@pipeline().parameters.EntityName",
+							"type": "Expression"
+						},
+						"BatchId": {
+							"value": "@pipeline().parameters.BatchId",
+							"type": "Expression"
+						},
+						"ParentRunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"WindowKey": {
+							"value": "@pipeline().parameters.WindowKey",
+							"type": "Expression"
+						},
+						"StageName": "RECONCILIATION",
+						"RecoveryMode": {
+							"value": "@pipeline().parameters.RecoveryMode",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "If_Execute_RECONCILIATION",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Gate_RECONCILIATION",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(activity('Gate_RECONCILIATION').output.pipelineReturnValue.Decision,'EXECUTE')",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Run_RECONCILIATION",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Reconciliation",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"EntityName": {
+										"value": "@pipeline().parameters.EntityName",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									},
+									"SourceCount": {
+										"value": "@pipeline().parameters.SourceCount",
+										"type": "Expression"
+									},
+									"SilverCount": {
+										"value": "@variables('v_SilverCount')",
+										"type": "Expression"
+									},
+									"QuarantineCount": {
+										"value": "@variables('v_QuarantineCount')",
+										"type": "Expression"
+									},
+									"RawStagingCount": {
+										"value": "@variables('v_RawStagingCount')",
+										"type": "Expression"
+									},
+									"DuplicateCount": {
+										"value": "@variables('v_DuplicateCount')",
+										"type": "Expression"
+									},
+									"StagingCount": {
+										"value": "@variables('v_StagingCount')",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Checkpoint_RECONCILIATION",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Run_RECONCILIATION",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "control.usp_CompleteStage",
+								"storedProcedureParameters": {
+									"EntityName": {
+										"value": {
+											"value": "@pipeline().parameters.EntityName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BatchId": {
+										"value": {
+											"value": "@pipeline().parameters.BatchId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"WindowKey": {
+										"value": {
+											"value": "@pipeline().parameters.WindowKey",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"StageName": {
+										"value": "RECONCILIATION",
+										"type": "String"
+									},
+									"PipelineRunId": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"OutputJson": {
+										"value": {
+											"value": "@concat('{\"Status\":\"SUCCESS\"}')",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Gate_ARCHIVE",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "If_Execute_RECONCILIATION",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_MD_Stage_Gate",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"EntityName": {
+							"value": "@pipeline().parameters.EntityName",
+							"type": "Expression"
+						},
+						"BatchId": {
+							"value": "@pipeline().parameters.BatchId",
+							"type": "Expression"
+						},
+						"ParentRunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"WindowKey": {
+							"value": "@pipeline().parameters.WindowKey",
+							"type": "Expression"
+						},
+						"StageName": "ARCHIVE",
+						"RecoveryMode": {
+							"value": "@pipeline().parameters.RecoveryMode",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "If_Execute_ARCHIVE",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Gate_ARCHIVE",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(activity('Gate_ARCHIVE').output.pipelineReturnValue.Decision,'EXECUTE')",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Run_ARCHIVE",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Archive",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"EntityName": {
+										"value": "@pipeline().parameters.EntityName",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Checkpoint_ARCHIVE",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Run_ARCHIVE",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "control.usp_CompleteStage",
+								"storedProcedureParameters": {
+									"EntityName": {
+										"value": {
+											"value": "@pipeline().parameters.EntityName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BatchId": {
+										"value": {
+											"value": "@pipeline().parameters.BatchId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"WindowKey": {
+										"value": {
+											"value": "@pipeline().parameters.WindowKey",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"StageName": {
+										"value": "ARCHIVE",
+										"type": "String"
+									},
+									"PipelineRunId": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"OutputJson": {
+										"value": {
+											"value": "@concat('{\"Status\":\"SUCCESS\"}')",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Gate_ANOMALY_CHECK",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "If_Execute_ARCHIVE",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_MD_Stage_Gate",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"EntityName": {
+							"value": "@pipeline().parameters.EntityName",
+							"type": "Expression"
+						},
+						"BatchId": {
+							"value": "@pipeline().parameters.BatchId",
+							"type": "Expression"
+						},
+						"ParentRunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"WindowKey": {
+							"value": "@pipeline().parameters.WindowKey",
+							"type": "Expression"
+						},
+						"StageName": "ANOMALY_CHECK",
+						"RecoveryMode": {
+							"value": "@pipeline().parameters.RecoveryMode",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "If_Execute_ANOMALY_CHECK",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Gate_ANOMALY_CHECK",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(activity('Gate_ANOMALY_CHECK').output.pipelineReturnValue.Decision,'EXECUTE')",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Run_ANOMALY_CHECK",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Anomaly_Check",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"EntityName": {
+										"value": "@pipeline().parameters.EntityName",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Checkpoint_ANOMALY_CHECK",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Run_ANOMALY_CHECK",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "control.usp_CompleteStage",
+								"storedProcedureParameters": {
+									"EntityName": {
+										"value": {
+											"value": "@pipeline().parameters.EntityName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BatchId": {
+										"value": {
+											"value": "@pipeline().parameters.BatchId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"WindowKey": {
+										"value": {
+											"value": "@pipeline().parameters.WindowKey",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"StageName": {
+										"value": "ANOMALY_CHECK",
+										"type": "String"
+									},
+									"PipelineRunId": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"OutputJson": {
+										"value": {
+											"value": "@concat('{\"Status\":\"SUCCESS\"}')",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Gate_WATERMARK_COMMIT",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "If_Execute_ANOMALY_CHECK",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_MD_Stage_Gate",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"EntityName": {
+							"value": "@pipeline().parameters.EntityName",
+							"type": "Expression"
+						},
+						"BatchId": {
+							"value": "@pipeline().parameters.BatchId",
+							"type": "Expression"
+						},
+						"ParentRunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"WindowKey": {
+							"value": "@pipeline().parameters.WindowKey",
+							"type": "Expression"
+						},
+						"StageName": "WATERMARK_COMMIT",
+						"RecoveryMode": {
+							"value": "@pipeline().parameters.RecoveryMode",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "If_Execute_WATERMARK_COMMIT",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Gate_WATERMARK_COMMIT",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(activity('Gate_WATERMARK_COMMIT').output.pipelineReturnValue.Decision,'EXECUTE')",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Run_WATERMARK_COMMIT",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [],
+							"policy": {
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "control.usp_CommitWatermarkSafe",
+								"storedProcedureParameters": {
+									"EntityName": {
+										"value": {
+											"value": "@pipeline().parameters.EntityName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineRunId": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BatchId": {
+										"value": {
+											"value": "@pipeline().parameters.BatchId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"WindowKey": {
+										"value": {
+											"value": "@pipeline().parameters.WindowKey",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"EndWatermark": {
+										"value": {
+											"value": "@pipeline().parameters.EndWatermark",
+											"type": "Expression"
+										},
+										"type": "DateTime"
+									},
+									"RunMode": {
+										"value": {
+											"value": "@pipeline().parameters.RunMode",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						},
+						{
+							"name": "Checkpoint_WATERMARK_COMMIT",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [
+								{
+									"activity": "Run_WATERMARK_COMMIT",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "control.usp_CompleteStage",
+								"storedProcedureParameters": {
+									"EntityName": {
+										"value": {
+											"value": "@pipeline().parameters.EntityName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BatchId": {
+										"value": {
+											"value": "@pipeline().parameters.BatchId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"WindowKey": {
+										"value": {
+											"value": "@pipeline().parameters.WindowKey",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"StageName": {
+										"value": "WATERMARK_COMMIT",
+										"type": "String"
+									},
+									"PipelineRunId": {
+										"value": {
+											"value": "@pipeline().RunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"OutputJson": {
+										"value": {
+											"value": "@concat('{\"Status\":\"COMMITTED_OR_NOT_APPLICABLE\"}')",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "End_Run_WithData",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "If_Execute_WATERMARK_COMMIT",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "control.usp_EndEntityRun",
+					"storedProcedureParameters": {
+						"EntityName": {
+							"value": {
+								"value": "@pipeline().parameters.EntityName",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineRunId": {
+							"value": {
+								"value": "@pipeline().RunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"BatchId": {
+							"value": {
+								"value": "@pipeline().parameters.BatchId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"Status": {
+							"value": "SUCCESS",
+							"type": "String"
+						},
+						"DataLoadStatus": {
+							"value": "WITH_DATA",
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Release_Lease_WithData",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "End_Run_WithData",
+						"dependencyConditions": [
+							"Completed"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "control.usp_ReleaseEntityLease",
+					"storedProcedureParameters": {
+						"EntityName": {
+							"value": {
+								"value": "@pipeline().parameters.EntityName",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineRunId": {
+							"value": {
+								"value": "@pipeline().RunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			}
+		],
+		"parameters": {
+			"EntityName": {
+				"type": "String"
+			},
+			"BatchId": {
+				"type": "String"
+			},
+			"ParentRunId": {
+				"type": "String"
+			},
+			"WindowKey": {
+				"type": "String"
+			},
+			"RecoveryMode": {
+				"type": "String"
+			},
+			"SourceCount": {
+				"type": "Int"
+			},
+			"RunMode": {
+				"type": "String"
+			},
+			"EndWatermark": {
+				"type": "String"
+			}
+		},
+		"variables": {
+			"v_SilverCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_QuarantineCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_RawStagingCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_DuplicateCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_StagingCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_GoldCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_DataOutcome": {
+				"type": "String"
+			},
+			"v_QuarantineSeverity": {
+				"type": "String",
+				"defaultValue": "NONE"
+			},
+			"v_QuarantineAction": {
+				"type": "String",
+				"defaultValue": "CONTINUE"
+			}
+		},
+		"folder": {
+			"name": "Metadata_Driven"
+		},
+		"annotations": []
+	}
+}

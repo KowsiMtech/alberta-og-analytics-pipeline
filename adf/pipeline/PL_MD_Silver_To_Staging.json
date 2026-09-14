@@ -52,7 +52,8 @@
 						"type": "ParquetSource",
 						"storeSettings": {
 							"type": "AzureBlobFSReadSettings",
-							"recursive": true
+							"recursive": true,
+							"wildcardFileName": "*.parquet"
 						},
 						"formatSettings": {
 							"type": "ParquetReadSettings"
@@ -460,9 +461,6 @@
 				"type": "Integer",
 				"defaultValue": 0
 			}
-		},
-		"folder": {
-			"name": "Metadata_Driven"
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",

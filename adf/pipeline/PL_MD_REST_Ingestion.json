@@ -88,7 +88,26 @@
 							]
 						},
 						{
-							"value": "PAGE_NUMBER"
+							"value": "PAGE_NUMBER",
+							"activities": [
+								{
+									"name": "Initialize_PAGE_NUMBER_Pagination",
+									"type": "SetVariable",
+									"dependsOn": [],
+									"policy": {
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "v_HasMore",
+										"value": {
+											"value": "@true",
+											"type": "Expression"
+										}
+									}
+								}
+							]
 						},
 						{
 							"value": "NEXT_LINK",
@@ -382,9 +401,6 @@
 				"type": "Integer",
 				"defaultValue": 2
 			}
-		},
-		"folder": {
-			"name": "Metadata_Driven"
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",

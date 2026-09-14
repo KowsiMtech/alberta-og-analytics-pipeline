@@ -102,9 +102,6 @@
 				"type": "String"
 			}
 		},
-		"folder": {
-			"name": "Metadata_Driven"
-		},
 		"annotations": [
 			"ENTITY_DRIVEN",
 			"FULL_RESUME",

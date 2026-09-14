@@ -122,7 +122,7 @@
 								"source": {
 									"type": "SqlSource",
 									"sqlReaderQuery": {
-										"value": "@if(equals(activity('Lookup_Config').output.firstRow.LoadType,'FULL'),concat('SELECT * FROM ',activity('Lookup_Config').output.firstRow.SourceSchema,'.',activity('Lookup_Config').output.firstRow.SourceObject),concat('SELECT * FROM ',activity('Lookup_Config').output.firstRow.SourceSchema,'.',activity('Lookup_Config').output.firstRow.SourceObject,' WHERE ',activity('Lookup_Config').output.firstRow.WatermarkColumn,' > ''',pipeline().parameters.ExtractionStart,''' AND ',activity('Lookup_Config').output.firstRow.WatermarkColumn,' <= ''',pipeline().parameters.EndWatermark,''''))",
+										"value": "@if(equals(activity('Lookup_Config').output.firstRow.LoadType,'FULL'),concat('SELECT * FROM [',activity('Lookup_Config').output.firstRow.SourceSchema,'].[',activity('Lookup_Config').output.firstRow.SourceObject,']'),concat('SELECT * FROM [',activity('Lookup_Config').output.firstRow.SourceSchema,'].[',activity('Lookup_Config').output.firstRow.SourceObject,'] WHERE [',activity('Lookup_Config').output.firstRow.WatermarkColumn,'] > ''',pipeline().parameters.ExtractionStart,''' AND [',activity('Lookup_Config').output.firstRow.WatermarkColumn,'] <= ''',pipeline().parameters.EndWatermark,''''))",
 										"type": "Expression"
 									},
 									"partitionOption": "None"
@@ -657,6 +657,30 @@
 									"type": "Expression"
 								}
 							}
+						},
+						{
+							"name": "Set_Retry_Severity",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Retry_Decision",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_RetrySeverity",
+								"value": {
+									"value": "@coalesce(activity('Retry_Decision').output.firstRow.Severity,'ERROR')",
+									"type": "Expression"
+								}
+							}
 						}
 					],
 					"timeout": "0.12:00:00"
@@ -676,7 +700,7 @@
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
-						"value": "@and(equals(variables('v_Done'),true),not(empty(variables('v_RetryDecision'))),not(equals(variables('v_RetryDecision'),'RETRY')))",
+						"value": "@and(equals(variables('v_Done'),true),and(not(empty(variables('v_RetryDecision'))),not(equals(variables('v_RetryDecision'),'RETRY'))))",
 						"type": "Expression"
 					},
 					"ifTrueActivities": [
@@ -716,7 +740,7 @@
 										"type": "Expression"
 									},
 									"Severity": {
-										"value": "@activity('Retry_Decision').output.firstRow.Severity",
+										"value": "@variables('v_RetrySeverity')",
 										"type": "Expression"
 									},
 									"ActivityName": "Copy_SQL_To_Bronze",
@@ -809,10 +833,11 @@
 			"v_CurrentAttemptSnapshot": {
 				"type": "Integer",
 				"defaultValue": 0
+			},
+			"v_RetrySeverity": {
+				"type": "String",
+				"defaultValue": "ERROR"
 			}
-		},
-		"folder": {
-			"name": "Metadata_Driven"
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",
