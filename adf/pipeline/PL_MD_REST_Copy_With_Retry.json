@@ -374,7 +374,7 @@
 								"source": {
 									"type": "AzureSqlSource",
 									"sqlReaderQuery": {
-										"value": "@concat('EXEC control.usp_GetRetryDecisionV4 @PolicyName=''',activity('Lookup_Config').output.firstRow.RetryPolicyName,''', @ErrorCode=''',replace(variables('v_ErrorCode'),'''',''''''),''', @ErrorMessage=N''',replace(variables('v_ErrorMessage'),'''',''''''),''', @RetryAttempt=',string(variables('v_Attempt')))",
+										"value": "@concat('EXEC control.usp_GetRetryDecision @PolicyName=''',activity('Lookup_Config').output.firstRow.RetryPolicyName,''', @ErrorCode=''',replace(variables('v_ErrorCode'),'''',''''''),''', @ErrorMessage=N''',replace(variables('v_ErrorMessage'),'''',''''''),''', @RetryAttempt=',string(variables('v_Attempt')))",
 										"type": "Expression"
 									},
 									"partitionOption": "None"

@@ -59,7 +59,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_LogSkippedRunV4",
+								"storedProcedureName": "control.usp_LogSkippedRun",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {

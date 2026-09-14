@@ -39,7 +39,7 @@
 				},
 				"userProperties": [],
 				"typeProperties": {
-					"storedProcedureName": "control.usp_RegisterBatchExecutionRequestV6",
+					"storedProcedureName": "control.usp_RegisterBatchExecutionRequest",
 					"storedProcedureParameters": {
 						"BatchId": {
 							"value": {
@@ -192,6 +192,10 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Process_Wave",
+									"type": "PipelineReference"
+								},
 								"waitOnCompletion": true,
 								"parameters": {
 									"WaveNo": {

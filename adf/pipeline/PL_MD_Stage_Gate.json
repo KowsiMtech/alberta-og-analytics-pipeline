@@ -18,7 +18,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "@concat('EXEC control.usp_BeginStageV4 @EntityName=''',replace(pipeline().parameters.EntityName,'''',''''''),''', @BatchId=''',replace(pipeline().parameters.BatchId,'''',''''''),''', @WindowKey=''',replace(pipeline().parameters.WindowKey,'''',''''''),''', @StageName=''',replace(pipeline().parameters.StageName,'''',''''''),''', @PipelineRunId=''',replace(pipeline().parameters.ParentRunId,'''',''''''),''', @RecoveryMode=''',replace(pipeline().parameters.RecoveryMode,'''',''''''),'''')",
+							"value": "@concat('EXEC control.usp_BeginStage @EntityName=''',replace(pipeline().parameters.EntityName,'''',''''''),''', @BatchId=''',replace(pipeline().parameters.BatchId,'''',''''''),''', @WindowKey=''',replace(pipeline().parameters.WindowKey,'''',''''''),''', @StageName=''',replace(pipeline().parameters.StageName,'''',''''''),''', @PipelineRunId=''',replace(pipeline().parameters.ParentRunId,'''',''''''),''', @RecoveryMode=''',replace(pipeline().parameters.RecoveryMode,'''',''''''),'''')",
 							"type": "Expression"
 						},
 						"partitionOption": "None"

@@ -18,7 +18,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "@concat('EXEC control.usp_ClaimRecordRetriesV5 @EntityName=''',pipeline().parameters.EntityName,''', @PipelineRunId=''',pipeline().RunId,''', @MaxRecords=',string(pipeline().parameters.MaxRecordsPerRun))",
+							"value": "@concat('EXEC control.usp_ClaimRecordRetries @EntityName=''',pipeline().parameters.EntityName,''', @PipelineRunId=''',pipeline().RunId,''', @MaxRecords=',string(pipeline().parameters.MaxRecordsPerRun))",
 							"type": "Expression"
 						},
 						"partitionOption": "None"

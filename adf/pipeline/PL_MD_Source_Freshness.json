@@ -331,7 +331,7 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"storedProcedureName": "control.usp_UpdateRunMetricsV2",
+								"storedProcedureName": "control.usp_UpdateRunMetrics",
 								"storedProcedureParameters": {
 									"EntityName": {
 										"value": {
@@ -451,7 +451,7 @@
 										"source": {
 											"type": "AzureSqlSource",
 											"sqlReaderQuery": {
-												"value": "@concat('EXEC control.usp_CheckSourceFreshnessV3 @EntityName=''',pipeline().parameters.EntityName,''', @BatchId=''',pipeline().parameters.BatchId,''', @PipelineRunId=''',pipeline().parameters.ParentRunId,''', @WindowKey=''',pipeline().parameters.WindowKey,''', @SourceLastModified=',if(empty(activity('Lookup_SQL_Source_Latest_Time').output.firstRow.ActualLatestTime),'NULL',concat('''',activity('Lookup_SQL_Source_Latest_Time').output.firstRow.ActualLatestTime,'''')))",
+												"value": "@concat('EXEC control.usp_CheckSourceFreshness @EntityName=''',pipeline().parameters.EntityName,''', @BatchId=''',pipeline().parameters.BatchId,''', @PipelineRunId=''',pipeline().parameters.ParentRunId,''', @WindowKey=''',pipeline().parameters.WindowKey,''', @SourceLastModified=',if(empty(activity('Lookup_SQL_Source_Latest_Time').output.firstRow.ActualLatestTime),'NULL',concat('''',activity('Lookup_SQL_Source_Latest_Time').output.firstRow.ActualLatestTime,'''')))",
 												"type": "Expression"
 											},
 											"partitionOption": "None"
@@ -484,7 +484,7 @@
 										"source": {
 											"type": "AzureSqlSource",
 											"sqlReaderQuery": {
-												"value": "@concat('EXEC control.usp_CheckSourceFreshnessV3 @EntityName=''',pipeline().parameters.EntityName,''', @BatchId=''',pipeline().parameters.BatchId,''', @PipelineRunId=''',pipeline().parameters.ParentRunId,''', @WindowKey=''',pipeline().parameters.WindowKey,''', @SourceLastModified=NULL')",
+												"value": "@concat('EXEC control.usp_CheckSourceFreshness @EntityName=''',pipeline().parameters.EntityName,''', @BatchId=''',pipeline().parameters.BatchId,''', @PipelineRunId=''',pipeline().parameters.ParentRunId,''', @WindowKey=''',pipeline().parameters.WindowKey,''', @SourceLastModified=NULL')",
 												"type": "Expression"
 											},
 											"partitionOption": "None"
@@ -1487,7 +1487,7 @@
 							"dependsOn": [],
 							"userProperties": [],
 							"typeProperties": {
-								"message": "Unexpected FreshnessStatus returned by control.usp_CheckSourceFreshnessV3.",
+								"message": "Unexpected FreshnessStatus returned by control.usp_CheckSourceFreshness.",
 								"errorCode": "FRESHNESS_STATUS_INVALID"
 							}
 						}
@@ -1538,7 +1538,7 @@
 		},
 		"annotations": [
 			"HYBRID_ORCHESTRATION",
-			"SOURCE_FRESHNESS_V3"
+			"SOURCE_FRESHNESS"
 		]
 	}
 }
