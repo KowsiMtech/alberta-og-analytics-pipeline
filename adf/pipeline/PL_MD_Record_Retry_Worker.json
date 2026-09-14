@@ -126,6 +126,9 @@
 				"defaultValue": 10
 			}
 		},
+		"folder": {
+			"name": "Metadata_Driven"
+		},
 		"annotations": []
 	}
 }

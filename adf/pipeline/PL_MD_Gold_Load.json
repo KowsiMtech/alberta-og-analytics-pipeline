@@ -259,6 +259,9 @@
 				"defaultValue": 0
 			}
 		},
+		"folder": {
+			"name": "Metadata_Driven"
+		},
 		"annotations": [
 			"ENTITY_DRIVEN",
 			"ENTERPRISE_HARDENED",
