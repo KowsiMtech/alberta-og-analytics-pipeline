@@ -286,7 +286,7 @@
 											"value": "@activity('Copy_Gold_Object_To_ADLS').output.rowsCopied",
 											"type": "Expression"
 										},
-										"type": "Int32"
+										"type": "Int"
 									}
 								}
 							},

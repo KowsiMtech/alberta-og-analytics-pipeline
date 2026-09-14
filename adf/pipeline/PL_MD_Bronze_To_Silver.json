@@ -387,7 +387,7 @@
 								"value": "@variables('v_SilverCount')",
 								"type": "Expression"
 							},
-							"type": "Int32"
+							"type": "Int"
 						},
 						"Detail": {
 							"value": {

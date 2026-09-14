@@ -181,7 +181,7 @@
 								"value": "@variables('v_RowsWritten')",
 								"type": "Expression"
 							},
-							"type": "Int32"
+							"type": "Int"
 						},
 						"Detail": {
 							"value": {

@@ -157,7 +157,7 @@
 						},
 						"RetryAttempt": {
 							"value": 0,
-							"type": "Int32"
+							"type": "Int"
 						}
 					}
 				},

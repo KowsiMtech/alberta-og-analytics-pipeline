@@ -373,7 +373,7 @@
 								"value": "@variables('v_StagingCount')",
 								"type": "Expression"
 							},
-							"type": "Int32"
+							"type": "Int"
 						},
 						"Detail": {
 							"value": {

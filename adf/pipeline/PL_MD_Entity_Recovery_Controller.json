@@ -203,7 +203,7 @@
 								"source": {
 									"type": "AzureSqlSource",
 									"sqlReaderQuery": {
-										"value": "@concat('EXEC control.usp_GetLatestFailedStage @EntityName=''',pipeline().parameters.EntityName,''', @BatchId=''',pipeline().parameters.BatchId,'''')",
+										"value": "@concat('EXEC control.usp_GetLatestFailedStage @EntityName=''',pipeline().parameters.EntityName,''', @BatchId=''',pipeline().parameters.BatchId,''', @PipelineRunId=''',pipeline().parameters.ParentRunId,''', @ErrorCode=N''',replace(variables('v_ErrorCode'),'''',''''''),''', @ErrorMessage=N''',replace(variables('v_ErrorMessage'),'''',''''''),'''')",
 										"type": "Expression"
 									},
 									"partitionOption": "None"
@@ -526,7 +526,7 @@
 											"value": "@variables('v_WaitSeconds')",
 											"type": "Expression"
 										},
-										"type": "Int32"
+										"type": "Int"
 									},
 									"ErrorCode": {
 										"value": {
@@ -629,7 +629,7 @@
 					},
 					"ifTrueActivities": [
 						{
-							"name": "Alert_Retry_Exhausted",
+							"name": "Handle_Final_Recovery_Failure",
 							"type": "ExecutePipeline",
 							"dependsOn": [],
 							"policy": {
@@ -638,7 +638,7 @@
 							"userProperties": [],
 							"typeProperties": {
 								"pipeline": {
-									"referenceName": "PL_MD_Common_Alert_Handler",
+									"referenceName": "PL_MD_Common_Error_Handler",
 									"type": "PipelineReference"
 								},
 								"waitOnCompletion": true,
@@ -659,37 +659,27 @@
 										"value": "@variables('v_WindowKey')",
 										"type": "Expression"
 									},
-									"AlertType": "RETRY_EXHAUSTED",
-									"Severity": "CRITICAL",
+									"PipelineName": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
 									"ActivityName": {
 										"value": "@variables('v_FailedStage')",
 										"type": "Expression"
 									},
-									"Message": {
-										"value": "@concat('All retry layers exhausted. stage=',variables('v_FailedStage'),' error=',variables('v_ErrorCode'),' ',variables('v_ErrorMessage'))",
+									"ErrorCode": {
+										"value": "@variables('v_ErrorCode')",
+										"type": "Expression"
+									},
+									"ErrorMessage": {
+										"value": "@variables('v_ErrorMessage')",
+										"type": "Expression"
+									},
+									"StageName": {
+										"value": "@variables('v_FailedStage')",
 										"type": "Expression"
 									}
 								}
-							}
-						},
-						{
-							"name": "Fail_Recovery_Exhausted",
-							"type": "Fail",
-							"dependsOn": [
-								{
-									"activity": "Alert_Retry_Exhausted",
-									"dependencyConditions": [
-										"Completed"
-									]
-								}
-							],
-							"userProperties": [],
-							"typeProperties": {
-								"message": {
-									"value": "@concat('Recovery exhausted for ',pipeline().parameters.EntityName,' stage ',variables('v_FailedStage'),': ',variables('v_ErrorMessage'))",
-									"type": "Expression"
-								},
-								"errorCode": "RECOVERY_RETRY_EXHAUSTED"
 							}
 						}
 					]
