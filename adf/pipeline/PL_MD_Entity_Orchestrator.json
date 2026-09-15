@@ -629,7 +629,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@equals(variables('v_WindowDecision'),'PROCESS')",
+							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -801,7 +801,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@equals(variables('v_WindowDecision'),'PROCESS')",
+							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -973,7 +973,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@equals(variables('v_WindowDecision'),'PROCESS')",
+							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -1175,7 +1175,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "@concat('SELECT COALESCE(MAX(RowsWritten),0) SourceCount FROM control.PipelineRunDetail WHERE EntityName=''',pipeline().parameters.EntityName,''' AND BatchId=''',pipeline().parameters.BatchId,''' AND WindowKey=''',variables('v_WindowKey'),''' AND ActivityName IN (''Copy_SQL_To_Bronze'',''Copy_REST_To_Bronze'') AND Status=''SUCCESS''')",
+							"value": "@if(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'),'SELECT CAST(1 AS BIGINT) SourceCount',concat('SELECT COALESCE(MAX(RowsWritten),0) SourceCount FROM control.PipelineRunDetail WHERE EntityName=''',pipeline().parameters.EntityName,''' AND BatchId=''',pipeline().parameters.BatchId,''' AND WindowKey=''',variables('v_WindowKey'),''' AND ActivityName IN (''Copy_SQL_To_Bronze'',''Copy_REST_To_Bronze'') AND Status=''SUCCESS'''))",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
@@ -1406,7 +1406,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0))",
+							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -1442,7 +1442,7 @@
 							"typeProperties": {
 								"variableName": "v_SilverCount",
 								"value": {
-									"value": "@int(json(activity('Gate_BRONZE_TO_SILVER').output.pipelineReturnValue.OutputJson).SilverCount)",
+									"value": "@if(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'),0,int(json(activity('Gate_BRONZE_TO_SILVER').output.pipelineReturnValue.OutputJson).SilverCount))",
 									"type": "Expression"
 								}
 							}
@@ -1466,7 +1466,7 @@
 							"typeProperties": {
 								"variableName": "v_QuarantineCount",
 								"value": {
-									"value": "@int(json(activity('Gate_BRONZE_TO_SILVER').output.pipelineReturnValue.OutputJson).QuarantineCount)",
+									"value": "@if(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'),0,int(json(activity('Gate_BRONZE_TO_SILVER').output.pipelineReturnValue.OutputJson).QuarantineCount))",
 									"type": "Expression"
 								}
 							}
@@ -1717,7 +1717,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "@concat('EXEC control.usp_GetDataOutcome @EntityName=''',pipeline().parameters.EntityName,''', @SourceCount=',string(variables('v_SourceCount')),', @SilverCount=',string(variables('v_SilverCount')),', @QuarantineCount=',string(variables('v_QuarantineCount')))",
+							"value": "@if(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'),'SELECT ''CLEAN'' DataOutcome, CAST(0 AS DECIMAL(18,4)) QuarantinePct, ''NONE'' Severity, ''CONTINUE'' PolicyAction',concat('EXEC control.usp_GetDataOutcome @EntityName=''',pipeline().parameters.EntityName,''', @SourceCount=',string(variables('v_SourceCount')),', @SilverCount=',string(variables('v_SilverCount')),', @QuarantineCount=',string(variables('v_QuarantineCount'))))",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
@@ -2012,7 +2012,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0))",
+							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -2048,7 +2048,7 @@
 							"typeProperties": {
 								"variableName": "v_RawStagingCount",
 								"value": {
-									"value": "@int(json(activity('Gate_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.OutputJson).RawStagingCount)",
+									"value": "@if(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'),0,int(json(activity('Gate_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.OutputJson).RawStagingCount))",
 									"type": "Expression"
 								}
 							}
@@ -2072,7 +2072,7 @@
 							"typeProperties": {
 								"variableName": "v_DuplicateCount",
 								"value": {
-									"value": "@int(json(activity('Gate_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.OutputJson).DuplicateCount)",
+									"value": "@if(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'),0,int(json(activity('Gate_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.OutputJson).DuplicateCount))",
 									"type": "Expression"
 								}
 							}
@@ -2096,7 +2096,7 @@
 							"typeProperties": {
 								"variableName": "v_StagingCount",
 								"value": {
-									"value": "@int(json(activity('Gate_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.OutputJson).StagingCount)",
+									"value": "@if(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'),0,int(json(activity('Gate_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.OutputJson).StagingCount))",
 									"type": "Expression"
 								}
 							}
@@ -2400,7 +2400,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0))",
+							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -3022,7 +3022,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0))",
+							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -3390,7 +3390,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0))",
+							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -3562,7 +3562,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0))",
+							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -4604,7 +4604,8 @@
 			"HYBRID_ORCHESTRATION",
 			"FULL_STAGE_RESUME",
 			"MULTI_LAYER_IDEMPOTENCY",
-			"CHECKPOINT_RECOVERY"
+			"CHECKPOINT_RECOVERY",
+			"DERIVED_GOLD_ENTITY_SUPPORT"
 		]
 	}
 }

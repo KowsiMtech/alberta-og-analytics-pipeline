@@ -1,7 +1,7 @@
 {
 	"name": "PL_MD_Gold_Validation",
 	"properties": {
-		"description": "Post-Gold SCD2 invariant checks restored from the original project: one current row per business key, valid effective dates, and current end-date sentinel.",
+		"description": "Generic post-Gold validation driven by each entity GOLD_DQ script. Scripts return FailedCheckCount and ValidationSummary.",
 		"activities": [
 			{
 				"name": "Lookup_Gold_DQ_Script",
@@ -79,7 +79,7 @@
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
-						"value": "@greater(add(add(int(activity('Run_Gold_DQ').output.resultSets[0].rows[0].DuplicateCurrentWellCount),int(activity('Run_Gold_DQ').output.resultSets[0].rows[0].InvalidEffectiveRangeCount)),add(int(activity('Run_Gold_DQ').output.resultSets[0].rows[0].InvalidCurrentEndDateCount),int(activity('Run_Gold_DQ').output.resultSets[0].rows[0].DuplicateCurrentOperatorCount))),0)",
+						"value": "@greater(int(activity('Run_Gold_DQ').output.resultSets[0].rows[0].FailedCheckCount),0)",
 						"type": "Expression"
 					},
 					"ifFalseActivities": [
@@ -134,7 +134,10 @@
 										"type": "String"
 									},
 									"Detail": {
-										"value": "SCD2 invariants valid",
+										"value": {
+											"value": "@string(activity('Run_Gold_DQ').output.resultSets[0].rows[0].ValidationSummary)",
+											"type": "Expression"
+										},
 										"type": "String"
 									}
 								}
@@ -180,7 +183,10 @@
 									"AlertType": "GOLD_DQ_FAILURE",
 									"Severity": "CRITICAL",
 									"ActivityName": "GOLD_VALIDATION",
-									"Message": "Post-Gold SCD2 invariant validation failed."
+									"Message": {
+										"value": "@concat('Gold validation failed for ',pipeline().parameters.EntityName,'. ',string(activity('Run_Gold_DQ').output.resultSets[0].rows[0].ValidationSummary))",
+										"type": "Expression"
+									}
 								}
 							}
 						},
@@ -197,7 +203,10 @@
 							],
 							"userProperties": [],
 							"typeProperties": {
-								"message": "Post-Gold SCD2 invariant validation failed",
+								"message": {
+									"value": "@concat('Gold validation failed for ',pipeline().parameters.EntityName)",
+									"type": "Expression"
+								},
 								"errorCode": "GOLD_DQ_FAILED"
 							}
 						}
@@ -225,7 +234,8 @@
 		"annotations": [
 			"ENTITY_DRIVEN",
 			"ENTERPRISE_HARDENED",
-			"ST37_SEEDED"
+			"ST37_SEEDED",
+			"GENERIC_GOLD_VALIDATION"
 		]
 	}
 }
