@@ -1,7 +1,7 @@
 {
 	"name": "PL_MD_REST_Ingestion",
 	"properties": {
-		"description": "Generic REST adapter. PAGE_NUMBER/NEXT_LINK control requests use error-aware bounded exponential backoff with jitter. NONE uses direct REST Copy; endpoint-specific auth and response persistence remain entity/source profile concerns.",
+		"description": "Generic REST adapter with metadata-driven BaseUrl/RelativeUrl and optional Key Vault API-key substitution. PAGE_NUMBER/NEXT_LINK use bounded retry helpers; NONE uses direct REST Copy.",
 		"activities": [
 			{
 				"name": "Lookup_Config",
@@ -31,11 +31,104 @@
 				}
 			},
 			{
+				"name": "If_Get_API_Key",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Lookup_Config",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@not(empty(activity('Lookup_Config').output.firstRow.ApiKeySecretUrl))",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Get_API_Key_From_KeyVault",
+							"type": "WebActivity",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.00:01:00",
+								"retry": 2,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": true,
+								"secureInput": true
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"method": "GET",
+								"url": {
+									"value": "@activity('Lookup_Config').output.firstRow.ApiKeySecretUrl",
+									"type": "Expression"
+								},
+								"authentication": {
+									"type": "MSI",
+									"resource": "https://vault.azure.net"
+								}
+							}
+						},
+						{
+							"name": "Set_API_Key",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Get_API_Key_From_KeyVault",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": true,
+								"secureInput": true
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_ApiKey",
+								"value": {
+									"value": "@activity('Get_API_Key_From_KeyVault').output.value",
+									"type": "Expression"
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Set_Resolved_RelativeUrl",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "If_Get_API_Key",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": true,
+					"secureInput": true
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_ResolvedRelativeUrl",
+					"value": {
+						"value": "@if(empty(activity('Lookup_Config').output.firstRow.ApiKeySecretUrl),activity('Lookup_Config').output.firstRow.ApiRelativeUrl,replace(activity('Lookup_Config').output.firstRow.ApiRelativeUrl,coalesce(activity('Lookup_Config').output.firstRow.ApiKeyPlaceholder,'{{API_KEY}}'),variables('v_ApiKey')))",
+						"type": "Expression"
+					}
+				}
+			},
+			{
 				"name": "Switch_Pagination",
 				"type": "Switch",
 				"dependsOn": [
 					{
-						"activity": "Lookup_Config",
+						"activity": "Set_Resolved_RelativeUrl",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -56,7 +149,7 @@
 									"type": "ExecutePipeline",
 									"dependsOn": [],
 									"policy": {
-										"secureInput": false
+										"secureInput": true
 									},
 									"userProperties": [],
 									"typeProperties": {
@@ -80,6 +173,10 @@
 											},
 											"WindowKey": {
 												"value": "@pipeline().parameters.WindowKey",
+												"type": "Expression"
+											},
+											"ResolvedRelativeUrl": {
+												"value": "@variables('v_ResolvedRelativeUrl')",
 												"type": "Expression"
 											}
 										}
@@ -117,14 +214,14 @@
 									"type": "SetVariable",
 									"dependsOn": [],
 									"policy": {
-										"secureOutput": false,
-										"secureInput": false
+										"secureOutput": true,
+										"secureInput": true
 									},
 									"userProperties": [],
 									"typeProperties": {
 										"variableName": "v_NextUrl",
 										"value": {
-											"value": "@concat(activity('Lookup_Config').output.firstRow.ApiBaseUrl,activity('Lookup_Config').output.firstRow.ApiRelativeUrl)",
+											"value": "@concat(activity('Lookup_Config').output.firstRow.ApiBaseUrl,variables('v_ResolvedRelativeUrl'))",
 											"type": "Expression"
 										}
 									}
@@ -169,7 +266,7 @@
 							"type": "ExecutePipeline",
 							"dependsOn": [],
 							"policy": {
-								"secureInput": false
+								"secureInput": true
 							},
 							"userProperties": [],
 							"typeProperties": {
@@ -196,7 +293,7 @@
 										"type": "Expression"
 									},
 									"Url": {
-										"value": "@concat(activity('Lookup_Config').output.firstRow.ApiBaseUrl,activity('Lookup_Config').output.firstRow.ApiRelativeUrl,'?',activity('Lookup_Config').output.firstRow.PageNumberParameter,'=',string(variables('v_Page')),'&',activity('Lookup_Config').output.firstRow.PageSizeParameter,'=',string(activity('Lookup_Config').output.firstRow.PageSize))",
+										"value": "@concat(activity('Lookup_Config').output.firstRow.ApiBaseUrl,variables('v_ResolvedRelativeUrl'),if(contains(variables('v_ResolvedRelativeUrl'),'?'),'&','?'),activity('Lookup_Config').output.firstRow.PageNumberParameter,'=',string(variables('v_Page')),'&',activity('Lookup_Config').output.firstRow.PageSizeParameter,'=',string(activity('Lookup_Config').output.firstRow.PageSize))",
 										"type": "Expression"
 									},
 									"ActivityName": "Get_Page"
@@ -302,7 +399,7 @@
 							"type": "ExecutePipeline",
 							"dependsOn": [],
 							"policy": {
-								"secureInput": false
+								"secureInput": true
 							},
 							"userProperties": [],
 							"typeProperties": {
@@ -348,8 +445,8 @@
 								}
 							],
 							"policy": {
-								"secureOutput": false,
-								"secureInput": false
+								"secureOutput": true,
+								"secureInput": true
 							},
 							"userProperties": [],
 							"typeProperties": {
@@ -400,6 +497,12 @@
 			"v_NextPage": {
 				"type": "Integer",
 				"defaultValue": 2
+			},
+			"v_ApiKey": {
+				"type": "String"
+			},
+			"v_ResolvedRelativeUrl": {
+				"type": "String"
 			}
 		},
 		"folder": {

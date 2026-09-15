@@ -115,7 +115,9 @@
 							"policy": {
 								"timeout": "0.12:00:00",
 								"retry": 0,
-								"retryIntervalInSeconds": 30
+								"retryIntervalInSeconds": 30,
+								"secureOutput": true,
+								"secureInput": true
 							},
 							"userProperties": [],
 							"typeProperties": {
@@ -142,7 +144,7 @@
 									"type": "DatasetReference",
 									"parameters": {
 										"RelativeUrl": {
-											"value": "@activity('Lookup_Config').output.firstRow.ApiRelativeUrl",
+											"value": "@if(empty(pipeline().parameters.ResolvedRelativeUrl),activity('Lookup_Config').output.firstRow.ApiRelativeUrl,pipeline().parameters.ResolvedRelativeUrl)",
 											"type": "Expression"
 										},
 										"BaseUrl": {
@@ -334,14 +336,14 @@
 								}
 							],
 							"policy": {
-								"secureOutput": false,
-								"secureInput": false
+								"secureOutput": true,
+								"secureInput": true
 							},
 							"userProperties": [],
 							"typeProperties": {
 								"variableName": "v_ErrorMessage",
 								"value": {
-									"value": "@activity('Copy_REST_To_Bronze').error.message",
+									"value": "@concat('REST copy failed; sensitive request URL redacted. ErrorCode=',coalesce(activity('Copy_REST_To_Bronze').error.errorCode,'UNKNOWN'))",
 									"type": "Expression"
 								}
 							}
@@ -364,10 +366,9 @@
 								}
 							],
 							"policy": {
-								"retry": 0,
 								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
+								"secureOutput": true,
+								"secureInput": true
 							},
 							"userProperties": [],
 							"typeProperties": {
@@ -452,10 +453,9 @@
 								}
 							],
 							"policy": {
-								"retry": 0,
 								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
+								"secureOutput": true,
+								"secureInput": true
 							},
 							"userProperties": [],
 							"typeProperties": {
@@ -708,7 +708,7 @@
 							"type": "ExecutePipeline",
 							"dependsOn": [],
 							"policy": {
-								"secureInput": false
+								"secureInput": true
 							},
 							"userProperties": [],
 							"typeProperties": {
@@ -788,6 +788,9 @@
 				"type": "String"
 			},
 			"WindowKey": {
+				"type": "String"
+			},
+			"ResolvedRelativeUrl": {
 				"type": "String"
 			}
 		},
