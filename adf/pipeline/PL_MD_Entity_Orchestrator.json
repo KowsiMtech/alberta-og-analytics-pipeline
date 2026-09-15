@@ -1,7 +1,7 @@
 {
 	"name": "PL_MD_Entity_Orchestrator",
 	"properties": {
-		"description": "Entity-driven orchestration with durable stage checkpoints, full retry/resume semantics, and ADF-native control-flow limits. Kept in the original 25-pipeline architecture.",
+		"description": "Entity-driven orchestration with durable stage checkpoints and retry/resume semantics. SQL/REST entities retain the complete lifecycle. DERIVED entities skip source/schema/freshness/ingestion/Bronze/Silver/staging/DQ, then execute Gold load, Gold validation, reconciliation, archive/audit, and lease release without source watermark advancement.",
 		"activities": [
 			{
 				"name": "Lookup_Config",
@@ -1175,7 +1175,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "@if(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'),'SELECT CAST(1 AS BIGINT) SourceCount',concat('SELECT COALESCE(MAX(RowsWritten),0) SourceCount FROM control.PipelineRunDetail WHERE EntityName=''',pipeline().parameters.EntityName,''' AND BatchId=''',pipeline().parameters.BatchId,''' AND WindowKey=''',variables('v_WindowKey'),''' AND ActivityName IN (''Copy_SQL_To_Bronze'',''Copy_REST_To_Bronze'') AND Status=''SUCCESS'''))",
+							"value": "@if(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'),'SELECT CAST(0 AS BIGINT) SourceCount',concat('SELECT COALESCE(MAX(RowsWritten),0) SourceCount FROM control.PipelineRunDetail WHERE EntityName=''',pipeline().parameters.EntityName,''' AND BatchId=''',pipeline().parameters.BatchId,''' AND WindowKey=''',variables('v_WindowKey'),''' AND ActivityName IN (''Copy_SQL_To_Bronze'',''Copy_REST_To_Bronze'') AND Status=''SUCCESS'''))",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
@@ -1406,7 +1406,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -2012,7 +2012,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -2400,7 +2400,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -2572,7 +2572,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0))",
+							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),or(greater(variables('v_SourceCount'),0),equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -2850,7 +2850,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0))",
+							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),or(greater(variables('v_SourceCount'),0),equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -3022,7 +3022,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),or(greater(variables('v_SourceCount'),0),equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -3218,7 +3218,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0))",
+							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),or(greater(variables('v_SourceCount'),0),equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -3390,7 +3390,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),or(greater(variables('v_SourceCount'),0),equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -3562,7 +3562,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -3763,7 +3763,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),equals(variables('v_SourceCount'),0))",
+							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),equals(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -4072,7 +4072,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),equals(variables('v_SourceCount'),0))",
+							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),equals(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -4244,7 +4244,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),equals(variables('v_SourceCount'),0))",
+							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),equals(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -4605,7 +4605,9 @@
 			"FULL_STAGE_RESUME",
 			"MULTI_LAYER_IDEMPOTENCY",
 			"CHECKPOINT_RECOVERY",
-			"DERIVED_GOLD_ENTITY_SUPPORT"
+			"DERIVED_GOLD_ENTITY_SUPPORT",
+			"DERIVED_MINIMAL_BRANCH_FIX",
+			"SQL_REST_LIFECYCLE_PRESERVED"
 		]
 	}
 }
