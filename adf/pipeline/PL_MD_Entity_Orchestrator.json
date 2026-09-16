@@ -65,7 +65,7 @@
 				}
 			},
 			{
-				"name": "Acquire_Entity_Lease",
+				"name": "Resolve_Window",
 				"type": "Lookup",
 				"dependsOn": [
 					{
@@ -86,7 +86,137 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "@concat('EXEC control.usp_AcquireEntityLease @EntityName=''',pipeline().parameters.EntityName,''', @PipelineRunId=''',pipeline().RunId,''', @BatchId=''',pipeline().parameters.BatchId,'''')",
+							"value": "@concat('EXEC control.usp_ResolveWindow @EntityName=''',pipeline().parameters.EntityName,''', @BatchId=''',pipeline().parameters.BatchId,''', @PipelineRunId=''',pipeline().RunId,''', @RunMode=''',pipeline().parameters.RunMode,''', @RecoveryMode=''',pipeline().parameters.RecoveryMode,''', @RequestedWindowStart=',if(empty(pipeline().parameters.WindowStart),'NULL',concat('''',pipeline().parameters.WindowStart,'''')),', @RequestedWindowEnd=',if(empty(pipeline().parameters.WindowEnd),'NULL',concat('''',pipeline().parameters.WindowEnd,'''')))",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Set_WindowKey",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Resolve_Window",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_WindowKey",
+					"value": {
+						"value": "@activity('Resolve_Window').output.firstRow.WindowKey",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_StartWatermark",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set_WindowKey",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_StartWatermark",
+					"value": {
+						"value": "@string(activity('Resolve_Window').output.firstRow.StartWatermark)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_EndWatermark",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set_StartWatermark",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_EndWatermark",
+					"value": {
+						"value": "@string(activity('Resolve_Window').output.firstRow.EndWatermark)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_ExtractionStart",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Set_EndWatermark",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_ExtractionStart",
+					"value": {
+						"value": "@string(activity('Resolve_Window').output.firstRow.ExtractionStart)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Acquire_Entity_Lease",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Set_ExtractionStart",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('EXEC control.usp_AcquireEntityLease @EntityName=''',pipeline().parameters.EntityName,''', @PipelineRunId=''',pipeline().RunId,''', @BatchId=''',pipeline().parameters.BatchId,''', @WindowStart=''',variables('v_StartWatermark'),''', @WindowEnd=''',variables('v_EndWatermark'),''', @WindowKey=''',variables('v_WindowKey'),''', @RunMode=''',pipeline().parameters.RunMode,'''')",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
@@ -112,7 +242,7 @@
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
-						"value": "@not(equals(activity('Acquire_Entity_Lease').output.firstRow.LeaseDecision,'BLOCKED_ACTIVE'))",
+						"value": "@not(startsWith(string(activity('Acquire_Entity_Lease').output.firstRow.LeaseDecision),'BLOCKED'))",
 						"type": "Expression"
 					},
 					"ifFalseActivities": [
@@ -291,139 +421,9 @@
 					],
 					"ifTrueActivities": [
 						{
-							"name": "Resolve_Window",
-							"type": "Lookup",
-							"dependsOn": [],
-							"policy": {
-								"retry": 0,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"source": {
-									"type": "AzureSqlSource",
-									"sqlReaderQuery": {
-										"value": "@concat('EXEC control.usp_ResolveWindow @EntityName=''',pipeline().parameters.EntityName,''', @BatchId=''',pipeline().parameters.BatchId,''', @PipelineRunId=''',pipeline().RunId,''', @RunMode=''',pipeline().parameters.RunMode,''', @RecoveryMode=''',pipeline().parameters.RecoveryMode,''', @RequestedWindowStart=',if(empty(pipeline().parameters.WindowStart),'NULL',concat('''',pipeline().parameters.WindowStart,'''')),', @RequestedWindowEnd=',if(empty(pipeline().parameters.WindowEnd),'NULL',concat('''',pipeline().parameters.WindowEnd,'''')))",
-										"type": "Expression"
-									},
-									"partitionOption": "None"
-								},
-								"dataset": {
-									"referenceName": "DS_MD_Control",
-									"type": "DatasetReference"
-								},
-								"firstRowOnly": true
-							}
-						},
-						{
-							"name": "Set_WindowKey",
-							"type": "SetVariable",
-							"dependsOn": [
-								{
-									"activity": "Resolve_Window",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"policy": {
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"variableName": "v_WindowKey",
-								"value": {
-									"value": "@activity('Resolve_Window').output.firstRow.WindowKey",
-									"type": "Expression"
-								}
-							}
-						},
-						{
-							"name": "Set_StartWatermark",
-							"type": "SetVariable",
-							"dependsOn": [
-								{
-									"activity": "Set_WindowKey",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"policy": {
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"variableName": "v_StartWatermark",
-								"value": {
-									"value": "@string(activity('Resolve_Window').output.firstRow.StartWatermark)",
-									"type": "Expression"
-								}
-							}
-						},
-						{
-							"name": "Set_EndWatermark",
-							"type": "SetVariable",
-							"dependsOn": [
-								{
-									"activity": "Set_StartWatermark",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"policy": {
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"variableName": "v_EndWatermark",
-								"value": {
-									"value": "@string(activity('Resolve_Window').output.firstRow.EndWatermark)",
-									"type": "Expression"
-								}
-							}
-						},
-						{
-							"name": "Set_ExtractionStart",
-							"type": "SetVariable",
-							"dependsOn": [
-								{
-									"activity": "Set_EndWatermark",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"policy": {
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"variableName": "v_ExtractionStart",
-								"value": {
-									"value": "@string(activity('Resolve_Window').output.firstRow.ExtractionStart)",
-									"type": "Expression"
-								}
-							}
-						},
-						{
 							"name": "Update_Run_Window",
 							"type": "SqlServerStoredProcedure",
-							"dependsOn": [
-								{
-									"activity": "Set_ExtractionStart",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
+							"dependsOn": [],
 							"policy": {
 								"retry": 0,
 								"retryIntervalInSeconds": 30,
@@ -1406,7 +1406,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -2012,7 +2012,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -2400,7 +2400,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -3562,7 +3562,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -3763,7 +3763,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),equals(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),equals(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -4072,7 +4072,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),equals(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),equals(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -4244,7 +4244,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),equals(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),equals(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -4607,7 +4607,10 @@
 			"CHECKPOINT_RECOVERY",
 			"DERIVED_GOLD_ENTITY_SUPPORT",
 			"DERIVED_MINIMAL_BRANCH_FIX",
-			"SQL_REST_LIFECYCLE_PRESERVED"
+			"SQL_REST_LIFECYCLE_PRESERVED",
+			"DETERMINISTIC_WINDOW_PRELEASE",
+			"RANGE_LEVEL_ENTITY_LEASE",
+			"NON_OVERLAPPING_BACKFILL_CONCURRENCY"
 		]
 	}
 }
