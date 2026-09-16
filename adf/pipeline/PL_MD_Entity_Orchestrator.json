@@ -1406,7 +1406,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),and(greater(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'))),false)",
 							"type": "Expression"
 						}
 					}
@@ -2012,7 +2012,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),and(greater(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'))),false)",
 							"type": "Expression"
 						}
 					}
@@ -2400,7 +2400,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),and(greater(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'))),false)",
 							"type": "Expression"
 						}
 					}
@@ -3562,7 +3562,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),greater(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),and(greater(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'))),false)",
 							"type": "Expression"
 						}
 					}
@@ -3763,7 +3763,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),equals(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),and(equals(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'))),false)",
 							"type": "Expression"
 						}
 					}
@@ -4072,7 +4072,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),equals(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),and(equals(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'))),false)",
 							"type": "Expression"
 						}
 					}
@@ -4244,7 +4244,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(and(equals(variables('v_WindowDecision'),'PROCESS'),equals(variables('v_SourceCount'),0)),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),and(equals(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'))),false)",
 							"type": "Expression"
 						}
 					}
