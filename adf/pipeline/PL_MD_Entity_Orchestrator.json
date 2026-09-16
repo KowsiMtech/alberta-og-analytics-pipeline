@@ -387,11 +387,70 @@
 				}
 			},
 			{
-				"name": "If_Run_Process",
+				"name": "If_Start_Periodic_Heartbeat",
 				"type": "IfCondition",
 				"dependsOn": [
 					{
 						"activity": "If_Lease_Acquired",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(variables('v_RunDecision'),'PROCESS')",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Start_Periodic_Heartbeat",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"waitOnCompletion": false,
+								"parameters": {
+									"EntityName": {
+										"value": "@pipeline().parameters.EntityName",
+										"type": "Expression"
+									},
+									"PipelineRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"LeaseToken": {
+										"value": "@string(activity('Acquire_Entity_Lease').output.firstRow.LeaseToken)",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@variables('v_WindowKey')",
+										"type": "Expression"
+									},
+									"IntervalSeconds": {
+										"value": "@int(activity('Lookup_Config').output.firstRow.HeartbeatIntervalSeconds)",
+										"type": "Expression"
+									},
+									"MaxLifetimeMinutes": {
+										"value": "@int(activity('Lookup_Config').output.firstRow.HeartbeatMaxLifetimeMinutes)",
+										"type": "Expression"
+									}
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "If_Run_Process",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "If_Start_Periodic_Heartbeat",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -980,54 +1039,6 @@
 				}
 			},
 			{
-				"name": "Heartbeat_After_INGESTION",
-				"type": "SqlServerStoredProcedure",
-				"dependsOn": [
-					{
-						"activity": "Gate_INGESTION",
-						"dependencyConditions": [
-							"Completed"
-						]
-					}
-				],
-				"policy": {
-					"retryIntervalInSeconds": 30,
-					"secureOutput": false,
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"storedProcedureName": "control.usp_HeartbeatEntityLease",
-					"storedProcedureParameters": {
-						"EntityName": {
-							"value": {
-								"value": "@pipeline().parameters.EntityName",
-								"type": "Expression"
-							},
-							"type": "String"
-						},
-						"PipelineRunId": {
-							"value": {
-								"value": "@pipeline().RunId",
-								"type": "Expression"
-							},
-							"type": "String"
-						},
-						"WindowKey": {
-							"value": {
-								"value": "@variables('v_WindowKey')",
-								"type": "Expression"
-							},
-							"type": "String"
-						}
-					}
-				},
-				"linkedServiceName": {
-					"referenceName": "LS_AzureSQL",
-					"type": "LinkedServiceReference"
-				}
-			},
-			{
 				"name": "Run_SOURCE_INGESTION",
 				"type": "Switch",
 				"dependsOn": [
@@ -1458,54 +1469,6 @@
 							"type": "Expression"
 						}
 					}
-				}
-			},
-			{
-				"name": "Heartbeat_After_BRONZE_TO_SILVER",
-				"type": "SqlServerStoredProcedure",
-				"dependsOn": [
-					{
-						"activity": "Gate_BRONZE_TO_SILVER",
-						"dependencyConditions": [
-							"Completed"
-						]
-					}
-				],
-				"policy": {
-					"retryIntervalInSeconds": 30,
-					"secureOutput": false,
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"storedProcedureName": "control.usp_HeartbeatEntityLease",
-					"storedProcedureParameters": {
-						"EntityName": {
-							"value": {
-								"value": "@pipeline().parameters.EntityName",
-								"type": "Expression"
-							},
-							"type": "String"
-						},
-						"PipelineRunId": {
-							"value": {
-								"value": "@pipeline().RunId",
-								"type": "Expression"
-							},
-							"type": "String"
-						},
-						"WindowKey": {
-							"value": {
-								"value": "@variables('v_WindowKey')",
-								"type": "Expression"
-							},
-							"type": "String"
-						}
-					}
-				},
-				"linkedServiceName": {
-					"referenceName": "LS_AzureSQL",
-					"type": "LinkedServiceReference"
 				}
 			},
 			{
@@ -2675,54 +2638,6 @@
 				}
 			},
 			{
-				"name": "Heartbeat_After_GOLD_LOAD",
-				"type": "SqlServerStoredProcedure",
-				"dependsOn": [
-					{
-						"activity": "Gate_GOLD_LOAD",
-						"dependencyConditions": [
-							"Completed"
-						]
-					}
-				],
-				"policy": {
-					"retryIntervalInSeconds": 30,
-					"secureOutput": false,
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"storedProcedureName": "control.usp_HeartbeatEntityLease",
-					"storedProcedureParameters": {
-						"EntityName": {
-							"value": {
-								"value": "@pipeline().parameters.EntityName",
-								"type": "Expression"
-							},
-							"type": "String"
-						},
-						"PipelineRunId": {
-							"value": {
-								"value": "@pipeline().RunId",
-								"type": "Expression"
-							},
-							"type": "String"
-						},
-						"WindowKey": {
-							"value": {
-								"value": "@variables('v_WindowKey')",
-								"type": "Expression"
-							},
-							"type": "String"
-						}
-					}
-				},
-				"linkedServiceName": {
-					"referenceName": "LS_AzureSQL",
-					"type": "LinkedServiceReference"
-				}
-			},
-			{
 				"name": "If_Execute_GOLD_LOAD",
 				"type": "IfCondition",
 				"dependsOn": [
@@ -3170,54 +3085,6 @@
 							"type": "Expression"
 						}
 					}
-				}
-			},
-			{
-				"name": "Heartbeat_After_RECONCILIATION",
-				"type": "SqlServerStoredProcedure",
-				"dependsOn": [
-					{
-						"activity": "Gate_RECONCILIATION",
-						"dependencyConditions": [
-							"Completed"
-						]
-					}
-				],
-				"policy": {
-					"retryIntervalInSeconds": 30,
-					"secureOutput": false,
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"storedProcedureName": "control.usp_HeartbeatEntityLease",
-					"storedProcedureParameters": {
-						"EntityName": {
-							"value": {
-								"value": "@pipeline().parameters.EntityName",
-								"type": "Expression"
-							},
-							"type": "String"
-						},
-						"PipelineRunId": {
-							"value": {
-								"value": "@pipeline().RunId",
-								"type": "Expression"
-							},
-							"type": "String"
-						},
-						"WindowKey": {
-							"value": {
-								"value": "@variables('v_WindowKey')",
-								"type": "Expression"
-							},
-							"type": "String"
-						}
-					}
-				},
-				"linkedServiceName": {
-					"referenceName": "LS_AzureSQL",
-					"type": "LinkedServiceReference"
 				}
 			},
 			{
@@ -4802,7 +4669,10 @@
 			"SQL_REST_LIFECYCLE_PRESERVED",
 			"DETERMINISTIC_WINDOW_PRELEASE",
 			"RANGE_LEVEL_ENTITY_LEASE",
-			"NON_OVERLAPPING_BACKFILL_CONCURRENCY"
+			"NON_OVERLAPPING_BACKFILL_CONCURRENCY",
+			"PERIODIC_LEASE_HEARTBEAT",
+			"LEASE_TOKEN_OWNERSHIP_GUARD",
+			"HEARTBEAT_HARD_TTL"
 		]
 	}
 }

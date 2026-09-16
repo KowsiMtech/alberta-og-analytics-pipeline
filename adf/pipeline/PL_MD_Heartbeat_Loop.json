@@ -1,0 +1,164 @@
+{
+	"name": "PL_MD_Heartbeat_Loop",
+	"properties": {
+		"description": "Asynchronous periodic lease heartbeat. Renews only the exact unexpired lease token owned by the parent run; exits on stop request, lease loss/expiry, or hard lifetime limit.",
+		"activities": [
+			{
+				"name": "Initialize_Heartbeat_Control",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('EXEC control.usp_StartHeartbeatControl @EntityName=''',pipeline().parameters.EntityName,''', @PipelineRunId=''',pipeline().parameters.PipelineRunId,''', @LeaseToken=''',pipeline().parameters.LeaseToken,''', @WindowKey=''',pipeline().parameters.WindowKey,''', @IntervalSeconds=',string(pipeline().parameters.IntervalSeconds),', @MaxLifetimeMinutes=',string(pipeline().parameters.MaxLifetimeMinutes))",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Until_Heartbeat_Stop",
+				"type": "Until",
+				"dependsOn": [
+					{
+						"activity": "Initialize_Heartbeat_Control",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(variables('v_Stop'),true)",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Heartbeat_Tick",
+							"type": "Lookup",
+							"dependsOn": [],
+							"policy": {
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "@concat('EXEC control.usp_HeartbeatEntityLeaseSafe @EntityName=''',pipeline().parameters.EntityName,''', @PipelineRunId=''',pipeline().parameters.PipelineRunId,''', @LeaseToken=''',pipeline().parameters.LeaseToken,''', @WindowKey=''',pipeline().parameters.WindowKey,'''')",
+										"type": "Expression"
+									},
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "DS_MD_Control",
+									"type": "DatasetReference"
+								},
+								"firstRowOnly": true
+							}
+						},
+						{
+							"name": "Set_Stop_From_Tick",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Heartbeat_Tick",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_Stop",
+								"value": {
+									"value": "@not(equals(activity('Heartbeat_Tick').output.firstRow.HeartbeatLoopDecision,'CONTINUE'))",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Wait_Heartbeat_Interval",
+							"type": "Wait",
+							"dependsOn": [
+								{
+									"activity": "Set_Stop_From_Tick",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"waitTimeInSeconds": {
+									"value": "@if(variables('v_Stop'),1,pipeline().parameters.IntervalSeconds)",
+									"type": "Expression"
+								}
+							}
+						}
+					],
+					"timeout": "7.00:00:00"
+				}
+			}
+		],
+		"parameters": {
+			"EntityName": {
+				"type": "String"
+			},
+			"PipelineRunId": {
+				"type": "String"
+			},
+			"LeaseToken": {
+				"type": "String"
+			},
+			"WindowKey": {
+				"type": "String"
+			},
+			"IntervalSeconds": {
+				"type": "Int",
+				"defaultValue": 300
+			},
+			"MaxLifetimeMinutes": {
+				"type": "Int",
+				"defaultValue": 1440
+			}
+		},
+		"variables": {
+			"v_Stop": {
+				"type": "Boolean",
+				"defaultValue": false
+			}
+		},
+		"folder": {
+			"name": "Metadata_Driven"
+		},
+		"annotations": [
+			"ENTITY_DRIVEN",
+			"PERIODIC_LEASE_HEARTBEAT",
+			"ASYNC_CHILD",
+			"LEASE_TOKEN_OWNERSHIP_GUARD"
+		]
+	}
+}
