@@ -105,11 +105,35 @@
 				}
 			},
 			{
+				"name": "Capture_Batch_Cutoff_Once",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Register_Batch_Audit_Request",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_BatchCutoffCandidate",
+					"value": {
+						"value": "@if(empty(pipeline().parameters.WindowEnd),utcNow(),pipeline().parameters.WindowEnd)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
 				"name": "Resolve_Batch_Cutoff",
 				"type": "Lookup",
 				"dependsOn": [
 					{
-						"activity": "Register_Batch_Audit_Request",
+						"activity": "Capture_Batch_Cutoff_Once",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -126,7 +150,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "@concat('EXEC control.usp_ResolveBatchCutoff @BatchId=''',variables('v_BatchId'),''', @MasterPipelineRunId=''',pipeline().RunId,''', @RunMode=''',pipeline().parameters.RunMode,''', @RequestedWindowEnd=',if(empty(pipeline().parameters.WindowEnd),'NULL',concat('''',pipeline().parameters.WindowEnd,'''')))",
+							"value": "@concat('EXEC control.usp_ResolveBatchCutoff @BatchId=''',variables('v_BatchId'),''', @MasterPipelineRunId=''',pipeline().RunId,''', @RunMode=''',pipeline().parameters.RunMode,''', @ProposedBatchCutoff=''',variables('v_BatchCutoffCandidate'),''', @RequestedWindowEnd=',if(empty(pipeline().parameters.WindowEnd),'NULL',concat('''',pipeline().parameters.WindowEnd,'''')))",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
@@ -328,6 +352,9 @@
 		},
 		"variables": {
 			"v_BatchId": {
+				"type": "String"
+			},
+			"v_BatchCutoffCandidate": {
 				"type": "String"
 			},
 			"v_BatchCutoffTime": {
