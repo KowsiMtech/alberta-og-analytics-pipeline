@@ -1,7 +1,7 @@
 {
 	"name": "PL_MD_SQL_Ingestion",
 	"properties": {
-		"description": "Incremental SQL ingestion with deterministic Bronze cleanup, error-aware bounded exponential backoff with jitter, and same-window retries.",
+		"description": "Incremental SQL ingestion with deterministic Bronze cleanup, error-aware bounded exponential backoff with jitter, and same-window retries. Bronze rows are stamped at ingestion with BatchID, WindowKey, PipelineRunId, SourceEntity, and BronzeIngestedAt for end-to-end lineage.",
 		"activities": [
 			{
 				"name": "Lookup_Config",
@@ -122,7 +122,7 @@
 								"source": {
 									"type": "SqlSource",
 									"sqlReaderQuery": {
-										"value": "@if(equals(activity('Lookup_Config').output.firstRow.LoadType,'FULL'),concat('SELECT * FROM [',activity('Lookup_Config').output.firstRow.SourceSchema,'].[',activity('Lookup_Config').output.firstRow.SourceObject,']'),concat('SELECT * FROM [',activity('Lookup_Config').output.firstRow.SourceSchema,'].[',activity('Lookup_Config').output.firstRow.SourceObject,'] WHERE [',activity('Lookup_Config').output.firstRow.WatermarkColumn,'] > ''',pipeline().parameters.ExtractionStart,''' AND [',activity('Lookup_Config').output.firstRow.WatermarkColumn,'] <= ''',pipeline().parameters.EndWatermark,''''))",
+										"value": "@if(equals(activity('Lookup_Config').output.firstRow.LoadType,'FULL'),concat('SELECT *, ''',pipeline().parameters.BatchId,''' AS BatchID, ''',pipeline().parameters.WindowKey,''' AS WindowKey, ''',pipeline().parameters.ParentRunId,''' AS PipelineRunId, ''',pipeline().parameters.EntityName,''' AS SourceEntity, SYSUTCDATETIME() AS BronzeIngestedAt FROM [',activity('Lookup_Config').output.firstRow.SourceSchema,'].[',activity('Lookup_Config').output.firstRow.SourceObject,']'),concat('SELECT *, ''',pipeline().parameters.BatchId,''' AS BatchID, ''',pipeline().parameters.WindowKey,''' AS WindowKey, ''',pipeline().parameters.ParentRunId,''' AS PipelineRunId, ''',pipeline().parameters.EntityName,''' AS SourceEntity, SYSUTCDATETIME() AS BronzeIngestedAt FROM [',activity('Lookup_Config').output.firstRow.SourceSchema,'].[',activity('Lookup_Config').output.firstRow.SourceObject,'] WHERE [',activity('Lookup_Config').output.firstRow.WatermarkColumn,'] > ''',pipeline().parameters.ExtractionStart,''' AND [',activity('Lookup_Config').output.firstRow.WatermarkColumn,'] <= ''',pipeline().parameters.EndWatermark,''''))",
 										"type": "Expression"
 									},
 									"partitionOption": "None"
