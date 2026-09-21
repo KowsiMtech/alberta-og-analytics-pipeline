@@ -417,7 +417,33 @@
 									"referenceName": "PL_MD_Heartbeat_Loop",
 									"type": "PipelineReference"
 								},
-								"waitOnCompletion": false
+								"waitOnCompletion": false,
+								"parameters": {
+									"EntityName": {
+										"value": "@pipeline().parameters.EntityName",
+										"type": "Expression"
+									},
+									"PipelineRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"LeaseToken": {
+										"value": "@string(activity('Acquire_Entity_Lease').output.firstRow.LeaseToken)",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@variables('v_WindowKey')",
+										"type": "Expression"
+									},
+									"IntervalSeconds": {
+										"value": "@int(activity('Lookup_Config').output.firstRow.HeartbeatIntervalSeconds)",
+										"type": "Expression"
+									},
+									"MaxLifetimeMinutes": {
+										"value": "@int(activity('Lookup_Config').output.firstRow.HeartbeatMaxLifetimeMinutes)",
+										"type": "Expression"
+									}
+								}
 							}
 						}
 					]
