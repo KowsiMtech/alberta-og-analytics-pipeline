@@ -1793,8 +1793,8 @@
 				}
 			},
 			{
-				"name": "If_PARTIAL_QUARANTINE",
-				"type": "IfCondition",
+				"name": "Switch_Transform_Outcome",
+				"type": "Switch",
 				"dependsOn": [
 					{
 						"activity": "Get_Data_Outcome",
@@ -1805,136 +1805,171 @@
 				],
 				"userProperties": [],
 				"typeProperties": {
-					"expression": {
-						"value": "@equals(activity('Get_Data_Outcome').output.firstRow.DataOutcome,'PARTIAL_QUARANTINE')",
+					"on": {
+						"value": "@if(equals(activity('Get_Data_Outcome').output.firstRow.DataOutcome,'CLEAN'),'CLEAN',if(and(equals(activity('Get_Data_Outcome').output.firstRow.DataOutcome,'PARTIAL_QUARANTINE'),equals(activity('Get_Data_Outcome').output.firstRow.PolicyAction,'FAIL')),'PARTIAL_FAIL',if(equals(activity('Get_Data_Outcome').output.firstRow.DataOutcome,'PARTIAL_QUARANTINE'),'PARTIAL_CONTINUE','BLOCKED')))",
 						"type": "Expression"
 					},
-					"ifTrueActivities": [
+					"cases": [
 						{
-							"name": "Alert_PARTIAL_QUARANTINE",
-							"type": "ExecutePipeline",
-							"dependsOn": [],
-							"policy": {
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"pipeline": {
-									"referenceName": "PL_MD_Common_Alert_Handler",
-									"type": "PipelineReference"
-								},
-								"waitOnCompletion": true,
-								"parameters": {
-									"EntityName": {
-										"value": "@pipeline().parameters.EntityName",
-										"type": "Expression"
-									},
-									"BatchId": {
-										"value": "@pipeline().parameters.BatchId",
-										"type": "Expression"
-									},
-									"ParentRunId": {
-										"value": "@pipeline().RunId",
-										"type": "Expression"
-									},
-									"WindowKey": {
-										"value": "@variables('v_WindowKey')",
-										"type": "Expression"
-									},
-									"AlertType": "PARTIAL_QUARANTINE",
-									"Severity": {
-										"value": "@activity('Get_Data_Outcome').output.firstRow.Severity",
-										"type": "Expression"
-									},
-									"ActivityName": "BRONZE_TO_SILVER",
-									"Message": {
-										"value": "@concat('Quarantine rate=',string(activity('Get_Data_Outcome').output.firstRow.QuarantinePct),'%. PolicyAction=',activity('Get_Data_Outcome').output.firstRow.PolicyAction)",
-										"type": "Expression"
+							"value": "CLEAN",
+							"activities": [
+								{
+									"name": "Continue_CLEAN_Transform",
+									"type": "Wait",
+									"dependsOn": [],
+									"userProperties": [],
+									"typeProperties": {
+										"waitTimeInSeconds": 1
 									}
 								}
-							}
-						}
-					]
-				}
-			},
-			{
-				"name": "If_Partial_Quarantine_Action_FAIL",
-				"type": "IfCondition",
-				"dependsOn": [
-					{
-						"activity": "If_PARTIAL_QUARANTINE",
-						"dependencyConditions": [
-							"Succeeded"
-						]
-					}
-				],
-				"userProperties": [],
-				"typeProperties": {
-					"expression": {
-						"value": "@and(equals(activity('Get_Data_Outcome').output.firstRow.DataOutcome,'PARTIAL_QUARANTINE'),equals(activity('Get_Data_Outcome').output.firstRow.PolicyAction,'FAIL'))",
-						"type": "Expression"
-					},
-					"ifTrueActivities": [
+							]
+						},
 						{
-							"name": "Raise_Partial_Quarantine_Policy_Failure",
-							"type": "ExecutePipeline",
-							"dependsOn": [],
-							"policy": {
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"pipeline": {
-									"referenceName": "PL_MD_Common_Error_Handler",
-									"type": "PipelineReference"
-								},
-								"waitOnCompletion": true,
-								"parameters": {
-									"EntityName": {
-										"value": "@pipeline().parameters.EntityName",
-										"type": "Expression"
+							"value": "PARTIAL_CONTINUE",
+							"activities": [
+								{
+									"name": "Alert_PARTIAL_QUARANTINE_CONTINUE",
+									"type": "ExecutePipeline",
+									"dependsOn": [],
+									"policy": {
+										"secureInput": false
 									},
-									"BatchId": {
-										"value": "@pipeline().parameters.BatchId",
-										"type": "Expression"
-									},
-									"ParentRunId": {
-										"value": "@pipeline().RunId",
-										"type": "Expression"
-									},
-									"WindowKey": {
-										"value": "@variables('v_WindowKey')",
-										"type": "Expression"
-									},
-									"PipelineName": "PL_MD_Entity_Orchestrator",
-									"ActivityName": "BRONZE_TO_SILVER",
-									"ErrorCode": "PARTIAL_QUARANTINE_BLOCKED",
-									"ErrorMessage": "Partial quarantine policy blocked the batch.",
-									"StageName": "BRONZE_TO_SILVER"
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "PL_MD_Common_Alert_Handler",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {
+											"EntityName": {
+												"value": "@pipeline().parameters.EntityName",
+												"type": "Expression"
+											},
+											"BatchId": {
+												"value": "@pipeline().parameters.BatchId",
+												"type": "Expression"
+											},
+											"ParentRunId": {
+												"value": "@pipeline().RunId",
+												"type": "Expression"
+											},
+											"WindowKey": {
+												"value": "@variables('v_WindowKey')",
+												"type": "Expression"
+											},
+											"AlertType": "PARTIAL_QUARANTINE",
+											"Severity": {
+												"value": "@activity('Get_Data_Outcome').output.firstRow.Severity",
+												"type": "Expression"
+											},
+											"ActivityName": "BRONZE_TO_SILVER",
+											"Message": {
+												"value": "@concat('Quarantine rate=',string(activity('Get_Data_Outcome').output.firstRow.QuarantinePct),'%. PolicyAction=',activity('Get_Data_Outcome').output.firstRow.PolicyAction)",
+												"type": "Expression"
+											}
+										}
+									}
 								}
-							}
+							]
+						},
+						{
+							"value": "PARTIAL_FAIL",
+							"activities": [
+								{
+									"name": "Alert_PARTIAL_QUARANTINE_FAIL",
+									"type": "ExecutePipeline",
+									"dependsOn": [],
+									"policy": {
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "PL_MD_Common_Alert_Handler",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {
+											"EntityName": {
+												"value": "@pipeline().parameters.EntityName",
+												"type": "Expression"
+											},
+											"BatchId": {
+												"value": "@pipeline().parameters.BatchId",
+												"type": "Expression"
+											},
+											"ParentRunId": {
+												"value": "@pipeline().RunId",
+												"type": "Expression"
+											},
+											"WindowKey": {
+												"value": "@variables('v_WindowKey')",
+												"type": "Expression"
+											},
+											"AlertType": "PARTIAL_QUARANTINE",
+											"Severity": {
+												"value": "@activity('Get_Data_Outcome').output.firstRow.Severity",
+												"type": "Expression"
+											},
+											"ActivityName": "BRONZE_TO_SILVER",
+											"Message": {
+												"value": "@concat('Quarantine rate=',string(activity('Get_Data_Outcome').output.firstRow.QuarantinePct),'%. PolicyAction=',activity('Get_Data_Outcome').output.firstRow.PolicyAction)",
+												"type": "Expression"
+											}
+										}
+									}
+								},
+								{
+									"name": "Raise_Partial_Quarantine_Policy_Failure",
+									"type": "ExecutePipeline",
+									"dependsOn": [
+										{
+											"activity": "Alert_PARTIAL_QUARANTINE_FAIL",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "PL_MD_Common_Error_Handler",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {
+											"EntityName": {
+												"value": "@pipeline().parameters.EntityName",
+												"type": "Expression"
+											},
+											"BatchId": {
+												"value": "@pipeline().parameters.BatchId",
+												"type": "Expression"
+											},
+											"ParentRunId": {
+												"value": "@pipeline().RunId",
+												"type": "Expression"
+											},
+											"WindowKey": {
+												"value": "@variables('v_WindowKey')",
+												"type": "Expression"
+											},
+											"PipelineName": "PL_MD_Entity_Orchestrator",
+											"ActivityName": "BRONZE_TO_SILVER",
+											"ErrorCode": "PARTIAL_QUARANTINE_BLOCKED",
+											"ErrorMessage": "Partial quarantine policy blocked the batch.",
+											"StageName": "BRONZE_TO_SILVER"
+										}
+									}
+								}
+							]
 						}
-					]
-				}
-			},
-			{
-				"name": "If_Transform_Can_Continue",
-				"type": "IfCondition",
-				"dependsOn": [
-					{
-						"activity": "If_Partial_Quarantine_Action_FAIL",
-						"dependencyConditions": [
-							"Succeeded"
-						]
-					}
-				],
-				"userProperties": [],
-				"typeProperties": {
-					"expression": {
-						"value": "@or(equals(activity('Get_Data_Outcome').output.firstRow.DataOutcome,'CLEAN'),and(equals(activity('Get_Data_Outcome').output.firstRow.DataOutcome,'PARTIAL_QUARANTINE'),not(equals(activity('Get_Data_Outcome').output.firstRow.PolicyAction,'FAIL'))))",
-						"type": "Expression"
-					},
-					"ifFalseActivities": [
+					],
+					"defaultActivities": [
 						{
 							"name": "Alert_Transform_Block",
 							"type": "ExecutePipeline",
@@ -2036,7 +2071,7 @@
 				"type": "ExecutePipeline",
 				"dependsOn": [
 					{
-						"activity": "If_Transform_Can_Continue",
+						"activity": "Switch_Transform_Outcome",
 						"dependencyConditions": [
 							"Succeeded"
 						]
