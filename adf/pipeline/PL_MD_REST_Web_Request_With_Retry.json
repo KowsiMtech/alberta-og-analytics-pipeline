@@ -110,7 +110,7 @@
 							"userProperties": [],
 							"typeProperties": {
 								"variableName": "v_Done",
-								"value": "true"
+								"value": true
 							}
 						},
 						{
@@ -567,8 +567,8 @@
 		},
 		"variables": {
 			"v_Done": {
-				"type": "String",
-				"defaultValue": "false"
+				"type": "Boolean",
+				"defaultValue": false
 			},
 			"v_Attempt": {
 				"type": "String",

@@ -488,8 +488,8 @@
 				"defaultValue": "1"
 			},
 			"v_HasMore": {
-				"type": "String",
-				"defaultValue": "true"
+				"type": "Boolean",
+				"defaultValue": true
 			},
 			"v_NextUrl": {
 				"type": "String"
