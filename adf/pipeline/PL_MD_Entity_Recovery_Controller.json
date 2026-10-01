@@ -58,7 +58,7 @@
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
-						"value": "@equals(variables('v_Done'),true)",
+						"value": "@equals(variables('v_Done'),'true')",
 						"type": "Expression"
 					},
 					"activities": [
@@ -601,7 +601,7 @@
 							"typeProperties": {
 								"variableName": "v_Done",
 								"value": {
-									"value": "@or(equals(variables('v_Action'),'FAIL'),equals(variables('v_Action'),'RETRY_EXHAUSTED'))",
+									"value": "@string(or(equals(variables('v_Action'),'FAIL'),equals(variables('v_Action'),'RETRY_EXHAUSTED')))",
 									"type": "Expression"
 								}
 							}
@@ -716,7 +716,7 @@
 		},
 		"variables": {
 			"v_Done": {
-				"type": "Bool",
+				"type": "String",
 				"defaultValue": "false"
 			},
 			"v_StageAttempt": {
