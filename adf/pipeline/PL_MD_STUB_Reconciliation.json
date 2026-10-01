@@ -1,0 +1,52 @@
+{
+	"name": "PL_MD_STUB_Reconciliation",
+	"properties": {
+		"activities": [
+			{
+				"name": "Wait_Stub",
+				"type": "Wait",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"waitTimeInSeconds": 1
+				}
+			}
+		],
+		"parameters": {
+			"EntityName": {
+				"type": "String"
+			},
+			"BatchId": {
+				"type": "String"
+			},
+			"ParentRunId": {
+				"type": "String"
+			},
+			"WindowKey": {
+				"type": "String"
+			},
+			"SourceCount": {
+				"type": "Int"
+			},
+			"SilverCount": {
+				"type": "Int"
+			},
+			"QuarantineCount": {
+				"type": "Int"
+			},
+			"RawStagingCount": {
+				"type": "Int"
+			},
+			"DuplicateCount": {
+				"type": "Int"
+			},
+			"StagingCount": {
+				"type": "Int"
+			}
+		},
+		"folder": {
+			"name": "STUB_Pipelines"
+		},
+		"annotations": []
+	}
+}

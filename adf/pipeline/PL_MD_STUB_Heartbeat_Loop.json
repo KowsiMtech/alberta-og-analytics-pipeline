@@ -1,0 +1,42 @@
+{
+	"name": "PL_MD_STUB_Heartbeat_Loop",
+	"properties": {
+		"activities": [
+			{
+				"name": "Wait_Stub",
+				"type": "Wait",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"waitTimeInSeconds": 1
+				}
+			}
+		],
+		"parameters": {
+			"EntityName": {
+				"type": "String"
+			},
+			"PipelineRunId": {
+				"type": "String"
+			},
+			"LeaseToken": {
+				"type": "String"
+			},
+			"WindowKey": {
+				"type": "String"
+			},
+			"IntervalSeconds": {
+				"type": "Int",
+				"defaultValue": 300
+			},
+			"MaxLifetimeMinutes": {
+				"type": "Int",
+				"defaultValue": 1440
+			}
+		},
+		"folder": {
+			"name": "STUB_Pipelines"
+		},
+		"annotations": []
+	}
+}

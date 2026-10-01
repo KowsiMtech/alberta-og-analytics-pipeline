@@ -1,0 +1,40 @@
+{
+	"name": "PL_MD_STUB_REST_Ingestion",
+	"properties": {
+		"activities": [
+			{
+				"name": "Wait_Stub",
+				"type": "Wait",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"waitTimeInSeconds": 1
+				}
+			}
+		],
+		"parameters": {
+			"EntityName": {
+				"type": "String"
+			},
+			"BatchId": {
+				"type": "String"
+			},
+			"ParentRunId": {
+				"type": "String"
+			},
+			"WindowKey": {
+				"type": "String"
+			},
+			"ExtractionStart": {
+				"type": "String"
+			},
+			"EndWatermark": {
+				"type": "String"
+			}
+		},
+		"folder": {
+			"name": "STUB_Pipelines"
+		},
+		"annotations": []
+	}
+}
