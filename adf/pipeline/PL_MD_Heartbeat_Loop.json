@@ -44,7 +44,7 @@
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
-						"value": "@equals(variables('v_Stop'),true)",
+						"value": "@equals(variables('v_Stop'),'true')",
 						"type": "Expression"
 					},
 					"activities": [
@@ -94,7 +94,7 @@
 							"typeProperties": {
 								"variableName": "v_Stop",
 								"value": {
-									"value": "@not(equals(activity('Heartbeat_Tick').output.firstRow.HeartbeatLoopDecision,'CONTINUE'))",
+									"value": "@string(not(equals(activity('Heartbeat_Tick').output.firstRow.HeartbeatLoopDecision,'CONTINUE')))",
 									"type": "Expression"
 								}
 							}
@@ -113,7 +113,7 @@
 							"userProperties": [],
 							"typeProperties": {
 								"waitTimeInSeconds": {
-									"value": "@if(variables('v_Stop'),1,pipeline().parameters.IntervalSeconds)",
+									"value": "@if(equals(variables('v_Stop'),'true'),1,pipeline().parameters.IntervalSeconds)",
 									"type": "Expression"
 								}
 							}
@@ -147,12 +147,9 @@
 		},
 		"variables": {
 			"v_Stop": {
-				"type": "Bool",
+				"type": "String",
 				"defaultValue": "false"
 			}
-		},
-		"folder": {
-			"name": "Metadata_Driven"
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",

@@ -199,7 +199,7 @@
 									"typeProperties": {
 										"variableName": "v_HasMore",
 										"value": {
-											"value": "@true",
+											"value": "@string(true)",
 											"type": "Expression"
 										}
 									}
@@ -257,7 +257,7 @@
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
-						"value": "@or(not(equals(coalesce(activity('Lookup_Config').output.firstRow.PaginationType,'NONE'),'PAGE_NUMBER')),equals(variables('v_HasMore'),false))",
+						"value": "@or(not(equals(coalesce(activity('Lookup_Config').output.firstRow.PaginationType,'NONE'),'PAGE_NUMBER')),equals(variables('v_HasMore'),'false'))",
 						"type": "Expression"
 					},
 					"activities": [
@@ -319,7 +319,7 @@
 							"typeProperties": {
 								"variableName": "v_HasMore",
 								"value": {
-									"value": "@greater(length(json(activity('Get_Page').output.pipelineReturnValue.ResponseJson)[activity('Lookup_Config').output.firstRow.ItemsPropertyName]),0)",
+									"value": "@string(greater(length(json(activity('Get_Page').output.pipelineReturnValue.ResponseJson)[activity('Lookup_Config').output.firstRow.ItemsPropertyName]),0))",
 									"type": "Expression"
 								}
 							}
@@ -488,7 +488,7 @@
 				"defaultValue": "1"
 			},
 			"v_HasMore": {
-				"type": "Bool",
+				"type": "String",
 				"defaultValue": "true"
 			},
 			"v_NextUrl": {
@@ -504,9 +504,6 @@
 			"v_ResolvedRelativeUrl": {
 				"type": "String"
 			}
-		},
-		"folder": {
-			"name": "Metadata_Driven"
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",

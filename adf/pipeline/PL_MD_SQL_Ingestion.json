@@ -44,7 +44,7 @@
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
-						"value": "@equals(variables('v_Done'),true)",
+						"value": "@equals(variables('v_Done'),'true')",
 						"type": "Expression"
 					},
 					"activities": [
@@ -653,7 +653,7 @@
 							"typeProperties": {
 								"variableName": "v_Done",
 								"value": {
-									"value": "@not(equals(variables('v_RetryDecision'),'RETRY'))",
+									"value": "@string(not(equals(variables('v_RetryDecision'),'RETRY')))",
 									"type": "Expression"
 								}
 							}
@@ -700,7 +700,7 @@
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
-						"value": "@and(equals(variables('v_Done'),true),and(not(empty(variables('v_RetryDecision'))),not(equals(variables('v_RetryDecision'),'RETRY'))))",
+						"value": "@and(equals(variables('v_Done'),'true'),and(not(empty(variables('v_RetryDecision'))),not(equals(variables('v_RetryDecision'),'RETRY'))))",
 						"type": "Expression"
 					},
 					"ifTrueActivities": [
@@ -803,7 +803,7 @@
 		},
 		"variables": {
 			"v_Done": {
-				"type": "Bool",
+				"type": "String",
 				"defaultValue": "false"
 			},
 			"v_RetryAttempt": {
@@ -838,9 +838,6 @@
 				"type": "String",
 				"defaultValue": "ERROR"
 			}
-		},
-		"folder": {
-			"name": "Metadata_Driven"
 		},
 		"annotations": [
 			"ENTITY_DRIVEN",

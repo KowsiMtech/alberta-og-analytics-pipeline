@@ -44,7 +44,7 @@
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
-						"value": "@equals(variables('v_Done'),true)",
+						"value": "@equals(variables('v_Done'),'true')",
 						"type": "Expression"
 					},
 					"activities": [
@@ -652,7 +652,7 @@
 							"typeProperties": {
 								"variableName": "v_Done",
 								"value": {
-									"value": "@not(equals(variables('v_Decision'),'RETRY'))",
+									"value": "@string(not(equals(variables('v_Decision'),'RETRY')))",
 									"type": "Expression"
 								}
 							}
@@ -699,7 +699,7 @@
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
-						"value": "@and(equals(variables('v_Done'),true),and(not(empty(variables('v_Decision'))),not(equals(variables('v_Decision'),'RETRY'))))",
+						"value": "@and(equals(variables('v_Done'),'true'),and(not(empty(variables('v_Decision'))),not(equals(variables('v_Decision'),'RETRY'))))",
 						"type": "Expression"
 					},
 					"ifTrueActivities": [
@@ -796,7 +796,7 @@
 		},
 		"variables": {
 			"v_Done": {
-				"type": "Bool",
+				"type": "String",
 				"defaultValue": "false"
 			},
 			"v_Attempt": {
@@ -831,9 +831,6 @@
 				"type": "String",
 				"defaultValue": "ERROR"
 			}
-		},
-		"folder": {
-			"name": "Metadata_Driven"
 		},
 		"annotations": [
 			"REST_ADAPTER",

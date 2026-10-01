@@ -435,7 +435,7 @@
 				"typeProperties": {
 					"variableName": "v_ConsecutiveStaleBreached",
 					"value": {
-						"value": "@bool(activity('Lookup_Freshness_Result').output.firstRow.ConsecutiveStaleBreached)",
+						"value": "@string(bool(activity('Lookup_Freshness_Result').output.firstRow.ConsecutiveStaleBreached))",
 						"type": "Expression"
 					}
 				}
@@ -1568,7 +1568,7 @@
 				"defaultValue": "0"
 			},
 			"v_ConsecutiveStaleBreached": {
-				"type": "Bool",
+				"type": "String",
 				"defaultValue": "false"
 			},
 			"v_PolicyAction": {
@@ -1579,9 +1579,6 @@
 				"type": "String",
 				"defaultValue": "DISABLED"
 			}
-		},
-		"folder": {
-			"name": "Metadata_Driven"
 		},
 		"annotations": [
 			"HYBRID_ORCHESTRATION",

@@ -1269,7 +1269,7 @@
 				"typeProperties": {
 					"variableName": "v_SourceCount",
 					"value": {
-						"value": "@int(activity('Lookup_Source_Count').output.firstRow.SourceCount)",
+						"value": "@string(int(activity('Lookup_Source_Count').output.firstRow.SourceCount))",
 						"type": "Expression"
 					}
 				}
@@ -1318,14 +1318,14 @@
 						},
 						"SourceRowCount": {
 							"value": {
-								"value": "@variables('v_SourceCount')",
+								"value": "@int(variables('v_SourceCount'))",
 								"type": "Expression"
 							},
 							"type": "Int"
 						},
 						"BronzeRowCount": {
 							"value": {
-								"value": "@variables('v_SourceCount')",
+								"value": "@int(variables('v_SourceCount'))",
 								"type": "Expression"
 							},
 							"type": "Int"
@@ -1403,14 +1403,14 @@
 									},
 									"RowCount": {
 										"value": {
-											"value": "@variables('v_SourceCount')",
+											"value": "@int(variables('v_SourceCount'))",
 											"type": "Expression"
 										},
 										"type": "Int"
 									},
 									"OutputJson": {
 										"value": {
-											"value": "@concat('{\"SourceCount\":',string(variables('v_SourceCount')),'}')",
+											"value": "@concat('{\"SourceCount\":',string(int(variables('v_SourceCount'))),'}')",
 											"type": "Expression"
 										},
 										"type": "String"
@@ -1469,7 +1469,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),and(greater(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'))),false)",
+							"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),and(greater(int(variables('v_SourceCount')),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'))),false)",
 							"type": "Expression"
 						}
 					}
@@ -1505,7 +1505,7 @@
 							"typeProperties": {
 								"variableName": "v_SilverCount",
 								"value": {
-									"value": "@if(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'),0,int(json(activity('Gate_BRONZE_TO_SILVER').output.pipelineReturnValue.OutputJson).SilverCount))",
+									"value": "@string(if(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'),0,int(json(activity('Gate_BRONZE_TO_SILVER').output.pipelineReturnValue.OutputJson).SilverCount)))",
 									"type": "Expression"
 								}
 							}
@@ -1529,7 +1529,7 @@
 							"typeProperties": {
 								"variableName": "v_QuarantineCount",
 								"value": {
-									"value": "@if(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'),0,int(json(activity('Gate_BRONZE_TO_SILVER').output.pipelineReturnValue.OutputJson).QuarantineCount))",
+									"value": "@string(if(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'),0,int(json(activity('Gate_BRONZE_TO_SILVER').output.pipelineReturnValue.OutputJson).QuarantineCount)))",
 									"type": "Expression"
 								}
 							}
@@ -1589,7 +1589,7 @@
 							"typeProperties": {
 								"variableName": "v_SilverCount",
 								"value": {
-									"value": "@int(activity('Run_BRONZE_TO_SILVER').output.pipelineReturnValue.SilverCount)",
+									"value": "@string(int(activity('Run_BRONZE_TO_SILVER').output.pipelineReturnValue.SilverCount))",
 									"type": "Expression"
 								}
 							}
@@ -1613,7 +1613,7 @@
 							"typeProperties": {
 								"variableName": "v_QuarantineCount",
 								"value": {
-									"value": "@int(activity('Run_BRONZE_TO_SILVER').output.pipelineReturnValue.QuarantineCount)",
+									"value": "@string(int(activity('Run_BRONZE_TO_SILVER').output.pipelineReturnValue.QuarantineCount))",
 									"type": "Expression"
 								}
 							}
@@ -1662,14 +1662,14 @@
 									},
 									"SilverRowCount": {
 										"value": {
-											"value": "@variables('v_SilverCount')",
+											"value": "@int(variables('v_SilverCount'))",
 											"type": "Expression"
 										},
 										"type": "Int"
 									},
 									"QuarantineRowCount": {
 										"value": {
-											"value": "@variables('v_QuarantineCount')",
+											"value": "@int(variables('v_QuarantineCount'))",
 											"type": "Expression"
 										},
 										"type": "Int"
@@ -1736,14 +1736,14 @@
 									},
 									"RowCount": {
 										"value": {
-											"value": "@variables('v_SilverCount')",
+											"value": "@int(variables('v_SilverCount'))",
 											"type": "Expression"
 										},
 										"type": "Int"
 									},
 									"OutputJson": {
 										"value": {
-											"value": "@concat('{\"SilverCount\":',string(variables('v_SilverCount')),',\"QuarantineCount\":',string(variables('v_QuarantineCount')),'}')",
+											"value": "@concat('{\"SilverCount\":',string(int(variables('v_SilverCount'))),',\"QuarantineCount\":',string(int(variables('v_QuarantineCount'))),'}')",
 											"type": "Expression"
 										},
 										"type": "String"
@@ -1780,7 +1780,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "@if(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'),'SELECT ''CLEAN'' DataOutcome, CAST(0 AS DECIMAL(18,4)) QuarantinePct, ''NONE'' Severity, ''CONTINUE'' PolicyAction',concat('EXEC control.usp_GetDataOutcome @EntityName=''',pipeline().parameters.EntityName,''', @SourceCount=',string(variables('v_SourceCount')),', @SilverCount=',string(variables('v_SilverCount')),', @QuarantineCount=',string(variables('v_QuarantineCount'))))",
+							"value": "@if(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'),'SELECT ''CLEAN'' DataOutcome, CAST(0 AS DECIMAL(18,4)) QuarantinePct, ''NONE'' Severity, ''CONTINUE'' PolicyAction',concat('EXEC control.usp_GetDataOutcome @EntityName=''',pipeline().parameters.EntityName,''', @SourceCount=',string(int(variables('v_SourceCount'))),', @SilverCount=',string(int(variables('v_SilverCount'))),', @QuarantineCount=',string(int(variables('v_QuarantineCount')))))",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
@@ -1793,8 +1793,8 @@
 				}
 			},
 			{
-				"name": "Switch_Transform_Outcome",
-				"type": "Switch",
+				"name": "If_PARTIAL_QUARANTINE",
+				"type": "IfCondition",
 				"dependsOn": [
 					{
 						"activity": "Get_Data_Outcome",
@@ -1805,171 +1805,136 @@
 				],
 				"userProperties": [],
 				"typeProperties": {
-					"on": {
-						"value": "@if(equals(activity('Get_Data_Outcome').output.firstRow.DataOutcome,'CLEAN'),'CLEAN',if(and(equals(activity('Get_Data_Outcome').output.firstRow.DataOutcome,'PARTIAL_QUARANTINE'),equals(activity('Get_Data_Outcome').output.firstRow.PolicyAction,'FAIL')),'PARTIAL_FAIL',if(equals(activity('Get_Data_Outcome').output.firstRow.DataOutcome,'PARTIAL_QUARANTINE'),'PARTIAL_CONTINUE','BLOCKED')))",
+					"expression": {
+						"value": "@equals(activity('Get_Data_Outcome').output.firstRow.DataOutcome,'PARTIAL_QUARANTINE')",
 						"type": "Expression"
 					},
-					"cases": [
+					"ifTrueActivities": [
 						{
-							"value": "CLEAN",
-							"activities": [
-								{
-									"name": "Continue_CLEAN_Transform",
-									"type": "Wait",
-									"dependsOn": [],
-									"userProperties": [],
-									"typeProperties": {
-										"waitTimeInSeconds": 1
-									}
-								}
-							]
-						},
-						{
-							"value": "PARTIAL_CONTINUE",
-							"activities": [
-								{
-									"name": "Alert_PARTIAL_QUARANTINE_CONTINUE",
-									"type": "ExecutePipeline",
-									"dependsOn": [],
-									"policy": {
-										"secureInput": false
-									},
-									"userProperties": [],
-									"typeProperties": {
-										"pipeline": {
-											"referenceName": "PL_MD_Common_Alert_Handler",
-											"type": "PipelineReference"
-										},
-										"waitOnCompletion": true,
-										"parameters": {
-											"EntityName": {
-												"value": "@pipeline().parameters.EntityName",
-												"type": "Expression"
-											},
-											"BatchId": {
-												"value": "@pipeline().parameters.BatchId",
-												"type": "Expression"
-											},
-											"ParentRunId": {
-												"value": "@pipeline().RunId",
-												"type": "Expression"
-											},
-											"WindowKey": {
-												"value": "@variables('v_WindowKey')",
-												"type": "Expression"
-											},
-											"AlertType": "PARTIAL_QUARANTINE",
-											"Severity": {
-												"value": "@activity('Get_Data_Outcome').output.firstRow.Severity",
-												"type": "Expression"
-											},
-											"ActivityName": "BRONZE_TO_SILVER",
-											"Message": {
-												"value": "@concat('Quarantine rate=',string(activity('Get_Data_Outcome').output.firstRow.QuarantinePct),'%. PolicyAction=',activity('Get_Data_Outcome').output.firstRow.PolicyAction)",
-												"type": "Expression"
-											}
-										}
-									}
-								}
-							]
-						},
-						{
-							"value": "PARTIAL_FAIL",
-							"activities": [
-								{
-									"name": "Alert_PARTIAL_QUARANTINE_FAIL",
-									"type": "ExecutePipeline",
-									"dependsOn": [],
-									"policy": {
-										"secureInput": false
-									},
-									"userProperties": [],
-									"typeProperties": {
-										"pipeline": {
-											"referenceName": "PL_MD_Common_Alert_Handler",
-											"type": "PipelineReference"
-										},
-										"waitOnCompletion": true,
-										"parameters": {
-											"EntityName": {
-												"value": "@pipeline().parameters.EntityName",
-												"type": "Expression"
-											},
-											"BatchId": {
-												"value": "@pipeline().parameters.BatchId",
-												"type": "Expression"
-											},
-											"ParentRunId": {
-												"value": "@pipeline().RunId",
-												"type": "Expression"
-											},
-											"WindowKey": {
-												"value": "@variables('v_WindowKey')",
-												"type": "Expression"
-											},
-											"AlertType": "PARTIAL_QUARANTINE",
-											"Severity": {
-												"value": "@activity('Get_Data_Outcome').output.firstRow.Severity",
-												"type": "Expression"
-											},
-											"ActivityName": "BRONZE_TO_SILVER",
-											"Message": {
-												"value": "@concat('Quarantine rate=',string(activity('Get_Data_Outcome').output.firstRow.QuarantinePct),'%. PolicyAction=',activity('Get_Data_Outcome').output.firstRow.PolicyAction)",
-												"type": "Expression"
-											}
-										}
-									}
+							"name": "Alert_PARTIAL_QUARANTINE",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Common_Alert_Handler",
+									"type": "PipelineReference"
 								},
-								{
-									"name": "Raise_Partial_Quarantine_Policy_Failure",
-									"type": "ExecutePipeline",
-									"dependsOn": [
-										{
-											"activity": "Alert_PARTIAL_QUARANTINE_FAIL",
-											"dependencyConditions": [
-												"Succeeded"
-											]
-										}
-									],
-									"policy": {
-										"secureInput": false
+								"waitOnCompletion": true,
+								"parameters": {
+									"EntityName": {
+										"value": "@pipeline().parameters.EntityName",
+										"type": "Expression"
 									},
-									"userProperties": [],
-									"typeProperties": {
-										"pipeline": {
-											"referenceName": "PL_MD_Common_Error_Handler",
-											"type": "PipelineReference"
-										},
-										"waitOnCompletion": true,
-										"parameters": {
-											"EntityName": {
-												"value": "@pipeline().parameters.EntityName",
-												"type": "Expression"
-											},
-											"BatchId": {
-												"value": "@pipeline().parameters.BatchId",
-												"type": "Expression"
-											},
-											"ParentRunId": {
-												"value": "@pipeline().RunId",
-												"type": "Expression"
-											},
-											"WindowKey": {
-												"value": "@variables('v_WindowKey')",
-												"type": "Expression"
-											},
-											"PipelineName": "PL_MD_Entity_Orchestrator",
-											"ActivityName": "BRONZE_TO_SILVER",
-											"ErrorCode": "PARTIAL_QUARANTINE_BLOCKED",
-											"ErrorMessage": "Partial quarantine policy blocked the batch.",
-											"StageName": "BRONZE_TO_SILVER"
-										}
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@variables('v_WindowKey')",
+										"type": "Expression"
+									},
+									"AlertType": "PARTIAL_QUARANTINE",
+									"Severity": {
+										"value": "@activity('Get_Data_Outcome').output.firstRow.Severity",
+										"type": "Expression"
+									},
+									"ActivityName": "BRONZE_TO_SILVER",
+									"Message": {
+										"value": "@concat('Quarantine rate=',string(activity('Get_Data_Outcome').output.firstRow.QuarantinePct),'%. PolicyAction=',activity('Get_Data_Outcome').output.firstRow.PolicyAction)",
+										"type": "Expression"
 									}
 								}
-							]
+							}
 						}
-					],
-					"defaultActivities": [
+					]
+				}
+			},
+			{
+				"name": "If_Partial_Quarantine_Action_FAIL",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "If_PARTIAL_QUARANTINE",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@and(equals(activity('Get_Data_Outcome').output.firstRow.DataOutcome,'PARTIAL_QUARANTINE'),equals(activity('Get_Data_Outcome').output.firstRow.PolicyAction,'FAIL'))",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Raise_Partial_Quarantine_Policy_Failure",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Common_Error_Handler",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"EntityName": {
+										"value": "@pipeline().parameters.EntityName",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@variables('v_WindowKey')",
+										"type": "Expression"
+									},
+									"PipelineName": "PL_MD_Entity_Orchestrator",
+									"ActivityName": "BRONZE_TO_SILVER",
+									"ErrorCode": "PARTIAL_QUARANTINE_BLOCKED",
+									"ErrorMessage": "Partial quarantine policy blocked the batch.",
+									"StageName": "BRONZE_TO_SILVER"
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "If_Transform_Can_Continue",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "If_Partial_Quarantine_Action_FAIL",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@or(equals(activity('Get_Data_Outcome').output.firstRow.DataOutcome,'CLEAN'),and(equals(activity('Get_Data_Outcome').output.firstRow.DataOutcome,'PARTIAL_QUARANTINE'),not(equals(activity('Get_Data_Outcome').output.firstRow.PolicyAction,'FAIL'))))",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
 						{
 							"name": "Alert_Transform_Block",
 							"type": "ExecutePipeline",
@@ -2071,7 +2036,7 @@
 				"type": "ExecutePipeline",
 				"dependsOn": [
 					{
-						"activity": "Switch_Transform_Outcome",
+						"activity": "If_Transform_Can_Continue",
 						"dependencyConditions": [
 							"Succeeded"
 						]
@@ -2110,7 +2075,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),and(greater(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'))),false)",
+							"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),and(greater(int(variables('v_SourceCount')),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'))),false)",
 							"type": "Expression"
 						}
 					}
@@ -2146,7 +2111,7 @@
 							"typeProperties": {
 								"variableName": "v_RawStagingCount",
 								"value": {
-									"value": "@if(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'),0,int(json(activity('Gate_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.OutputJson).RawStagingCount))",
+									"value": "@string(if(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'),0,int(json(activity('Gate_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.OutputJson).RawStagingCount)))",
 									"type": "Expression"
 								}
 							}
@@ -2170,7 +2135,7 @@
 							"typeProperties": {
 								"variableName": "v_DuplicateCount",
 								"value": {
-									"value": "@if(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'),0,int(json(activity('Gate_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.OutputJson).DuplicateCount))",
+									"value": "@string(if(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'),0,int(json(activity('Gate_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.OutputJson).DuplicateCount)))",
 									"type": "Expression"
 								}
 							}
@@ -2194,7 +2159,7 @@
 							"typeProperties": {
 								"variableName": "v_StagingCount",
 								"value": {
-									"value": "@if(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'),0,int(json(activity('Gate_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.OutputJson).StagingCount))",
+									"value": "@string(if(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'),0,int(json(activity('Gate_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.OutputJson).StagingCount)))",
 									"type": "Expression"
 								}
 							}
@@ -2254,7 +2219,7 @@
 							"typeProperties": {
 								"variableName": "v_RawStagingCount",
 								"value": {
-									"value": "@int(activity('Run_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.RawStagingCount)",
+									"value": "@string(int(activity('Run_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.RawStagingCount))",
 									"type": "Expression"
 								}
 							}
@@ -2278,7 +2243,7 @@
 							"typeProperties": {
 								"variableName": "v_DuplicateCount",
 								"value": {
-									"value": "@int(activity('Run_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.DuplicateCount)",
+									"value": "@string(int(activity('Run_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.DuplicateCount))",
 									"type": "Expression"
 								}
 							}
@@ -2302,7 +2267,7 @@
 							"typeProperties": {
 								"variableName": "v_StagingCount",
 								"value": {
-									"value": "@int(activity('Run_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.StagingCount)",
+									"value": "@string(int(activity('Run_SILVER_TO_STAGING_DEDUP').output.pipelineReturnValue.StagingCount))",
 									"type": "Expression"
 								}
 							}
@@ -2351,21 +2316,21 @@
 									},
 									"RawStagingRowCount": {
 										"value": {
-											"value": "@variables('v_RawStagingCount')",
+											"value": "@int(variables('v_RawStagingCount'))",
 											"type": "Expression"
 										},
 										"type": "Int"
 									},
 									"DuplicateRowCount": {
 										"value": {
-											"value": "@variables('v_DuplicateCount')",
+											"value": "@int(variables('v_DuplicateCount'))",
 											"type": "Expression"
 										},
 										"type": "Int"
 									},
 									"StagingRowCount": {
 										"value": {
-											"value": "@variables('v_StagingCount')",
+											"value": "@int(variables('v_StagingCount'))",
 											"type": "Expression"
 										},
 										"type": "Int"
@@ -2432,14 +2397,14 @@
 									},
 									"RowCount": {
 										"value": {
-											"value": "@variables('v_StagingCount')",
+											"value": "@int(variables('v_StagingCount'))",
 											"type": "Expression"
 										},
 										"type": "Int"
 									},
 									"OutputJson": {
 										"value": {
-											"value": "@concat('{\"RawStagingCount\":',string(variables('v_RawStagingCount')),',\"DuplicateCount\":',string(variables('v_DuplicateCount')),',\"StagingCount\":',string(variables('v_StagingCount')),'}')",
+											"value": "@concat('{\"RawStagingCount\":',string(int(variables('v_RawStagingCount'))),',\"DuplicateCount\":',string(int(variables('v_DuplicateCount'))),',\"StagingCount\":',string(int(variables('v_StagingCount'))),'}')",
 											"type": "Expression"
 										},
 										"type": "String"
@@ -2498,7 +2463,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),and(greater(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'))),false)",
+							"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),and(greater(int(variables('v_SourceCount')),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'))),false)",
 							"type": "Expression"
 						}
 					}
@@ -2670,7 +2635,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),or(greater(variables('v_SourceCount'),0),equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),or(greater(int(variables('v_SourceCount')),0),equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -2706,7 +2671,7 @@
 							"typeProperties": {
 								"variableName": "v_GoldCount",
 								"value": {
-									"value": "@int(json(activity('Gate_GOLD_LOAD').output.pipelineReturnValue.OutputJson).GoldCount)",
+									"value": "@string(int(json(activity('Gate_GOLD_LOAD').output.pipelineReturnValue.OutputJson).GoldCount))",
 									"type": "Expression"
 								}
 							}
@@ -2766,7 +2731,7 @@
 							"typeProperties": {
 								"variableName": "v_GoldCount",
 								"value": {
-									"value": "@int(activity('Run_GOLD_LOAD').output.pipelineReturnValue.RowsWritten)",
+									"value": "@string(int(activity('Run_GOLD_LOAD').output.pipelineReturnValue.RowsWritten))",
 									"type": "Expression"
 								}
 							}
@@ -2815,7 +2780,7 @@
 									},
 									"GoldRowCount": {
 										"value": {
-											"value": "@variables('v_GoldCount')",
+											"value": "@int(variables('v_GoldCount'))",
 											"type": "Expression"
 										},
 										"type": "Int"
@@ -2882,14 +2847,14 @@
 									},
 									"RowCount": {
 										"value": {
-											"value": "@variables('v_GoldCount')",
+											"value": "@int(variables('v_GoldCount'))",
 											"type": "Expression"
 										},
 										"type": "Int"
 									},
 									"OutputJson": {
 										"value": {
-											"value": "@concat('{\"GoldCount\":',string(variables('v_GoldCount')),'}')",
+											"value": "@concat('{\"GoldCount\":',string(int(variables('v_GoldCount'))),'}')",
 											"type": "Expression"
 										},
 										"type": "String"
@@ -2948,7 +2913,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),or(greater(variables('v_SourceCount'),0),equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),or(greater(int(variables('v_SourceCount')),0),equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -3120,7 +3085,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),or(greater(variables('v_SourceCount'),0),equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),or(greater(int(variables('v_SourceCount')),0),equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -3176,27 +3141,27 @@
 										"type": "Expression"
 									},
 									"SourceCount": {
-										"value": "@variables('v_SourceCount')",
+										"value": "@int(variables('v_SourceCount'))",
 										"type": "Expression"
 									},
 									"SilverCount": {
-										"value": "@variables('v_SilverCount')",
+										"value": "@int(variables('v_SilverCount'))",
 										"type": "Expression"
 									},
 									"QuarantineCount": {
-										"value": "@variables('v_QuarantineCount')",
+										"value": "@int(variables('v_QuarantineCount'))",
 										"type": "Expression"
 									},
 									"RawStagingCount": {
-										"value": "@variables('v_RawStagingCount')",
+										"value": "@int(variables('v_RawStagingCount'))",
 										"type": "Expression"
 									},
 									"DuplicateCount": {
-										"value": "@variables('v_DuplicateCount')",
+										"value": "@int(variables('v_DuplicateCount'))",
 										"type": "Expression"
 									},
 									"StagingCount": {
-										"value": "@variables('v_StagingCount')",
+										"value": "@int(variables('v_StagingCount'))",
 										"type": "Expression"
 									}
 								}
@@ -3316,7 +3281,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),or(greater(variables('v_SourceCount'),0),equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),or(greater(int(variables('v_SourceCount')),0),equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -3488,7 +3453,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),or(greater(variables('v_SourceCount'),0),equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
+							"value": "@and(equals(variables('v_WindowDecision'),'PROCESS'),or(greater(int(variables('v_SourceCount')),0),equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED')))",
 							"type": "Expression"
 						}
 					}
@@ -3660,7 +3625,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),and(greater(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'))),false)",
+							"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),and(greater(int(variables('v_SourceCount')),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'))),false)",
 							"type": "Expression"
 						}
 					}
@@ -3861,7 +3826,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),and(equals(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'))),false)",
+							"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),and(equals(int(variables('v_SourceCount')),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'))),false)",
 							"type": "Expression"
 						}
 					}
@@ -4170,7 +4135,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),and(equals(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'))),false)",
+							"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),and(equals(int(variables('v_SourceCount')),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'))),false)",
 							"type": "Expression"
 						}
 					}
@@ -4342,7 +4307,7 @@
 							"type": "Expression"
 						},
 						"EnableExecution": {
-							"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),and(equals(variables('v_SourceCount'),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'))),false)",
+							"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),and(equals(int(variables('v_SourceCount')),0),not(equals(activity('Lookup_Config').output.firstRow.SourceType,'DERIVED'))),false)",
 							"type": "Expression"
 						}
 					}
@@ -4550,7 +4515,7 @@
 						},
 						"DataLoadStatus": {
 							"value": {
-								"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),if(greater(variables('v_SourceCount'),0),'WITH_DATA','NO_DATA'),'SKIPPED')",
+								"value": "@if(equals(variables('v_WindowDecision'),'PROCESS'),if(greater(int(variables('v_SourceCount')),0),'WITH_DATA','NO_DATA'),'SKIPPED')",
 								"type": "Expression"
 							},
 							"type": "String"
@@ -4647,32 +4612,32 @@
 				"type": "String"
 			},
 			"v_SourceCount": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_SilverCount": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_QuarantineCount": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_RawStagingCount": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_DuplicateCount": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_StagingCount": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_GoldCount": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_DataOutcome": {
 				"type": "String"
