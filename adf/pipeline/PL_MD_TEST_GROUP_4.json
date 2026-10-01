@@ -1,0 +1,184 @@
+{
+	"name": "PL_MD_TEST_GROUP_4",
+	"properties": {
+		"activities": [
+			{
+				"name": "Run_Common_Error_Handler",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_MD_Common_Error_Handler",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"EntityName": "test",
+						"BatchId": "test",
+						"ParentRunId": "test",
+						"WindowKey": "test",
+						"PipelineName": "test",
+						"ActivityName": "test",
+						"ErrorCode": "test",
+						"ErrorMessage": "test",
+						"StageName": "test"
+					}
+				}
+			},
+			{
+				"name": "Run_Archive",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_MD_Archive",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"EntityName": "test",
+						"BatchId": "test",
+						"ParentRunId": "test",
+						"WindowKey": "test"
+					}
+				}
+			},
+			{
+				"name": "Run_Stage_Gate",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_MD_Stage_Gate",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"EntityName": "test",
+						"BatchId": "test",
+						"ParentRunId": "test",
+						"WindowKey": "test",
+						"StageName": "test",
+						"RecoveryMode": "test",
+						"EnableExecution": {
+							"value": "@bool(true)",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Run_Silver_To_Staging",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_MD_Silver_To_Staging",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"EntityName": "test",
+						"BatchId": "test",
+						"ParentRunId": "test",
+						"WindowKey": "test"
+					}
+				}
+			},
+			{
+				"name": "Run_Gold_Load",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_MD_Gold_Load",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"EntityName": "test",
+						"BatchId": "test",
+						"ParentRunId": "test",
+						"WindowKey": "test"
+					}
+				}
+			},
+			{
+				"name": "Run_Bronze_To_Silver",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_MD_Bronze_To_Silver",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"EntityName": "test",
+						"BatchId": "test",
+						"ParentRunId": "test",
+						"WindowKey": "test"
+					}
+				}
+			},
+			{
+				"name": "Run_Heartbeat_Loop",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_MD_Heartbeat_Loop",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"EntityName": "test",
+						"PipelineRunId": "test",
+						"LeaseToken": "test",
+						"WindowKey": "test",
+						"IntervalSeconds": {
+							"value": "@int(1)",
+							"type": "Expression"
+						},
+						"MaxLifetimeMinutes": {
+							"value": "@int(1)",
+							"type": "Expression"
+						}
+					}
+				}
+			}
+		],
+		"folder": {
+			"name": "STUB_Pipelines"
+		},
+		"annotations": []
+	}
+}

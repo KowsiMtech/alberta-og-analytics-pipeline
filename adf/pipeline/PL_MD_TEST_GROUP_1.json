@@ -1,0 +1,33 @@
+{
+	"name": "PL_MD_TEST_GROUP_1",
+	"properties": {
+		"activities": [
+			{
+				"name": "Run_DQ_Engine",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_MD_DQ_Engine",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"EntityName": "test",
+						"BatchId": "test",
+						"ParentRunId": "test",
+						"WindowKey": "test"
+					}
+				}
+			}
+		],
+		"folder": {
+			"name": "STUB_Pipelines"
+		},
+		"annotations": []
+	}
+}

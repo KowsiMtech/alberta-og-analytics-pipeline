@@ -1,0 +1,35 @@
+{
+	"name": "PL_MD_TEST_GROUP_2",
+	"properties": {
+		"activities": [
+			{
+				"name": "Run_REST_Ingestion",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_MD_REST_Ingestion",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"EntityName": "test",
+						"BatchId": "test",
+						"ParentRunId": "test",
+						"WindowKey": "test",
+						"ExtractionStart": "test",
+						"EndWatermark": "test"
+					}
+				}
+			}
+		],
+		"folder": {
+			"name": "STUB_Pipelines"
+		},
+		"annotations": []
+	}
+}
