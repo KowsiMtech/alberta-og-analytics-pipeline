@@ -1,0 +1,518 @@
+{
+	"name": "PL_MD_REST_Ingestion",
+	"properties": {
+		"description": "Generic REST adapter with metadata-driven BaseUrl/RelativeUrl and optional Key Vault API-key substitution. PAGE_NUMBER/NEXT_LINK use bounded retry helpers; NONE uses direct REST Copy.",
+		"activities": [
+			{
+				"name": "Lookup_Config",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('EXEC control.usp_GetEntityConfig @EntityName=''',pipeline().parameters.EntityName,'''')",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "If_Get_API_Key",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Lookup_Config",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@not(empty(activity('Lookup_Config').output.firstRow.ApiKeySecretUrl))",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Get_API_Key_From_KeyVault",
+							"type": "WebActivity",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.00:01:00",
+								"retry": 2,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": true,
+								"secureInput": true
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"method": "GET",
+								"url": {
+									"value": "@activity('Lookup_Config').output.firstRow.ApiKeySecretUrl",
+									"type": "Expression"
+								},
+								"authentication": {
+									"type": "MSI",
+									"resource": "https://vault.azure.net"
+								}
+							}
+						},
+						{
+							"name": "Set_API_Key",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Get_API_Key_From_KeyVault",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": true,
+								"secureInput": true
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_ApiKey",
+								"value": {
+									"value": "@activity('Get_API_Key_From_KeyVault').output.value",
+									"type": "Expression"
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Set_Resolved_RelativeUrl",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "If_Get_API_Key",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": true,
+					"secureInput": true
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_ResolvedRelativeUrl",
+					"value": {
+						"value": "@if(empty(activity('Lookup_Config').output.firstRow.ApiKeySecretUrl),activity('Lookup_Config').output.firstRow.ApiRelativeUrl,replace(activity('Lookup_Config').output.firstRow.ApiRelativeUrl,coalesce(activity('Lookup_Config').output.firstRow.ApiKeyPlaceholder,'{{API_KEY}}'),variables('v_ApiKey')))",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Switch_Pagination",
+				"type": "Switch",
+				"dependsOn": [
+					{
+						"activity": "Set_Resolved_RelativeUrl",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"on": {
+						"value": "@coalesce(activity('Lookup_Config').output.firstRow.PaginationType,'NONE')",
+						"type": "Expression"
+					},
+					"cases": [
+						{
+							"value": "NONE",
+							"activities": [
+								{
+									"name": "Copy_REST_To_Bronze",
+									"type": "ExecutePipeline",
+									"dependsOn": [],
+									"policy": {
+										"secureInput": true
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "PL_MD_REST_Copy_With_Retry",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {
+											"EntityName": {
+												"value": "@pipeline().parameters.EntityName",
+												"type": "Expression"
+											},
+											"BatchId": {
+												"value": "@pipeline().parameters.BatchId",
+												"type": "Expression"
+											},
+											"ParentRunId": {
+												"value": "@pipeline().parameters.ParentRunId",
+												"type": "Expression"
+											},
+											"WindowKey": {
+												"value": "@pipeline().parameters.WindowKey",
+												"type": "Expression"
+											},
+											"ResolvedRelativeUrl": {
+												"value": "@variables('v_ResolvedRelativeUrl')",
+												"type": "Expression"
+											}
+										}
+									}
+								}
+							]
+						},
+						{
+							"value": "PAGE_NUMBER",
+							"activities": [
+								{
+									"name": "Initialize_PAGE_NUMBER_Pagination",
+									"type": "SetVariable",
+									"dependsOn": [],
+									"policy": {
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "v_HasMore",
+										"value": {
+											"value": "@string(true)",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						},
+						{
+							"value": "NEXT_LINK",
+							"activities": [
+								{
+									"name": "Set_Initial_URL",
+									"type": "SetVariable",
+									"dependsOn": [],
+									"policy": {
+										"secureOutput": true,
+										"secureInput": true
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "v_NextUrl",
+										"value": {
+											"value": "@concat(activity('Lookup_Config').output.firstRow.ApiBaseUrl,variables('v_ResolvedRelativeUrl'))",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						}
+					],
+					"defaultActivities": [
+						{
+							"name": "Fail_Unsupported_Pagination",
+							"type": "Fail",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"message": "Unsupported REST pagination type",
+								"errorCode": "UNSUPPORTED_PAGINATION"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Until_Pages_Done",
+				"type": "Until",
+				"dependsOn": [
+					{
+						"activity": "Switch_Pagination",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@or(not(equals(coalesce(activity('Lookup_Config').output.firstRow.PaginationType,'NONE'),'PAGE_NUMBER')),equals(variables('v_HasMore'),'false'))",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Get_Page",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": true
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_REST_Web_Request_With_Retry",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"EntityName": {
+										"value": "@pipeline().parameters.EntityName",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().parameters.ParentRunId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									},
+									"Url": {
+										"value": "@concat(activity('Lookup_Config').output.firstRow.ApiBaseUrl,variables('v_ResolvedRelativeUrl'),if(contains(variables('v_ResolvedRelativeUrl'),'?'),'&','?'),activity('Lookup_Config').output.firstRow.PageNumberParameter,'=',string(int(variables('v_Page'))),'&',activity('Lookup_Config').output.firstRow.PageSizeParameter,'=',string(activity('Lookup_Config').output.firstRow.PageSize))",
+										"type": "Expression"
+									},
+									"ActivityName": "Get_Page"
+								}
+							}
+						},
+						{
+							"name": "Set_HasMore",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Get_Page",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_HasMore",
+								"value": {
+									"value": "@string(greater(length(json(activity('Get_Page').output.pipelineReturnValue.ResponseJson)[activity('Lookup_Config').output.firstRow.ItemsPropertyName]),0))",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Calc_Next_Page",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Set_HasMore",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_NextPage",
+								"value": {
+									"value": "@string(add(int(variables('v_Page')),1))",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Increment_Page",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Calc_Next_Page",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_Page",
+								"value": {
+									"value": "@string(int(variables('v_NextPage')))",
+									"type": "Expression"
+								}
+							}
+						}
+					],
+					"timeout": "0.12:00:00"
+				}
+			},
+			{
+				"name": "Until_NextLink_Empty",
+				"type": "Until",
+				"dependsOn": [
+					{
+						"activity": "Switch_Pagination",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@or(not(equals(coalesce(activity('Lookup_Config').output.firstRow.PaginationType,'NONE'),'NEXT_LINK')),empty(variables('v_NextUrl')))",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Get_Next_Page",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": true
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_REST_Web_Request_With_Retry",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"EntityName": {
+										"value": "@pipeline().parameters.EntityName",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().parameters.ParentRunId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									},
+									"Url": {
+										"value": "@variables('v_NextUrl')",
+										"type": "Expression"
+									},
+									"ActivityName": "Get_Next_Page"
+								}
+							}
+						},
+						{
+							"name": "Set_NextUrl",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Get_Next_Page",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": true,
+								"secureInput": true
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "v_NextUrl",
+								"value": {
+									"value": "@string(json(activity('Get_Next_Page').output.pipelineReturnValue.ResponseJson)[activity('Lookup_Config').output.firstRow.NextLinkPropertyName])",
+									"type": "Expression"
+								}
+							}
+						}
+					],
+					"timeout": "0.12:00:00"
+				}
+			}
+		],
+		"parameters": {
+			"EntityName": {
+				"type": "String"
+			},
+			"BatchId": {
+				"type": "String"
+			},
+			"ParentRunId": {
+				"type": "String"
+			},
+			"WindowKey": {
+				"type": "String"
+			},
+			"ExtractionStart": {
+				"type": "String"
+			},
+			"EndWatermark": {
+				"type": "String"
+			}
+		},
+		"variables": {
+			"v_Page": {
+				"type": "String",
+				"defaultValue": "1"
+			},
+			"v_HasMore": {
+				"type": "String",
+				"defaultValue": "true"
+			},
+			"v_NextUrl": {
+				"type": "String"
+			},
+			"v_NextPage": {
+				"type": "String",
+				"defaultValue": "2"
+			},
+			"v_ApiKey": {
+				"type": "String"
+			},
+			"v_ResolvedRelativeUrl": {
+				"type": "String"
+			}
+		},
+		"folder": {
+			"name": "Metadata_Driven"
+		},
+		"annotations": [
+			"ENTITY_DRIVEN",
+			"ENTERPRISE_HARDENED",
+			"REST_ADAPTER",
+			"EXPONENTIAL_BACKOFF"
+		]
+	}
+}

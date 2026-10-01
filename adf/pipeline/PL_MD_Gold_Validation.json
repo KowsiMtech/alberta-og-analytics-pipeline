@@ -1,0 +1,241 @@
+{
+	"name": "PL_MD_Gold_Validation",
+	"properties": {
+		"description": "Generic post-Gold validation driven by each entity GOLD_DQ script. Scripts return FailedCheckCount and ValidationSummary.",
+		"activities": [
+			{
+				"name": "Lookup_Gold_DQ_Script",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('SELECT ScriptTemplate FROM control.EntityTransformScript WHERE EntityName=''',pipeline().parameters.EntityName,''' AND StageName=''GOLD_DQ'' AND IsActive=1')",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Run_Gold_DQ",
+				"type": "Script",
+				"dependsOn": [
+					{
+						"activity": "Lookup_Gold_DQ_Script",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": {
+								"value": "@activity('Lookup_Gold_DQ_Script').output.firstRow.ScriptTemplate",
+								"type": "Expression"
+							}
+						}
+					],
+					"scriptBlockExecutionTimeout": "00:30:00"
+				}
+			},
+			{
+				"name": "If_Gold_DQ_Failed",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Run_Gold_DQ",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@greater(int(activity('Run_Gold_DQ').output.resultSets[0].rows[0].FailedCheckCount),0)",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
+						{
+							"name": "Log_Gold_DQ_Pass",
+							"type": "SqlServerStoredProcedure",
+							"dependsOn": [],
+							"policy": {
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"storedProcedureName": "control.usp_RecordStage",
+								"storedProcedureParameters": {
+									"EntityName": {
+										"value": {
+											"value": "@pipeline().parameters.EntityName",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"PipelineRunId": {
+										"value": {
+											"value": "@pipeline().parameters.ParentRunId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"BatchId": {
+										"value": {
+											"value": "@pipeline().parameters.BatchId",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"WindowKey": {
+										"value": {
+											"value": "@pipeline().parameters.WindowKey",
+											"type": "Expression"
+										},
+										"type": "String"
+									},
+									"StageName": {
+										"value": "GOLD_VALIDATION",
+										"type": "String"
+									},
+									"Status": {
+										"value": "SUCCESS",
+										"type": "String"
+									},
+									"Detail": {
+										"value": {
+											"value": "@string(activity('Run_Gold_DQ').output.resultSets[0].rows[0].ValidationSummary)",
+											"type": "Expression"
+										},
+										"type": "String"
+									}
+								}
+							},
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSQL",
+								"type": "LinkedServiceReference"
+							}
+						}
+					],
+					"ifTrueActivities": [
+						{
+							"name": "Alert_Gold_DQ",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_MD_Common_Alert_Handler",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"EntityName": {
+										"value": "@pipeline().parameters.EntityName",
+										"type": "Expression"
+									},
+									"BatchId": {
+										"value": "@pipeline().parameters.BatchId",
+										"type": "Expression"
+									},
+									"ParentRunId": {
+										"value": "@pipeline().parameters.ParentRunId",
+										"type": "Expression"
+									},
+									"WindowKey": {
+										"value": "@pipeline().parameters.WindowKey",
+										"type": "Expression"
+									},
+									"AlertType": "GOLD_DQ_FAILURE",
+									"Severity": "CRITICAL",
+									"ActivityName": "GOLD_VALIDATION",
+									"Message": {
+										"value": "@concat('Gold validation failed for ',pipeline().parameters.EntityName,'. ',string(activity('Run_Gold_DQ').output.resultSets[0].rows[0].ValidationSummary))",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Fail_Gold_DQ",
+							"type": "Fail",
+							"dependsOn": [
+								{
+									"activity": "Alert_Gold_DQ",
+									"dependencyConditions": [
+										"Completed"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"message": {
+									"value": "@concat('Gold validation failed for ',pipeline().parameters.EntityName)",
+									"type": "Expression"
+								},
+								"errorCode": "GOLD_DQ_FAILED"
+							}
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"EntityName": {
+				"type": "String"
+			},
+			"BatchId": {
+				"type": "String"
+			},
+			"ParentRunId": {
+				"type": "String"
+			},
+			"WindowKey": {
+				"type": "String"
+			}
+		},
+		"folder": {
+			"name": "Metadata_Driven"
+		},
+		"annotations": [
+			"ENTITY_DRIVEN",
+			"ENTERPRISE_HARDENED",
+			"ST37_SEEDED",
+			"GENERIC_GOLD_VALIDATION"
+		]
+	}
+}

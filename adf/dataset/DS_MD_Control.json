@@ -1,0 +1,19 @@
+{
+	"name": "DS_MD_Control",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_AzureSQL",
+			"type": "LinkedServiceReference"
+		},
+		"folder": {
+			"name": "Metadata_Driven_DS"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [],
+		"typeProperties": {
+			"schema": "control",
+			"table": "EntityConfig"
+		}
+	}
+}

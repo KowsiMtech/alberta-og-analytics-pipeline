@@ -1,0 +1,503 @@
+{
+	"name": "PL_MD_Bronze_To_Silver",
+	"properties": {
+		"description": "Entity-specific transformation and exhaustive Silver/Quarantine classification. The framework preserves the full ST37 contract, standardizes legacy sentinels, and fails immediately if any Bronze row is unclassified.",
+		"activities": [
+			{
+				"name": "Lookup_Transform",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('SELECT ScriptTemplate FROM control.EntityTransformScript WHERE EntityName=''',pipeline().parameters.EntityName,''' AND StageName=''BRONZE_TO_SILVER'' AND IsActive=1')",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Lookup_Entity_Config_For_Cleanup",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Lookup_Transform",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "@concat('EXEC control.usp_GetEntityConfig @EntityName=''',pipeline().parameters.EntityName,'''')",
+							"type": "Expression"
+						},
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_MD_Control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Delete_Previous_Silver_Window",
+				"type": "Delete",
+				"dependsOn": [
+					{
+						"activity": "Lookup_Entity_Config_For_Cleanup",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataset": {
+						"referenceName": "DS_MD_ADLS_Folder",
+						"type": "DatasetReference",
+						"parameters": {
+							"FolderPath": {
+								"value": "@concat(activity('Lookup_Entity_Config_For_Cleanup').output.firstRow.SilverFolder,'/window=',pipeline().parameters.WindowKey)",
+								"type": "Expression"
+							}
+						}
+					},
+					"enableLogging": false,
+					"storeSettings": {
+						"type": "AzureBlobFSReadSettings",
+						"recursive": true
+					}
+				}
+			},
+			{
+				"name": "Delete_Previous_Quarantine_Window",
+				"type": "Delete",
+				"dependsOn": [
+					{
+						"activity": "Lookup_Entity_Config_For_Cleanup",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataset": {
+						"referenceName": "DS_MD_ADLS_Folder",
+						"type": "DatasetReference",
+						"parameters": {
+							"FolderPath": {
+								"value": "@concat(activity('Lookup_Entity_Config_For_Cleanup').output.firstRow.QuarantineFolder,'/window=',pipeline().parameters.WindowKey)",
+								"type": "Expression"
+							}
+						}
+					},
+					"enableLogging": false,
+					"storeSettings": {
+						"type": "AzureBlobFSReadSettings",
+						"recursive": true
+					}
+				}
+			},
+			{
+				"name": "Run_Entity_BronzeToSilver",
+				"type": "Script",
+				"dependsOn": [
+					{
+						"activity": "Delete_Previous_Silver_Window",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Delete_Previous_Quarantine_Window",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "LS_Synapse_Serverless",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": {
+								"value": "@replace(replace(activity('Lookup_Transform').output.firstRow.ScriptTemplate,'{{WindowKey}}',pipeline().parameters.WindowKey),'{{BatchId}}',pipeline().parameters.BatchId)",
+								"type": "Expression"
+							}
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			},
+			{
+				"name": "Set_SourceCount",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Run_Entity_BronzeToSilver",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_SourceCount",
+					"value": {
+						"value": "@int(activity('Run_Entity_BronzeToSilver').output.resultSets[0].rows[0].SourceCount)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_UnclassifiedCount",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Run_Entity_BronzeToSilver",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_UnclassifiedCount",
+					"value": {
+						"value": "@int(activity('Run_Entity_BronzeToSilver').output.resultSets[0].rows[0].UnclassifiedCount)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_SilverCount",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Run_Entity_BronzeToSilver",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_SilverCount",
+					"value": {
+						"value": "@int(activity('Run_Entity_BronzeToSilver').output.resultSets[0].rows[0].SilverCount)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set_QuarantineCount",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Run_Entity_BronzeToSilver",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_QuarantineCount",
+					"value": {
+						"value": "@int(activity('Run_Entity_BronzeToSilver').output.resultSets[0].rows[0].QuarantineCount)",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Validate_Row_Accounting",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Set_SourceCount",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set_SilverCount",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set_QuarantineCount",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set_UnclassifiedCount",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@and(equals(variables('v_UnclassifiedCount'),0),equals(variables('v_SourceCount'),add(variables('v_SilverCount'),variables('v_QuarantineCount'))))",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
+						{
+							"name": "Fail_Unclassified_Bronze_Rows",
+							"type": "Fail",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"message": {
+									"value": "@concat('Bronze-to-Silver row accounting failed. source=',string(variables('v_SourceCount')),' silver=',string(variables('v_SilverCount')),' quarantine=',string(variables('v_QuarantineCount')),' unclassified=',string(variables('v_UnclassifiedCount')))",
+									"type": "Expression"
+								},
+								"errorCode": "ST37_ROW_ACCOUNTING_FAILED"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Log_BronzeToSilver_Stage",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Validate_Row_Accounting",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "control.usp_RecordStage",
+					"storedProcedureParameters": {
+						"EntityName": {
+							"value": {
+								"value": "@pipeline().parameters.EntityName",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineRunId": {
+							"value": {
+								"value": "@pipeline().parameters.ParentRunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"BatchId": {
+							"value": {
+								"value": "@pipeline().parameters.BatchId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"WindowKey": {
+							"value": {
+								"value": "@pipeline().parameters.WindowKey",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"StageName": {
+							"value": "BRONZE_TO_SILVER",
+							"type": "String"
+						},
+						"Status": {
+							"value": "SUCCESS",
+							"type": "String"
+						},
+						"RowCount": {
+							"value": {
+								"value": "@variables('v_SilverCount')",
+								"type": "Expression"
+							},
+							"type": "Int"
+						},
+						"Detail": {
+							"value": {
+								"value": "@concat('source=',string(variables('v_SourceCount')),' silver=',string(variables('v_SilverCount')),' quarantine=',string(variables('v_QuarantineCount')),' unclassified=',string(variables('v_UnclassifiedCount')))",
+								"type": "Expression"
+							},
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSQL",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "Return_Counts",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Log_BronzeToSilver_Stage",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "pipelineReturnValue",
+					"value": [
+						{
+							"key": "SilverCount",
+							"value": {
+								"type": "Expression",
+								"content": "@string(variables('v_SilverCount'))"
+							}
+						},
+						{
+							"key": "QuarantineCount",
+							"value": {
+								"type": "Expression",
+								"content": "@string(variables('v_QuarantineCount'))"
+							}
+						},
+						{
+							"key": "SourceCount",
+							"value": {
+								"type": "Expression",
+								"content": "@string(variables('v_SourceCount'))"
+							}
+						},
+						{
+							"key": "UnclassifiedCount",
+							"value": {
+								"type": "Expression",
+								"content": "@string(variables('v_UnclassifiedCount'))"
+							}
+						}
+					],
+					"setSystemVariable": true
+				}
+			}
+		],
+		"parameters": {
+			"EntityName": {
+				"type": "String"
+			},
+			"BatchId": {
+				"type": "String"
+			},
+			"ParentRunId": {
+				"type": "String"
+			},
+			"WindowKey": {
+				"type": "String"
+			}
+		},
+		"variables": {
+			"v_SilverCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_QuarantineCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_SourceCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			},
+			"v_UnclassifiedCount": {
+				"type": "Integer",
+				"defaultValue": 0
+			}
+		},
+		"folder": {
+			"name": "Metadata_Driven"
+		},
+		"annotations": [
+			"ENTITY_DRIVEN",
+			"ENTERPRISE_HARDENED",
+			"ST37_SEEDED",
+			"IDEMPOTENT_STAGE_RERUN",
+			"DATA_CONTRACT",
+			"EXHAUSTIVE_ROW_CLASSIFICATION",
+			"NO_SILENT_DROP"
+		]
+	}
+}

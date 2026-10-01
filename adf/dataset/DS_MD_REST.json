@@ -1,0 +1,35 @@
+{
+	"name": "DS_MD_REST",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_REST_Generic",
+			"type": "LinkedServiceReference",
+			"parameters": {
+				"BaseUrl": {
+					"value": "@dataset().BaseUrl",
+					"type": "Expression"
+				}
+			}
+		},
+		"parameters": {
+			"RelativeUrl": {
+				"type": "String"
+			},
+			"BaseUrl": {
+				"type": "String"
+			}
+		},
+		"folder": {
+			"name": "Metadata_Driven_DS"
+		},
+		"annotations": [],
+		"type": "RestResource",
+		"typeProperties": {
+			"relativeUrl": {
+				"value": "@dataset().RelativeUrl",
+				"type": "Expression"
+			}
+		},
+		"schema": []
+	}
+}

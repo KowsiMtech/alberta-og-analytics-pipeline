@@ -1,0 +1,22 @@
+{
+	"name": "LS_REST_Generic",
+	"properties": {
+		"parameters": {
+			"BaseUrl": {
+				"type": "String"
+			}
+		},
+		"annotations": [
+			"GENERIC_BASE_URL_FROM_ENTITY_CONFIG"
+		],
+		"type": "RestService",
+		"typeProperties": {
+			"url": {
+				"value": "@linkedService().BaseUrl",
+				"type": "Expression"
+			},
+			"enableServerCertificateValidation": true,
+			"authenticationType": "Anonymous"
+		}
+	}
+}
