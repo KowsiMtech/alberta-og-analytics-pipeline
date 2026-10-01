@@ -3,97 +3,6 @@
 	"properties": {
 		"activities": [
 			{
-				"name": "Run_SQL_Ingestion",
-				"type": "ExecutePipeline",
-				"dependsOn": [],
-				"policy": {
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"pipeline": {
-						"referenceName": "PL_MD_SQL_Ingestion",
-						"type": "PipelineReference"
-					},
-					"waitOnCompletion": true,
-					"parameters": {
-						"EntityName": "test",
-						"BatchId": "test",
-						"ParentRunId": "test",
-						"WindowKey": "test",
-						"ExtractionStart": "test",
-						"EndWatermark": "test",
-						"RunMode": "test"
-					}
-				}
-			},
-			{
-				"name": "Run_Source_Freshness",
-				"type": "ExecutePipeline",
-				"dependsOn": [],
-				"policy": {
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"pipeline": {
-						"referenceName": "PL_MD_Source_Freshness",
-						"type": "PipelineReference"
-					},
-					"waitOnCompletion": true,
-					"parameters": {
-						"EntityName": "test",
-						"BatchId": "test",
-						"ParentRunId": "test",
-						"WindowKey": "test"
-					}
-				}
-			},
-			{
-				"name": "Run_Schema_Validation",
-				"type": "ExecutePipeline",
-				"dependsOn": [],
-				"policy": {
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"pipeline": {
-						"referenceName": "PL_MD_Schema_Validation",
-						"type": "PipelineReference"
-					},
-					"waitOnCompletion": true,
-					"parameters": {
-						"EntityName": "test",
-						"BatchId": "test",
-						"ParentRunId": "test",
-						"WindowKey": "test"
-					}
-				}
-			},
-			{
-				"name": "Run_Gold_Validation",
-				"type": "ExecutePipeline",
-				"dependsOn": [],
-				"policy": {
-					"secureInput": false
-				},
-				"userProperties": [],
-				"typeProperties": {
-					"pipeline": {
-						"referenceName": "PL_MD_Gold_Validation",
-						"type": "PipelineReference"
-					},
-					"waitOnCompletion": true,
-					"parameters": {
-						"EntityName": "test",
-						"BatchId": "test",
-						"ParentRunId": "test",
-						"WindowKey": "test"
-					}
-				}
-			},
-			{
 				"name": "Run_Reconciliation",
 				"type": "ExecutePipeline",
 				"dependsOn": [],
@@ -159,6 +68,22 @@
 						"ParentRunId": "test",
 						"WindowKey": "test"
 					}
+				}
+			},
+			{
+				"name": "PL_MD_Gold_Validation",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_MD_Gold_Validation",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true
 				}
 			}
 		],
