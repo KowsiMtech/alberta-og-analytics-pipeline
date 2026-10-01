@@ -266,7 +266,7 @@
 									},
 									"RetryAttempt": {
 										"value": {
-											"value": "@variables('v_RetryAttempt')",
+											"value": "@int(variables('v_RetryAttempt'))",
 											"type": "Expression"
 										},
 										"type": "Int"
@@ -296,7 +296,7 @@
 							"userProperties": [],
 							"typeProperties": {
 								"variableName": "v_Done",
-								"value": true
+								"value": "true"
 							}
 						},
 						{
@@ -375,7 +375,7 @@
 								"source": {
 									"type": "AzureSqlSource",
 									"sqlReaderQuery": {
-										"value": "@concat('EXEC control.usp_GetRetryDecision @PolicyName=''',activity('Lookup_Config').output.firstRow.RetryPolicyName,''', @ErrorCode=''',replace(variables('v_ErrorCode'),'''',''''''),''', @ErrorMessage=N''',replace(variables('v_ErrorMessage'),'''',''''''),''', @RetryAttempt=',string(variables('v_RetryAttempt')))",
+										"value": "@concat('EXEC control.usp_GetRetryDecision @PolicyName=''',activity('Lookup_Config').output.firstRow.RetryPolicyName,''', @ErrorCode=''',replace(variables('v_ErrorCode'),'''',''''''),''', @ErrorMessage=N''',replace(variables('v_ErrorMessage'),'''',''''''),''', @RetryAttempt=',string(int(variables('v_RetryAttempt'))))",
 										"type": "Expression"
 									},
 									"partitionOption": "None"
@@ -430,7 +430,7 @@
 							"typeProperties": {
 								"variableName": "v_WaitSeconds",
 								"value": {
-									"value": "@int(activity('Retry_Decision').output.firstRow.ComputedWaitSeconds)",
+									"value": "@string(int(activity('Retry_Decision').output.firstRow.ComputedWaitSeconds))",
 									"type": "Expression"
 								}
 							}
@@ -496,7 +496,7 @@
 									},
 									"RetryAttempt": {
 										"value": {
-											"value": "@variables('v_RetryAttempt')",
+											"value": "@int(variables('v_RetryAttempt'))",
 											"type": "Expression"
 										},
 										"type": "Int"
@@ -531,7 +531,7 @@
 									},
 									"WaitSeconds": {
 										"value": {
-											"value": "@variables('v_WaitSeconds')",
+											"value": "@int(variables('v_WaitSeconds'))",
 											"type": "Expression"
 										},
 										"type": "Int"
@@ -562,7 +562,7 @@
 							"typeProperties": {
 								"variableName": "v_CurrentAttemptSnapshot",
 								"value": {
-									"value": "@variables('v_RetryAttempt')",
+									"value": "@string(int(variables('v_RetryAttempt')))",
 									"type": "Expression"
 								}
 							}
@@ -586,7 +586,7 @@
 							"typeProperties": {
 								"variableName": "v_NextAttempt",
 								"value": {
-									"value": "@add(variables('v_RetryAttempt'),1)",
+									"value": "@string(add(int(variables('v_RetryAttempt')),1))",
 									"type": "Expression"
 								}
 							}
@@ -610,7 +610,7 @@
 							"typeProperties": {
 								"variableName": "v_RetryAttempt",
 								"value": {
-									"value": "@if(equals(variables('v_RetryDecision'),'RETRY'),variables('v_NextAttempt'),variables('v_CurrentAttemptSnapshot'))",
+									"value": "@string(if(equals(variables('v_RetryDecision'),'RETRY'),int(variables('v_NextAttempt')),int(variables('v_CurrentAttemptSnapshot'))))",
 									"type": "Expression"
 								}
 							}
@@ -629,7 +629,7 @@
 							"userProperties": [],
 							"typeProperties": {
 								"waitTimeInSeconds": {
-									"value": "@if(equals(variables('v_RetryDecision'),'RETRY'),variables('v_WaitSeconds'),0)",
+									"value": "@if(equals(variables('v_RetryDecision'),'RETRY'),int(variables('v_WaitSeconds')),0)",
 									"type": "Expression"
 								}
 							}
@@ -803,12 +803,12 @@
 		},
 		"variables": {
 			"v_Done": {
-				"type": "Boolean",
-				"defaultValue": false
+				"type": "Bool",
+				"defaultValue": "false"
 			},
 			"v_RetryAttempt": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_ErrorCode": {
 				"type": "String"
@@ -823,16 +823,16 @@
 				"type": "String"
 			},
 			"v_WaitSeconds": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_NextAttempt": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_CurrentAttemptSnapshot": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_RetrySeverity": {
 				"type": "String",

@@ -387,7 +387,7 @@
 				"typeProperties": {
 					"variableName": "v_LagMinutes",
 					"value": {
-						"value": "@int(coalesce(activity('Lookup_Freshness_Result').output.firstRow.LagMinutes,0))",
+						"value": "@string(int(coalesce(activity('Lookup_Freshness_Result').output.firstRow.LagMinutes,0)))",
 						"type": "Expression"
 					}
 				}
@@ -411,7 +411,7 @@
 				"typeProperties": {
 					"variableName": "v_ConsecutiveStaleCount",
 					"value": {
-						"value": "@int(activity('Lookup_Freshness_Result').output.firstRow.ConsecutiveStaleCount)",
+						"value": "@string(int(activity('Lookup_Freshness_Result').output.firstRow.ConsecutiveStaleCount))",
 						"type": "Expression"
 					}
 				}
@@ -617,7 +617,7 @@
 											},
 											"Detail": {
 												"value": {
-													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
+													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(int(variables('v_LagMinutes'))),'; ConsecutiveStaleCount=',string(int(variables('v_ConsecutiveStaleCount'))),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
 													"type": "Expression"
 												},
 												"type": "Expression"
@@ -686,7 +686,7 @@
 											},
 											"Detail": {
 												"value": {
-													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
+													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(int(variables('v_LagMinutes'))),'; ConsecutiveStaleCount=',string(int(variables('v_ConsecutiveStaleCount'))),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
 													"type": "Expression"
 												},
 												"type": "Expression"
@@ -741,7 +741,7 @@
 											},
 											"ActivityName": "SOURCE_FRESHNESS",
 											"Message": {
-												"value": "@concat('Source stale. LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')))",
+												"value": "@concat('Source stale. LagMinutes=',string(int(variables('v_LagMinutes'))),'; ConsecutiveStaleCount=',string(int(variables('v_ConsecutiveStaleCount'))))",
 												"type": "Expression"
 											}
 										}
@@ -806,7 +806,7 @@
 											},
 											"Detail": {
 												"value": {
-													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
+													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(int(variables('v_LagMinutes'))),'; ConsecutiveStaleCount=',string(int(variables('v_ConsecutiveStaleCount'))),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
 													"type": "Expression"
 												},
 												"type": "Expression"
@@ -861,7 +861,7 @@
 											},
 											"ActivityName": "SOURCE_FRESHNESS",
 											"Message": {
-												"value": "@concat('Source stale. LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')))",
+												"value": "@concat('Source stale. LagMinutes=',string(int(variables('v_LagMinutes'))),'; ConsecutiveStaleCount=',string(int(variables('v_ConsecutiveStaleCount'))))",
 												"type": "Expression"
 											}
 										}
@@ -926,7 +926,7 @@
 											},
 											"Detail": {
 												"value": {
-													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
+													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(int(variables('v_LagMinutes'))),'; ConsecutiveStaleCount=',string(int(variables('v_ConsecutiveStaleCount'))),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
 													"type": "Expression"
 												},
 												"type": "Expression"
@@ -995,7 +995,7 @@
 											"Severity": "CRITICAL",
 											"ActivityName": "SOURCE_FRESHNESS",
 											"Message": {
-												"value": "@concat('Source critically stale. LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')))",
+												"value": "@concat('Source critically stale. LagMinutes=',string(int(variables('v_LagMinutes'))),'; ConsecutiveStaleCount=',string(int(variables('v_ConsecutiveStaleCount'))),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')))",
 												"type": "Expression"
 											}
 										}
@@ -1060,7 +1060,7 @@
 											},
 											"Detail": {
 												"value": {
-													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
+													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(int(variables('v_LagMinutes'))),'; ConsecutiveStaleCount=',string(int(variables('v_ConsecutiveStaleCount'))),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
 													"type": "Expression"
 												},
 												"type": "Expression"
@@ -1112,7 +1112,7 @@
 											"Severity": "CRITICAL",
 											"ActivityName": "SOURCE_FRESHNESS",
 											"Message": {
-												"value": "@concat('Source critically stale. LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')))",
+												"value": "@concat('Source critically stale. LagMinutes=',string(int(variables('v_LagMinutes'))),'; ConsecutiveStaleCount=',string(int(variables('v_ConsecutiveStaleCount'))),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')))",
 												"type": "Expression"
 											}
 										}
@@ -1177,7 +1177,7 @@
 											},
 											"Detail": {
 												"value": {
-													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
+													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(int(variables('v_LagMinutes'))),'; ConsecutiveStaleCount=',string(int(variables('v_ConsecutiveStaleCount'))),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
 													"type": "Expression"
 												},
 												"type": "Expression"
@@ -1308,7 +1308,7 @@
 											},
 											"Detail": {
 												"value": {
-													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
+													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(int(variables('v_LagMinutes'))),'; ConsecutiveStaleCount=',string(int(variables('v_ConsecutiveStaleCount'))),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
 													"type": "Expression"
 												},
 												"type": "Expression"
@@ -1422,7 +1422,7 @@
 											},
 											"Detail": {
 												"value": {
-													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
+													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(int(variables('v_LagMinutes'))),'; ConsecutiveStaleCount=',string(int(variables('v_ConsecutiveStaleCount'))),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
 													"type": "Expression"
 												},
 												"type": "Expression"
@@ -1508,7 +1508,7 @@
 											},
 											"Detail": {
 												"value": {
-													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(variables('v_LagMinutes')),'; ConsecutiveStaleCount=',string(variables('v_ConsecutiveStaleCount')),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
+													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(int(variables('v_LagMinutes'))),'; ConsecutiveStaleCount=',string(int(variables('v_ConsecutiveStaleCount'))),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
 													"type": "Expression"
 												},
 												"type": "Expression"
@@ -1560,16 +1560,16 @@
 				"type": "String"
 			},
 			"v_LagMinutes": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_ConsecutiveStaleCount": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_ConsecutiveStaleBreached": {
-				"type": "Boolean",
-				"defaultValue": false
+				"type": "Bool",
+				"defaultValue": "false"
 			},
 			"v_PolicyAction": {
 				"type": "String",

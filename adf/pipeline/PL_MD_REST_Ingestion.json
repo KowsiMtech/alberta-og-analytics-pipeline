@@ -293,7 +293,7 @@
 										"type": "Expression"
 									},
 									"Url": {
-										"value": "@concat(activity('Lookup_Config').output.firstRow.ApiBaseUrl,variables('v_ResolvedRelativeUrl'),if(contains(variables('v_ResolvedRelativeUrl'),'?'),'&','?'),activity('Lookup_Config').output.firstRow.PageNumberParameter,'=',string(variables('v_Page')),'&',activity('Lookup_Config').output.firstRow.PageSizeParameter,'=',string(activity('Lookup_Config').output.firstRow.PageSize))",
+										"value": "@concat(activity('Lookup_Config').output.firstRow.ApiBaseUrl,variables('v_ResolvedRelativeUrl'),if(contains(variables('v_ResolvedRelativeUrl'),'?'),'&','?'),activity('Lookup_Config').output.firstRow.PageNumberParameter,'=',string(int(variables('v_Page'))),'&',activity('Lookup_Config').output.firstRow.PageSizeParameter,'=',string(activity('Lookup_Config').output.firstRow.PageSize))",
 										"type": "Expression"
 									},
 									"ActivityName": "Get_Page"
@@ -343,7 +343,7 @@
 							"typeProperties": {
 								"variableName": "v_NextPage",
 								"value": {
-									"value": "@add(variables('v_Page'),1)",
+									"value": "@string(add(int(variables('v_Page')),1))",
 									"type": "Expression"
 								}
 							}
@@ -367,7 +367,7 @@
 							"typeProperties": {
 								"variableName": "v_Page",
 								"value": {
-									"value": "@variables('v_NextPage')",
+									"value": "@string(int(variables('v_NextPage')))",
 									"type": "Expression"
 								}
 							}
@@ -484,19 +484,19 @@
 		},
 		"variables": {
 			"v_Page": {
-				"type": "Integer",
-				"defaultValue": 1
+				"type": "String",
+				"defaultValue": "1"
 			},
 			"v_HasMore": {
-				"type": "Boolean",
-				"defaultValue": true
+				"type": "Bool",
+				"defaultValue": "true"
 			},
 			"v_NextUrl": {
 				"type": "String"
 			},
 			"v_NextPage": {
-				"type": "Integer",
-				"defaultValue": 2
+				"type": "String",
+				"defaultValue": "2"
 			},
 			"v_ApiKey": {
 				"type": "String"
