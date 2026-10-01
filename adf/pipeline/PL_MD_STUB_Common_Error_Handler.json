@@ -1,0 +1,49 @@
+{
+	"name": "PL_MD_STUB_Common_Error_Handler",
+	"properties": {
+		"activities": [
+			{
+				"name": "Wait_Stub",
+				"type": "Wait",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"waitTimeInSeconds": 1
+				}
+			}
+		],
+		"parameters": {
+			"EntityName": {
+				"type": "String"
+			},
+			"BatchId": {
+				"type": "String"
+			},
+			"ParentRunId": {
+				"type": "String"
+			},
+			"WindowKey": {
+				"type": "String"
+			},
+			"PipelineName": {
+				"type": "String"
+			},
+			"ActivityName": {
+				"type": "String"
+			},
+			"ErrorCode": {
+				"type": "String"
+			},
+			"ErrorMessage": {
+				"type": "String"
+			},
+			"StageName": {
+				"type": "String"
+			}
+		},
+		"folder": {
+			"name": "STUB_Pipelines"
+		},
+		"annotations": []
+	}
+}
