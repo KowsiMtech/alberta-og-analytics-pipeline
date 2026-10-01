@@ -147,8 +147,8 @@
 		},
 		"variables": {
 			"v_Stop": {
-				"type": "Boolean",
-				"defaultValue": false
+				"type": "String",
+				"defaultValue": "false"
 			}
 		},
 		"folder": {

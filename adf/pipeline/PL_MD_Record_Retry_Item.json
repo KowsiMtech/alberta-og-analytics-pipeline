@@ -372,8 +372,8 @@
 		},
 		"variables": {
 			"v_Done": {
-				"type": "Boolean",
-				"defaultValue": false
+				"type": "String",
+				"defaultValue": "false"
 			},
 			"v_Attempt": {
 				"type": "String",

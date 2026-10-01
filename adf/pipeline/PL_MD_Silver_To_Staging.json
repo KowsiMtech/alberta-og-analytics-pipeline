@@ -377,7 +377,7 @@
 						},
 						"Detail": {
 							"value": {
-								"value": "@concat('raw=',string(variables('v_RawStagingCount')),'; duplicates_removed=',string(variables('v_DuplicateCount')))",
+								"value": "@concat('raw=',string(int(variables('v_RawStagingCount'))),'; duplicates_removed=',string(int(variables('v_DuplicateCount'))))",
 								"type": "Expression"
 							},
 							"type": "String"
@@ -412,21 +412,21 @@
 							"key": "RawStagingCount",
 							"value": {
 								"type": "Expression",
-								"content": "@string(variables('v_RawStagingCount'))"
+								"content": "@string(int(variables('v_RawStagingCount')))"
 							}
 						},
 						{
 							"key": "DuplicateCount",
 							"value": {
 								"type": "Expression",
-								"content": "@string(variables('v_DuplicateCount'))"
+								"content": "@string(int(variables('v_DuplicateCount')))"
 							}
 						},
 						{
 							"key": "StagingCount",
 							"value": {
 								"type": "Expression",
-								"content": "@string(variables('v_StagingCount'))"
+								"content": "@string(int(variables('v_StagingCount')))"
 							}
 						}
 					],

@@ -185,7 +185,7 @@
 						},
 						"Detail": {
 							"value": {
-								"value": "@concat('rowsRead=',string(variables('v_RowsRead')))",
+								"value": "@concat('rowsRead=',string(int(variables('v_RowsRead'))))",
 								"type": "Expression"
 							},
 							"type": "String"
@@ -220,14 +220,14 @@
 							"key": "RowsRead",
 							"value": {
 								"type": "Expression",
-								"content": "@string(variables('v_RowsRead'))"
+								"content": "@string(int(variables('v_RowsRead')))"
 							}
 						},
 						{
 							"key": "RowsWritten",
 							"value": {
 								"type": "Expression",
-								"content": "@string(variables('v_RowsWritten'))"
+								"content": "@string(int(variables('v_RowsWritten')))"
 							}
 						}
 					],
