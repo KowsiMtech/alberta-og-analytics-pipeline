@@ -620,7 +620,7 @@
 													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(int(variables('v_LagMinutes'))),'; ConsecutiveStaleCount=',string(int(variables('v_ConsecutiveStaleCount'))),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
 													"type": "Expression"
 												},
-												"type": "Expression"
+												"type": "String"
 											}
 										}
 									},
@@ -689,7 +689,7 @@
 													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(int(variables('v_LagMinutes'))),'; ConsecutiveStaleCount=',string(int(variables('v_ConsecutiveStaleCount'))),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
 													"type": "Expression"
 												},
-												"type": "Expression"
+												"type": "String"
 											}
 										}
 									},
@@ -809,7 +809,7 @@
 													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(int(variables('v_LagMinutes'))),'; ConsecutiveStaleCount=',string(int(variables('v_ConsecutiveStaleCount'))),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
 													"type": "Expression"
 												},
-												"type": "Expression"
+												"type": "String"
 											}
 										}
 									},
@@ -929,7 +929,7 @@
 													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(int(variables('v_LagMinutes'))),'; ConsecutiveStaleCount=',string(int(variables('v_ConsecutiveStaleCount'))),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
 													"type": "Expression"
 												},
-												"type": "Expression"
+												"type": "String"
 											}
 										}
 									},
@@ -1063,7 +1063,7 @@
 													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(int(variables('v_LagMinutes'))),'; ConsecutiveStaleCount=',string(int(variables('v_ConsecutiveStaleCount'))),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
 													"type": "Expression"
 												},
-												"type": "Expression"
+												"type": "String"
 											}
 										}
 									},
@@ -1180,7 +1180,7 @@
 													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(int(variables('v_LagMinutes'))),'; ConsecutiveStaleCount=',string(int(variables('v_ConsecutiveStaleCount'))),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
 													"type": "Expression"
 												},
-												"type": "Expression"
+												"type": "String"
 											}
 										}
 									},
@@ -1311,7 +1311,7 @@
 													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(int(variables('v_LagMinutes'))),'; ConsecutiveStaleCount=',string(int(variables('v_ConsecutiveStaleCount'))),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
 													"type": "Expression"
 												},
-												"type": "Expression"
+												"type": "String"
 											}
 										}
 									},
@@ -1425,7 +1425,7 @@
 													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(int(variables('v_LagMinutes'))),'; ConsecutiveStaleCount=',string(int(variables('v_ConsecutiveStaleCount'))),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
 													"type": "Expression"
 												},
-												"type": "Expression"
+												"type": "String"
 											}
 										}
 									},
@@ -1511,7 +1511,7 @@
 													"value": "@concat('Status=',variables('v_FreshnessStatus'),'; Severity=',variables('v_Severity'),'; LagMinutes=',string(int(variables('v_LagMinutes'))),'; ConsecutiveStaleCount=',string(int(variables('v_ConsecutiveStaleCount'))),'; StreakBreached=',string(variables('v_ConsecutiveStaleBreached')),'; Action=','FAIL')",
 													"type": "Expression"
 												},
-												"type": "Expression"
+												"type": "String"
 											}
 										}
 									},
