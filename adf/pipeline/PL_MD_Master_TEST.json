@@ -1,0 +1,35 @@
+{
+	"name": "PL_MD_Master_TEST",
+	"properties": {
+		"activities": [
+			{
+				"name": "Set_BatchId",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "v_BatchId",
+					"value": {
+						"value": "@if(empty(pipeline().parameters.ResumeBatchId),guid(),pipeline().parameters.ResumeBatchId)",
+						"type": "Expression"
+					}
+				}
+			}
+		],
+		"parameters": {
+			"ResumeBatchId": {
+				"type": "String"
+			}
+		},
+		"variables": {
+			"v_BatchId": {
+				"type": "String"
+			}
+		},
+		"annotations": []
+	}
+}

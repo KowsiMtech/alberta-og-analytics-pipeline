@@ -1568,8 +1568,8 @@
 				"defaultValue": "0"
 			},
 			"v_ConsecutiveStaleBreached": {
-				"type": "Boolean",
-				"defaultValue": false
+				"type": "String",
+				"defaultValue": "false"
 			},
 			"v_PolicyAction": {
 				"type": "String",
