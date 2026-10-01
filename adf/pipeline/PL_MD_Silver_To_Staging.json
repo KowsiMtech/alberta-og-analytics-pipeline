@@ -155,7 +155,7 @@
 				"typeProperties": {
 					"variableName": "v_RawStagingCount",
 					"value": {
-						"value": "@int(activity('Get_Raw_Staging_Count').output.firstRow.RawStagingCount)",
+						"value": "@string(int(activity('Get_Raw_Staging_Count').output.firstRow.RawStagingCount))",
 						"type": "Expression"
 					}
 				}
@@ -282,7 +282,7 @@
 				"typeProperties": {
 					"variableName": "v_StagingCount",
 					"value": {
-						"value": "@int(activity('Get_Deduped_Staging_Count').output.firstRow.StagingCount)",
+						"value": "@string(int(activity('Get_Deduped_Staging_Count').output.firstRow.StagingCount))",
 						"type": "Expression"
 					}
 				}
@@ -306,7 +306,7 @@
 				"typeProperties": {
 					"variableName": "v_DuplicateCount",
 					"value": {
-						"value": "@sub(variables('v_RawStagingCount'),variables('v_StagingCount'))",
+						"value": "@string(sub(int(variables('v_RawStagingCount')),int(variables('v_StagingCount'))))",
 						"type": "Expression"
 					}
 				}
@@ -370,7 +370,7 @@
 						},
 						"RowCount": {
 							"value": {
-								"value": "@variables('v_StagingCount')",
+								"value": "@int(variables('v_StagingCount'))",
 								"type": "Expression"
 							},
 							"type": "Int"
@@ -450,16 +450,16 @@
 		},
 		"variables": {
 			"v_RawStagingCount": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_StagingCount": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_DuplicateCount": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			}
 		},
 		"folder": {

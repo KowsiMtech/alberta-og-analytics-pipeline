@@ -84,7 +84,7 @@
 				"typeProperties": {
 					"variableName": "v_RowsRead",
 					"value": {
-						"value": "@int(activity('Run_Gold_Load').output.resultSets[0].rows[0].RowsRead)",
+						"value": "@string(int(activity('Run_Gold_Load').output.resultSets[0].rows[0].RowsRead))",
 						"type": "Expression"
 					}
 				}
@@ -108,7 +108,7 @@
 				"typeProperties": {
 					"variableName": "v_RowsWritten",
 					"value": {
-						"value": "@int(activity('Run_Gold_Load').output.resultSets[0].rows[0].RowsWritten)",
+						"value": "@string(int(activity('Run_Gold_Load').output.resultSets[0].rows[0].RowsWritten))",
 						"type": "Expression"
 					}
 				}
@@ -178,7 +178,7 @@
 						},
 						"RowCount": {
 							"value": {
-								"value": "@variables('v_RowsWritten')",
+								"value": "@int(variables('v_RowsWritten'))",
 								"type": "Expression"
 							},
 							"type": "Int"
@@ -251,12 +251,12 @@
 		},
 		"variables": {
 			"v_RowsRead": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_RowsWritten": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			}
 		},
 		"folder": {

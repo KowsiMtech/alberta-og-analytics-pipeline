@@ -196,7 +196,7 @@
 				"typeProperties": {
 					"variableName": "v_SourceCount",
 					"value": {
-						"value": "@int(activity('Run_Entity_BronzeToSilver').output.resultSets[0].rows[0].SourceCount)",
+						"value": "@string(int(activity('Run_Entity_BronzeToSilver').output.resultSets[0].rows[0].SourceCount))",
 						"type": "Expression"
 					}
 				}
@@ -220,7 +220,7 @@
 				"typeProperties": {
 					"variableName": "v_UnclassifiedCount",
 					"value": {
-						"value": "@int(activity('Run_Entity_BronzeToSilver').output.resultSets[0].rows[0].UnclassifiedCount)",
+						"value": "@string(int(activity('Run_Entity_BronzeToSilver').output.resultSets[0].rows[0].UnclassifiedCount))",
 						"type": "Expression"
 					}
 				}
@@ -244,7 +244,7 @@
 				"typeProperties": {
 					"variableName": "v_SilverCount",
 					"value": {
-						"value": "@int(activity('Run_Entity_BronzeToSilver').output.resultSets[0].rows[0].SilverCount)",
+						"value": "@string(int(activity('Run_Entity_BronzeToSilver').output.resultSets[0].rows[0].SilverCount))",
 						"type": "Expression"
 					}
 				}
@@ -268,7 +268,7 @@
 				"typeProperties": {
 					"variableName": "v_QuarantineCount",
 					"value": {
-						"value": "@int(activity('Run_Entity_BronzeToSilver').output.resultSets[0].rows[0].QuarantineCount)",
+						"value": "@string(int(activity('Run_Entity_BronzeToSilver').output.resultSets[0].rows[0].QuarantineCount))",
 						"type": "Expression"
 					}
 				}
@@ -305,7 +305,7 @@
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
-						"value": "@and(equals(variables('v_UnclassifiedCount'),0),equals(variables('v_SourceCount'),add(variables('v_SilverCount'),variables('v_QuarantineCount'))))",
+						"value": "@and(equals(int(variables('v_UnclassifiedCount')),0),equals(int(variables('v_SourceCount')),add(int(variables('v_SilverCount')),int(variables('v_QuarantineCount')))))",
 						"type": "Expression"
 					},
 					"ifFalseActivities": [
@@ -384,7 +384,7 @@
 						},
 						"RowCount": {
 							"value": {
-								"value": "@variables('v_SilverCount')",
+								"value": "@int(variables('v_SilverCount'))",
 								"type": "Expression"
 							},
 							"type": "Int"
@@ -471,20 +471,20 @@
 		},
 		"variables": {
 			"v_SilverCount": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_QuarantineCount": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_SourceCount": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_UnclassifiedCount": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			}
 		},
 		"folder": {

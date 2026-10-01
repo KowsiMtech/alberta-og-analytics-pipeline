@@ -83,7 +83,7 @@
 				"typeProperties": {
 					"variableName": "v_AlertCount",
 					"value": {
-						"value": "@int(activity('Count_Warning_Critical').output.firstRow.AlertCount)",
+						"value": "@string(int(activity('Count_Warning_Critical').output.firstRow.AlertCount))",
 						"type": "Expression"
 					}
 				}
@@ -102,7 +102,7 @@
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
-						"value": "@greater(variables('v_AlertCount'),0)",
+						"value": "@greater(int(variables('v_AlertCount')),0)",
 						"type": "Expression"
 					},
 					"ifFalseActivities": [
@@ -230,8 +230,8 @@
 		},
 		"variables": {
 			"v_AlertCount": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			}
 		},
 		"folder": {
