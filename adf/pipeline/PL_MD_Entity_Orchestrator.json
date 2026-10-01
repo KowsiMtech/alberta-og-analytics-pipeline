@@ -901,25 +901,7 @@
 									"referenceName": "PL_MD_Source_Freshness",
 									"type": "PipelineReference"
 								},
-								"waitOnCompletion": true,
-								"parameters": {
-									"EntityName": {
-										"value": "@pipeline().parameters.EntityName",
-										"type": "Expression"
-									},
-									"BatchId": {
-										"value": "@pipeline().parameters.BatchId",
-										"type": "Expression"
-									},
-									"ParentRunId": {
-										"value": "@pipeline().RunId",
-										"type": "Expression"
-									},
-									"WindowKey": {
-										"value": "@variables('v_WindowKey')",
-										"type": "Expression"
-									}
-								}
+								"waitOnCompletion": true
 							}
 						},
 						{
