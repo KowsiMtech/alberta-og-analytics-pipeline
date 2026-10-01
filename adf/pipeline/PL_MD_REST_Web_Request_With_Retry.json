@@ -110,7 +110,7 @@
 							"userProperties": [],
 							"typeProperties": {
 								"variableName": "v_Done",
-								"value": true
+								"value": "true"
 							}
 						},
 						{
@@ -188,7 +188,7 @@
 								"source": {
 									"type": "AzureSqlSource",
 									"sqlReaderQuery": {
-										"value": "@concat('EXEC control.usp_GetRetryDecision @PolicyName=''',activity('Lookup_Config').output.firstRow.RetryPolicyName,''', @ErrorCode=''',replace(variables('v_ErrorCode'),'''',''''''),''', @ErrorMessage=N''',replace(variables('v_ErrorMessage'),'''',''''''),''', @RetryAttempt=',string(variables('v_Attempt')))",
+										"value": "@concat('EXEC control.usp_GetRetryDecision @PolicyName=''',activity('Lookup_Config').output.firstRow.RetryPolicyName,''', @ErrorCode=''',replace(variables('v_ErrorCode'),'''',''''''),''', @ErrorMessage=N''',replace(variables('v_ErrorMessage'),'''',''''''),''', @RetryAttempt=',string(int(variables('v_Attempt'))))",
 										"type": "Expression"
 									},
 									"partitionOption": "None"
@@ -243,7 +243,7 @@
 							"typeProperties": {
 								"variableName": "v_WaitSeconds",
 								"value": {
-									"value": "@int(activity('Retry_Decision').output.firstRow.ComputedWaitSeconds)",
+									"value": "@string(int(activity('Retry_Decision').output.firstRow.ComputedWaitSeconds))",
 									"type": "Expression"
 								}
 							}
@@ -311,7 +311,7 @@
 									},
 									"RetryAttempt": {
 										"value": {
-											"value": "@variables('v_Attempt')",
+											"value": "@int(variables('v_Attempt'))",
 											"type": "Expression"
 										},
 										"type": "Int"
@@ -346,7 +346,7 @@
 									},
 									"WaitSeconds": {
 										"value": {
-											"value": "@variables('v_WaitSeconds')",
+											"value": "@int(variables('v_WaitSeconds'))",
 											"type": "Expression"
 										},
 										"type": "Int"
@@ -377,7 +377,7 @@
 							"typeProperties": {
 								"variableName": "v_CurrentAttemptSnapshot",
 								"value": {
-									"value": "@variables('v_Attempt')",
+									"value": "@string(int(variables('v_Attempt')))",
 									"type": "Expression"
 								}
 							}
@@ -401,7 +401,7 @@
 							"typeProperties": {
 								"variableName": "v_NextAttempt",
 								"value": {
-									"value": "@add(variables('v_Attempt'),1)",
+									"value": "@string(add(int(variables('v_Attempt')),1))",
 									"type": "Expression"
 								}
 							}
@@ -425,7 +425,7 @@
 							"typeProperties": {
 								"variableName": "v_Attempt",
 								"value": {
-									"value": "@if(equals(variables('v_Decision'),'RETRY'),variables('v_NextAttempt'),variables('v_CurrentAttemptSnapshot'))",
+									"value": "@string(if(equals(variables('v_Decision'),'RETRY'),int(variables('v_NextAttempt')),int(variables('v_CurrentAttemptSnapshot'))))",
 									"type": "Expression"
 								}
 							}
@@ -444,7 +444,7 @@
 							"userProperties": [],
 							"typeProperties": {
 								"waitTimeInSeconds": {
-									"value": "@if(equals(variables('v_Decision'),'RETRY'),variables('v_WaitSeconds'),0)",
+									"value": "@if(equals(variables('v_Decision'),'RETRY'),int(variables('v_WaitSeconds')),0)",
 									"type": "Expression"
 								}
 							}
@@ -567,12 +567,12 @@
 		},
 		"variables": {
 			"v_Done": {
-				"type": "Boolean",
-				"defaultValue": false
+				"type": "Bool",
+				"defaultValue": "false"
 			},
 			"v_Attempt": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_ErrorCode": {
 				"type": "String"
@@ -584,20 +584,20 @@
 				"type": "String"
 			},
 			"v_WaitSeconds": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_Response": {
 				"type": "String",
 				"defaultValue": "{}"
 			},
 			"v_NextAttempt": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_CurrentAttemptSnapshot": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			}
 		},
 		"folder": {

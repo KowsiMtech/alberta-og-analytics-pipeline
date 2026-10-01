@@ -130,7 +130,7 @@
 							"userProperties": [],
 							"typeProperties": {
 								"variableName": "v_Done",
-								"value": true
+								"value": "true"
 							}
 						},
 						{
@@ -285,7 +285,7 @@
 								"source": {
 									"type": "AzureSqlSource",
 									"sqlReaderQuery": {
-										"value": "@concat('EXEC control.usp_GetRecoveryRetryDecision @EntityName=''',pipeline().parameters.EntityName,''', @StageAttempt=',string(variables('v_StageAttempt')),', @IncrementalAttempt=',string(variables('v_IncrementalAttempt')),', @BatchAttempt=',string(variables('v_BatchAttempt')),', @FailedStage=''',replace(variables('v_FailedStage'),'''',''''''),''', @ErrorCode=''',replace(variables('v_ErrorCode'),'''',''''''),''', @ErrorMessage=N''',replace(variables('v_ErrorMessage'),'''',''''''),'''')",
+										"value": "@concat('EXEC control.usp_GetRecoveryRetryDecision @EntityName=''',pipeline().parameters.EntityName,''', @StageAttempt=',string(int(variables('v_StageAttempt'))),', @IncrementalAttempt=',string(int(variables('v_IncrementalAttempt'))),', @BatchAttempt=',string(int(variables('v_BatchAttempt'))),', @FailedStage=''',replace(variables('v_FailedStage'),'''',''''''),''', @ErrorCode=''',replace(variables('v_ErrorCode'),'''',''''''),''', @ErrorMessage=N''',replace(variables('v_ErrorMessage'),'''',''''''),'''')",
 										"type": "Expression"
 									},
 									"partitionOption": "None"
@@ -340,7 +340,7 @@
 							"typeProperties": {
 								"variableName": "v_WaitSeconds",
 								"value": {
-									"value": "@int(activity('Get_Hierarchical_Retry_Decision').output.firstRow.ComputedWaitSeconds)",
+									"value": "@string(int(activity('Get_Hierarchical_Retry_Decision').output.firstRow.ComputedWaitSeconds))",
 									"type": "Expression"
 								}
 							}
@@ -364,7 +364,7 @@
 							"typeProperties": {
 								"variableName": "v_StageAttempt",
 								"value": {
-									"value": "@int(activity('Get_Hierarchical_Retry_Decision').output.firstRow.NextStageAttempt)",
+									"value": "@string(int(activity('Get_Hierarchical_Retry_Decision').output.firstRow.NextStageAttempt))",
 									"type": "Expression"
 								}
 							}
@@ -388,7 +388,7 @@
 							"typeProperties": {
 								"variableName": "v_IncrementalAttempt",
 								"value": {
-									"value": "@int(activity('Get_Hierarchical_Retry_Decision').output.firstRow.NextIncrementalAttempt)",
+									"value": "@string(int(activity('Get_Hierarchical_Retry_Decision').output.firstRow.NextIncrementalAttempt))",
 									"type": "Expression"
 								}
 							}
@@ -412,7 +412,7 @@
 							"typeProperties": {
 								"variableName": "v_BatchAttempt",
 								"value": {
-									"value": "@int(activity('Get_Hierarchical_Retry_Decision').output.firstRow.NextBatchAttempt)",
+									"value": "@string(int(activity('Get_Hierarchical_Retry_Decision').output.firstRow.NextBatchAttempt))",
 									"type": "Expression"
 								}
 							}
@@ -523,7 +523,7 @@
 									},
 									"WaitSeconds": {
 										"value": {
-											"value": "@variables('v_WaitSeconds')",
+											"value": "@int(variables('v_WaitSeconds'))",
 											"type": "Expression"
 										},
 										"type": "Int"
@@ -577,7 +577,7 @@
 							"userProperties": [],
 							"typeProperties": {
 								"waitTimeInSeconds": {
-									"value": "@variables('v_WaitSeconds')",
+									"value": "@int(variables('v_WaitSeconds'))",
 									"type": "Expression"
 								}
 							}
@@ -716,20 +716,20 @@
 		},
 		"variables": {
 			"v_Done": {
-				"type": "Boolean",
-				"defaultValue": false
+				"type": "Bool",
+				"defaultValue": "false"
 			},
 			"v_StageAttempt": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_IncrementalAttempt": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_BatchAttempt": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_CurrentRecoveryMode": {
 				"type": "String",
@@ -755,8 +755,8 @@
 				"type": "String"
 			},
 			"v_WaitSeconds": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			}
 		},
 		"folder": {
