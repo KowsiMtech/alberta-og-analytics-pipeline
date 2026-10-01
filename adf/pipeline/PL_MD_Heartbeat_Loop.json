@@ -151,6 +151,9 @@
 				"defaultValue": "false"
 			}
 		},
+		"folder": {
+			"name": "Metadata_Driven"
+		},
 		"annotations": [
 			"ENTITY_DRIVEN",
 			"PERIODIC_LEASE_HEARTBEAT",

@@ -1580,6 +1580,9 @@
 				"defaultValue": "DISABLED"
 			}
 		},
+		"folder": {
+			"name": "Metadata_Driven"
+		},
 		"annotations": [
 			"HYBRID_ORCHESTRATION",
 			"SOURCE_FRESHNESS"

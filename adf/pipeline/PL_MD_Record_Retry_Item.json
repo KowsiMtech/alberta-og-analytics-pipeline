@@ -15,7 +15,7 @@
 				"typeProperties": {
 					"variableName": "v_Attempt",
 					"value": {
-						"value": "@pipeline().parameters.InitialAttempt",
+						"value": "@string(pipeline().parameters.InitialAttempt)",
 						"type": "Expression"
 					}
 				}
@@ -76,7 +76,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "@concat('EXEC control.usp_GetRecordRetryAction @EntityName=''',pipeline().parameters.EntityName,''', @AttemptNo=',string(variables('v_Attempt')),', @Result=''',activity('Execute_Record_Handler').output.firstRow.Result,''', @ErrorCode=''',replace(coalesce(activity('Execute_Record_Handler').output.firstRow.ErrorCode,''),'''',''''''),''', @ErrorMessage=N''',replace(coalesce(activity('Execute_Record_Handler').output.firstRow.ErrorMessage,''),'''',''''''),'''')",
+							"value": "@concat('EXEC control.usp_GetRecordRetryAction @EntityName=''',pipeline().parameters.EntityName,''', @AttemptNo=',string(int(variables('v_Attempt'))),', @Result=''',activity('Execute_Record_Handler').output.firstRow.Result,''', @ErrorCode=''',replace(coalesce(activity('Execute_Record_Handler').output.firstRow.ErrorCode,''),'''',''''''),''', @ErrorMessage=N''',replace(coalesce(activity('Execute_Record_Handler').output.firstRow.ErrorMessage,''),'''',''''''),'''')",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
@@ -372,12 +372,12 @@
 		},
 		"variables": {
 			"v_Done": {
-				"type": "Boolean",
-				"defaultValue": false
+				"type": "String",
+				"defaultValue": "false"
 			},
 			"v_Attempt": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			},
 			"v_Result": {
 				"type": "String"
@@ -392,8 +392,8 @@
 				"type": "String"
 			},
 			"v_Wait": {
-				"type": "Integer",
-				"defaultValue": 0
+				"type": "String",
+				"defaultValue": "0"
 			}
 		},
 		"folder": {
