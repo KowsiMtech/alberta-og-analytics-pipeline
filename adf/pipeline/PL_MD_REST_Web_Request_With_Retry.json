@@ -600,9 +600,6 @@
 				"defaultValue": "0"
 			}
 		},
-		"folder": {
-			"name": "Metadata_Driven"
-		},
 		"annotations": [
 			"REST_ADAPTER",
 			"EXPONENTIAL_BACKOFF",
