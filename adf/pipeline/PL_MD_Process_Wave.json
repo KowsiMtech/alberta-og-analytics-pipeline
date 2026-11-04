@@ -17,7 +17,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "@concat('EXEC control.usp_GetEntitiesForWave @WaveNo=',pipeline().parameters.WaveNo)",
+							"value": "@concat('EXEC control.usp_GetEntitiesForWave @ExecutionWave=',pipeline().parameters.WaveNo)",
 							"type": "Expression"
 						},
 						"partitionOption": "None"
