@@ -234,7 +234,7 @@
 							"typeProperties": {
 								"variableName": "v_FailedStage",
 								"value": {
-									"value": "@coalesce(activity('Lookup_Latest_Failed_Stage').output.firstRow.StageName,'UNKNOWN')",
+									"value": "@coalesce(activity('Lookup_Latest_Failed_Stage').output?.firstRow?.StageName,'UNKNOWN')",
 									"type": "Expression"
 								}
 							}
@@ -258,7 +258,7 @@
 							"typeProperties": {
 								"variableName": "v_WindowKey",
 								"value": {
-									"value": "@coalesce(activity('Lookup_Latest_Failed_Stage').output.firstRow.WindowKey,'')",
+									"value": "@coalesce(activity('Lookup_Latest_Failed_Stage').output?.firstRow?.WindowKey,'')",
 									"type": "Expression"
 								}
 							}
