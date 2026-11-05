@@ -17,7 +17,7 @@
 					"source": {
 						"type": "AzureSqlSource",
 						"sqlReaderQuery": {
-							"value": "@concat('EXEC control.usp_GetEntitiesForWave @ExecutionWave=', string(pipeline().parameters.WaveNo))",
+							"value": "@concat('SELECT * FROM control.EntityConfig WHERE IsActive = 1 AND ExecutionWave = ', string(int(pipeline().parameters.WaveNo)), ' ORDER BY Priority, EntityName')",
 							"type": "Expression"
 						},
 						"partitionOption": "None"

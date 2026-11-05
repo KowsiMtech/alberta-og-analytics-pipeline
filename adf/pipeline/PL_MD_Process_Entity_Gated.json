@@ -43,7 +43,7 @@
 				"userProperties": [],
 				"typeProperties": {
 					"expression": {
-						"value": "@equals(activity('Check_Dependency_Ready').output.firstRow.IsReady,1)",
+						"value": "@equals(activity('Check_Dependency_Ready').output.firstRow.DependencyStatus,'READY')",
 						"type": "Expression"
 					},
 					"ifFalseActivities": [

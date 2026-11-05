@@ -281,7 +281,7 @@
 								"waitOnCompletion": true,
 								"parameters": {
 									"WaveNo": {
-										"value": "@string(item())",
+										"value": "@string(item().ExecutionWave)",
 										"type": "Expression"
 									},
 									"BatchId": {
